@@ -39,3 +39,4 @@ releasenotes/notes/reno.cache
 
 # sample config included in docs
 doc/source/_static/heat.conf.sample
+.idea
