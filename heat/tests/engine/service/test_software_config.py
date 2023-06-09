@@ -12,17 +12,18 @@
 #    under the License.
 
 import datetime
-from unittest import mock
 import uuid
 
+import mock
 from oslo_messaging.rpc import dispatcher
 from oslo_serialization import jsonutils as json
 from oslo_utils import timeutils
+import six
 
 from heat.common import crypt
 from heat.common import exception
 from heat.common import template_format
-from heat.db import api as db_api
+from heat.db.sqlalchemy import api as db_api
 from heat.engine.clients.os import swift
 from heat.engine.clients.os import zaqar
 from heat.engine import service
@@ -169,20 +170,6 @@ class SoftwareConfigServiceTest(common.HeatTestCase):
                          config['outputs'])
         self.assertEqual(kwargs['options'], config['options'])
 
-    def test_create_software_config_structured(self):
-        kwargs = {
-            'group': 'json-file',
-            'name': 'config_heat',
-            'config': {'foo': 'bar'},
-            'inputs': [{'name': 'mode'}],
-            'outputs': [{'name': 'endpoint'}],
-            'options': {}
-        }
-        config = self._create_software_config(**kwargs)
-        config_id = config['id']
-        config = self.engine.show_software_config(self.ctx, config_id)
-        self.assertEqual(kwargs['config'], config['config'])
-
     def test_delete_software_config(self):
         config = self._create_software_config()
         self.assertIsNotNone(config)
@@ -201,7 +188,7 @@ class SoftwareConfigServiceTest(common.HeatTestCase):
         try:
             stack.validate()
         except exception.StackValidationFailed as exc:
-            self.fail("Validation should have passed: %s" % str(exc))
+            self.fail("Validation should have passed: %s" % six.text_type(exc))
 
     def _create_software_deployment(self, config_id=None, input_values=None,
                                     action='INIT',
@@ -599,7 +586,7 @@ class SoftwareConfigServiceTest(common.HeatTestCase):
             values.update(kwargs)
             updated = self.engine.update_software_deployment(
                 self.ctx, deployment_id, updated_at=None, **values)
-            for key, value in kwargs.items():
+            for key, value in six.iteritems(kwargs):
                 self.assertEqual(value, updated[key])
 
         check_software_deployment_updated(config_id=config_id)
@@ -821,7 +808,7 @@ class SoftwareConfigServiceTest(common.HeatTestCase):
         deployment = self._create_software_deployment(
             status='IN_PROGRESS', config_id=config['id'])
 
-        deployment_id = str(deployment['id'])
+        deployment_id = six.text_type(deployment['id'])
         sd = software_deployment_object.SoftwareDeployment.get_by_id(
             self.ctx, deployment_id)
 

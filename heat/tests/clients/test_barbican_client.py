@@ -12,9 +12,9 @@
 #    under the License.
 
 import collections
-from unittest import mock
 
 from barbicanclient import exceptions
+import mock
 
 from heat.common import exception
 from heat.engine.clients.os import barbican
@@ -32,8 +32,6 @@ class BarbicanClientPluginTest(common.HeatTestCase):
         self.barbican_plugin = c.client_plugin('barbican')
         self.barbican_plugin.client = lambda: self.barbican_client
 
-    @mock.patch('keystoneauth1.discover.get_version_data',
-                mock.MagicMock(return_value=[{'status': "STABLE"}]))
     def test_create(self):
         context = utils.dummy_context()
         plugin = context.clients.client_plugin('barbican')

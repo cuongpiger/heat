@@ -11,7 +11,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
 
 from heat.engine.resources.openstack.neutron.taas import tap_service
 from heat.engine import stack
@@ -27,7 +27,7 @@ sample_template = {
             'properties': {
                 'name': 'test_tap_service',
                 'description': 'desc',
-                'port': '6af055d3-26f6-48dd-a597-7611d7e58d35',
+                'port':  '6af055d3-26f6-48dd-a597-7611d7e58d35',
             }
         }
     }
@@ -149,4 +149,4 @@ class TapServiceTest(common.HeatTestCase):
                 'name': 'name-updated',
                 'description': 'description-updated',
                 'port': '6af055d3-26f6-48dd-a597-7611d7e58d35',
-            }, self.test_resource.resource_id)
+            },  self.test_resource.resource_id)

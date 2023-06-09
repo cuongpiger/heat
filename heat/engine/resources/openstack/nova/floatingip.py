@@ -12,6 +12,7 @@
 #    under the License.
 
 from oslo_log import log as logging
+import six
 
 from heat.common import exception
 from heat.common.i18n import _
@@ -47,6 +48,8 @@ class NovaFloatingIp(resource.Resource):
             previous_status=support.SupportStatus(version='2014.1')
         )
     )
+
+    required_service_extension = 'os-floating-ips'
 
     PROPERTIES = (POOL,) = ('pool',)
 
@@ -122,7 +125,7 @@ class NovaFloatingIp(resource.Resource):
             self.POOL_ATTR: floating_ip['floatingip']['floating_network_id'],
             self.IP: floating_ip['floatingip']['floating_ip_address']
         }
-        return str(attributes[key])
+        return six.text_type(attributes[key])
 
 
 class NovaFloatingIpAssociation(resource.Resource):

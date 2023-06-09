@@ -19,9 +19,9 @@
 
 from oslo_config import cfg
 from oslo_log import log as logging
-from oslo_policy import opts
 from oslo_policy import policy
 from oslo_utils import excutils
+import six
 
 from heat.common import exception
 from heat.common.i18n import _
@@ -33,12 +33,6 @@ LOG = logging.getLogger(__name__)
 
 DEFAULT_RULES = policy.Rules.from_dict({'default': '!'})
 DEFAULT_RESOURCE_RULES = policy.Rules.from_dict({'default': '@'})
-
-# TODO(gmann): Remove setting the default value of config policy_file
-# once oslo_policy change the default value to 'policy.yaml'.
-# https://github.com/openstack/oslo.policy/blob/a626ad12fe5a3abd49d70e3e5b95589d279ab578/oslo_policy/opts.py#L49
-DEFAULT_POLICY_FILE = 'policy.yaml'
-opts.set_defaults(CONF, DEFAULT_POLICY_FILE)
 
 ENFORCER = None
 
@@ -54,9 +48,6 @@ class Enforcer(object):
         self.enforcer = policy.Enforcer(
             CONF, default_rule=default_rule, policy_file=policy_file)
         self.log_not_registered = True
-
-        # TODO(ramishra) Remove this once remove the deprecated rules.
-        self.enforcer.suppress_deprecation_warnings = True
 
         # register rules
         self.enforcer.register_defaults(policies.list_rules())
@@ -156,11 +147,11 @@ class ResourceEnforcer(Enforcer):
             result = super(ResourceEnforcer, self).enforce(
                 context, res_type,
                 scope=scope or 'resource_types',
-                target=target, is_registered_policy=is_registered_policy)
+                target=target,  is_registered_policy=is_registered_policy)
         except policy.PolicyNotRegistered:
             result = True
         except self.exc as ex:
-            LOG.info(str(ex))
+            LOG.info(six.text_type(ex))
             raise
         if not result:
             if self.exc:
@@ -188,6 +179,6 @@ class ResourceEnforcer(Enforcer):
 
     def enforce_stack(self, stack, scope=None, target=None,
                       is_registered_policy=False):
-        for res_type in stack.defn.all_resource_types():
-            self.enforce(stack.context, res_type, scope=scope, target=target,
+        for res in stack.resources.values():
+            self.enforce(stack.context, res.type(), scope=scope, target=target,
                          is_registered_policy=is_registered_policy)

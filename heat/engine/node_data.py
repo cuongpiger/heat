@@ -11,6 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import six
+
 
 class NodeData(object):
     """Data about a node in the graph, to be passed along to other nodes."""
@@ -51,8 +53,8 @@ class NodeData(object):
         """Return a dict of all available top-level attribute values."""
         attrs = {k: v
                  for k, v in self._attributes.items()
-                 if isinstance(k, str)}
-        for v in attrs.values():
+                 if isinstance(k, six.string_types)}
+        for v in six.itervalues(attrs):
             if isinstance(v, Exception):
                 raise v
         return attrs
@@ -67,7 +69,7 @@ class NodeData(object):
     def attribute_names(self):
         """Iterate over valid top-level attribute names."""
         for key in self._attributes:
-            if isinstance(key, str):
+            if isinstance(key, six.string_types):
                 yield key
             else:
                 yield key[0]
@@ -78,7 +80,7 @@ class NodeData(object):
         This is the format that is serialised and stored in the database's
         SyncPoints.
         """
-        for v in self._attributes.values():
+        for v in six.itervalues(self._attributes):
             if isinstance(v, Exception):
                 raise v
 

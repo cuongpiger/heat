@@ -12,6 +12,7 @@
 #    under the License.
 
 from oslo_log import log as logging
+import six
 
 from heat.common import exception
 from heat.common.i18n import _
@@ -137,13 +138,13 @@ class ElasticIp(resource.Resource):
     def get_reference_id(self):
         eip = self._ipaddress()
         if eip:
-            return str(eip)
+            return six.text_type(eip)
         else:
-            return str(self.name)
+            return six.text_type(self.name)
 
     def _resolve_attribute(self, name):
         if name == self.ALLOCATION_ID:
-            return str(self.resource_id)
+            return six.text_type(self.resource_id)
 
 
 class ElasticIpAssociation(resource.Resource):

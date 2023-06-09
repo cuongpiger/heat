@@ -16,11 +16,14 @@ import collections
 import itertools
 import weakref
 
+import six
+
 from heat.common import exception
 from heat.common.i18n import _
 
 
-class Function(metaclass=abc.ABCMeta):
+@six.add_metaclass(abc.ABCMeta)
+class Function(object):
     """Abstract base class for template functions."""
 
     def __init__(self, stack, fn_name, args):
@@ -95,13 +98,13 @@ class Function(metaclass=abc.ABCMeta):
             return all_dep_attrs(self.args)
 
         def res_dep_attrs(resource_name):
-            return zip(itertools.repeat(resource_name),
-                       self.dep_attrs(resource_name))
+            return six.moves.zip(itertools.repeat(resource_name),
+                                 self.dep_attrs(resource_name))
 
         resource_names = self.stack.enabled_rsrc_names()
 
-        return itertools.chain.from_iterable(map(res_dep_attrs,
-                                                 resource_names))
+        return itertools.chain.from_iterable(six.moves.map(res_dep_attrs,
+                                                           resource_names))
 
     def __reduce__(self):
         """Return a representation of the function suitable for pickling.
@@ -157,7 +160,8 @@ class Function(metaclass=abc.ABCMeta):
     __hash__ = None
 
 
-class Macro(Function, metaclass=abc.ABCMeta):
+@six.add_metaclass(abc.ABCMeta)
+class Macro(Function):
     """Abstract base class for template macros.
 
     A macro differs from a function in that it controls how the template is
@@ -195,7 +199,7 @@ class Macro(Function, metaclass=abc.ABCMeta):
 
     def result(self):
         """Return the resolved result of the macro contents."""
-        return resolve(self.parsed, nullable=True)
+        return resolve(self.parsed)
 
     def dependencies(self, path):
         return dependencies(self.parsed, '.'.join([path, self.fn_name]))
@@ -250,30 +254,15 @@ class Macro(Function, metaclass=abc.ABCMeta):
         return repr(self.parsed)
 
 
-def _non_null_item(i):
-    k, v = i
-    return v is not Ellipsis
-
-
-def _non_null_value(v):
-    return v is not Ellipsis
-
-
-def resolve(snippet, nullable=False):
+def resolve(snippet):
     if isinstance(snippet, Function):
-        result = snippet.result()
-        if not (nullable or _non_null_value(result)):
-            result = None
-        return result
+        return snippet.result()
 
-    if isinstance(snippet, collections.abc.Mapping):
-        return dict(filter(_non_null_item,
-                           ((k, resolve(v, nullable=True))
-                            for k, v in snippet.items())))
-    elif (not isinstance(snippet, str) and
-          isinstance(snippet, collections.abc.Iterable)):
-        return list(filter(_non_null_value,
-                           (resolve(v, nullable=True) for v in snippet)))
+    if isinstance(snippet, collections.Mapping):
+        return dict((k, resolve(v)) for k, v in snippet.items())
+    elif (not isinstance(snippet, six.string_types) and
+          isinstance(snippet, collections.Iterable)):
+        return [resolve(v) for v in snippet]
 
     return snippet
 
@@ -281,7 +270,7 @@ def resolve(snippet, nullable=False):
 def validate(snippet, path=None):
     if path is None:
         path = []
-    elif isinstance(path, str):
+    elif isinstance(path, six.string_types):
         path = [path]
 
     if isinstance(snippet, Function):
@@ -292,12 +281,12 @@ def validate(snippet, path=None):
         except Exception as e:
             raise exception.StackValidationFailed(
                 path=path + [snippet.fn_name],
-                message=str(e))
-    elif isinstance(snippet, collections.abc.Mapping):
-        for k, v in snippet.items():
+                message=six.text_type(e))
+    elif isinstance(snippet, collections.Mapping):
+        for k, v in six.iteritems(snippet):
             validate(v, path + [k])
-    elif (not isinstance(snippet, str) and
-          isinstance(snippet, collections.abc.Iterable)):
+    elif (not isinstance(snippet, six.string_types) and
+          isinstance(snippet, collections.Iterable)):
         basepath = list(path)
         parent = basepath.pop() if basepath else ''
         for i, v in enumerate(snippet):
@@ -314,16 +303,16 @@ def dependencies(snippet, path=''):
     if isinstance(snippet, Function):
         return snippet.dependencies(path)
 
-    elif isinstance(snippet, collections.abc.Mapping):
+    elif isinstance(snippet, collections.Mapping):
         def mkpath(key):
-            return '.'.join([path, str(key)])
+            return '.'.join([path, six.text_type(key)])
 
         deps = (dependencies(value,
                              mkpath(key)) for key, value in snippet.items())
         return itertools.chain.from_iterable(deps)
 
-    elif (not isinstance(snippet, str) and
-          isinstance(snippet, collections.abc.Iterable)):
+    elif (not isinstance(snippet, six.string_types) and
+          isinstance(snippet, collections.Iterable)):
         def mkpath(idx):
             return ''.join([path, '[%d]' % idx])
 
@@ -348,11 +337,11 @@ def dep_attrs(snippet, resource_name):
     if isinstance(snippet, Function):
         return snippet.dep_attrs(resource_name)
 
-    elif isinstance(snippet, collections.abc.Mapping):
+    elif isinstance(snippet, collections.Mapping):
         attrs = (dep_attrs(val, resource_name) for val in snippet.values())
         return itertools.chain.from_iterable(attrs)
-    elif (not isinstance(snippet, str) and
-          isinstance(snippet, collections.abc.Iterable)):
+    elif (not isinstance(snippet, six.string_types) and
+          isinstance(snippet, collections.Iterable)):
         attrs = (dep_attrs(value, resource_name) for value in snippet)
         return itertools.chain.from_iterable(attrs)
     return []
@@ -371,11 +360,11 @@ def all_dep_attrs(snippet):
     if isinstance(snippet, Function):
         return snippet.all_dep_attrs()
 
-    elif isinstance(snippet, collections.abc.Mapping):
+    elif isinstance(snippet, collections.Mapping):
         res_attrs = (all_dep_attrs(value) for value in snippet.values())
         return itertools.chain.from_iterable(res_attrs)
-    elif (not isinstance(snippet, str) and
-          isinstance(snippet, collections.abc.Iterable)):
+    elif (not isinstance(snippet, six.string_types) and
+          isinstance(snippet, collections.Iterable)):
         res_attrs = (all_dep_attrs(value) for value in snippet)
         return itertools.chain.from_iterable(res_attrs)
     return []

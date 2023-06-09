@@ -12,7 +12,8 @@
 #    under the License.
 
 import copy
-from unittest import mock
+import mock
+import six
 
 from neutronclient.common import exceptions
 from neutronclient.neutron import v2_0 as neutronV20
@@ -196,7 +197,7 @@ class VPNServiceTest(common.HeatTestCase):
         self.assertEqual(
             'ResourceInError: resources.vpnservice: '
             'Went to status ERROR due to "Error in VPNService"',
-            str(error))
+            six.text_type(error))
         self.assertEqual((rsrc.CREATE, rsrc.FAILED), rsrc.state)
 
         self.mockclient.create_vpnservice.assert_called_once_with(
@@ -220,7 +221,7 @@ class VPNServiceTest(common.HeatTestCase):
         self.assertEqual(
             'NeutronClientException: resources.vpnservice: '
             'An unknown exception occurred.',
-            str(error))
+            six.text_type(error))
         self.assertEqual((rsrc.CREATE, rsrc.FAILED), rsrc.state)
 
         self.mockclient.create_vpnservice.assert_called_once_with(
@@ -277,7 +278,7 @@ class VPNServiceTest(common.HeatTestCase):
         self.assertEqual(
             'NeutronClientException: resources.vpnservice: '
             'An unknown exception occurred.',
-            str(error))
+            six.text_type(error))
         self.assertEqual((rsrc.DELETE, rsrc.FAILED), rsrc.state)
 
         self.mockclient.create_vpnservice.assert_called_once_with(
@@ -318,7 +319,7 @@ class VPNServiceTest(common.HeatTestCase):
         self.assertEqual(
             'The Referenced Attribute (vpnservice non-existent_property) is '
             'incorrect.',
-            str(error))
+            six.text_type(error))
 
         self.mockclient.create_vpnservice.assert_called_once_with(
             self.VPN_SERVICE_CONF)
@@ -425,7 +426,7 @@ class IPsecSiteConnectionTest(common.HeatTestCase):
         self.assertEqual(
             'NeutronClientException: resources.ipsec_site_connection: '
             'An unknown exception occurred.',
-            str(error))
+            six.text_type(error))
         self.assertEqual((rsrc.CREATE, rsrc.FAILED), rsrc.state)
 
         self.mockclient.create_ipsec_site_connection.assert_called_once_with(
@@ -444,7 +445,7 @@ class IPsecSiteConnectionTest(common.HeatTestCase):
         self.assertEqual(
             'ResourceInError: resources.ipsec_site_connection: '
             'Went to status ERROR due to "Error in IPsecSiteConnection"',
-            str(error))
+            six.text_type(error))
         self.assertEqual((rsrc.CREATE, rsrc.FAILED), rsrc.state)
 
         self.mockclient.create_ipsec_site_connection.assert_called_once_with(
@@ -504,7 +505,7 @@ class IPsecSiteConnectionTest(common.HeatTestCase):
         self.assertEqual(
             'NeutronClientException: resources.ipsec_site_connection: '
             'An unknown exception occurred.',
-            str(error))
+            six.text_type(error))
         self.assertEqual((rsrc.DELETE, rsrc.FAILED), rsrc.state)
 
         self.mockclient.create_ipsec_site_connection.assert_called_once_with(
@@ -555,7 +556,7 @@ class IPsecSiteConnectionTest(common.HeatTestCase):
         self.assertEqual(
             'The Referenced Attribute (ipsec_site_connection '
             'non-existent_property) is incorrect.',
-            str(error))
+            six.text_type(error))
 
         self.mockclient.create_ipsec_site_connection.assert_called_once_with(
             self.IPSEC_SITE_CONNECTION_CONF)
@@ -644,7 +645,7 @@ class IKEPolicyTest(common.HeatTestCase):
         self.assertEqual(
             'NeutronClientException: resources.ikepolicy: '
             'An unknown exception occurred.',
-            str(error))
+            six.text_type(error))
         self.assertEqual((rsrc.CREATE, rsrc.FAILED), rsrc.state)
 
         self.mockclient.create_ikepolicy.assert_called_once_with(
@@ -690,7 +691,7 @@ class IKEPolicyTest(common.HeatTestCase):
         self.assertEqual(
             'NeutronClientException: resources.ikepolicy: '
             'An unknown exception occurred.',
-            str(error))
+            six.text_type(error))
         self.assertEqual((rsrc.DELETE, rsrc.FAILED), rsrc.state)
 
         self.mockclient.create_ikepolicy.assert_called_once_with(
@@ -726,7 +727,7 @@ class IKEPolicyTest(common.HeatTestCase):
         self.assertEqual(
             'The Referenced Attribute (ikepolicy non-existent_property) is '
             'incorrect.',
-            str(error))
+            six.text_type(error))
 
         self.mockclient.create_ikepolicy.assert_called_once_with(
             self.IKE_POLICY_CONF)
@@ -736,30 +737,21 @@ class IKEPolicyTest(common.HeatTestCase):
         rsrc = self.create_ikepolicy()
         self.mockclient.update_ikepolicy.return_value = None
 
-        new_props = {
-            'name': 'New IKEPolicy',
-            'auth_algorithm': 'sha512',
-            'description': 'New description',
-            'encryption_algorithm': 'aes-256',
-            'lifetime': {
-                'units': 'seconds',
-                'value': 1800
-            },
-            'pfs': 'group2',
-            'ike_version': 'v2'
-        }
-        update_body = {
-            'ikepolicy': new_props
-        }
         scheduler.TaskRunner(rsrc.create)()
         props = dict(rsrc.properties)
-        props.update(new_props)
-
+        props['name'] = 'New IKEPolicy'
+        props['auth_algorithm'] = 'sha512'
         update_template = rsrc.t.freeze(properties=props)
         scheduler.TaskRunner(rsrc.update, update_template)()
 
         self.mockclient.create_ikepolicy.assert_called_once_with(
             self.IKE_POLICY_CONF)
+        update_body = {
+            'ikepolicy': {
+                'name': 'New IKEPolicy',
+                'auth_algorithm': 'sha512'
+            }
+        }
         self.mockclient.update_ikepolicy.assert_called_once_with(
             'ike123', update_body)
 
@@ -826,7 +818,7 @@ class IPsecPolicyTest(common.HeatTestCase):
         self.assertEqual(
             'NeutronClientException: resources.ipsecpolicy: '
             'An unknown exception occurred.',
-            str(error))
+            six.text_type(error))
         self.assertEqual((rsrc.CREATE, rsrc.FAILED), rsrc.state)
 
         self.mockclient.create_ipsecpolicy.assert_called_once_with(
@@ -872,7 +864,7 @@ class IPsecPolicyTest(common.HeatTestCase):
         self.assertEqual(
             'NeutronClientException: resources.ipsecpolicy: '
             'An unknown exception occurred.',
-            str(error))
+            six.text_type(error))
         self.assertEqual((rsrc.DELETE, rsrc.FAILED), rsrc.state)
 
         self.mockclient.create_ipsecpolicy.assert_called_once_with(
@@ -908,7 +900,7 @@ class IPsecPolicyTest(common.HeatTestCase):
         self.assertEqual(
             'The Referenced Attribute (ipsecpolicy non-existent_property) is '
             'incorrect.',
-            str(error))
+            six.text_type(error))
 
         self.mockclient.create_ipsecpolicy.assert_called_once_with(
             self.IPSEC_POLICY_CONF)

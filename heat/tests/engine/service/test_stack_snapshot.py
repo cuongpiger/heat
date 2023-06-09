@@ -10,10 +10,11 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from unittest import mock
 import uuid
 
+import mock
 from oslo_messaging.rpc import dispatcher
+import six
 
 from heat.common import exception
 from heat.common import template_format
@@ -33,7 +34,7 @@ class SnapshotServiceTest(common.HeatTestCase):
         self.ctx = utils.dummy_context()
 
         self.engine = service.EngineService('a-host', 'a-topic')
-        self.engine.thread_group_mgr = tools.DummyThreadGroupManager()
+        self.engine.thread_group_mgr = service.ThreadGroupManager()
 
     def _create_stack(self, stack_name, files=None):
         t = template_format.parse(tools.wp_template)
@@ -51,13 +52,14 @@ class SnapshotServiceTest(common.HeatTestCase):
                                snapshot_id)
         expected = 'Snapshot with id %s not found' % snapshot_id
         self.assertEqual(exception.NotFound, ex.exc_info[0])
-        self.assertIn(expected, str(ex.exc_info[1]))
+        self.assertIn(expected, six.text_type(ex.exc_info[1]))
 
     def test_show_snapshot_not_belong_to_stack(self):
         stk1 = self._create_stack('stack_snaphot_not_belong_to_stack_1')
         stk1._persist_state()
         snapshot1 = self.engine.stack_snapshot(
             self.ctx, stk1.identifier(), 'snap1')
+        self.engine.thread_group_mgr.groups[stk1.id].wait()
         snapshot_id = snapshot1['id']
 
         stk2 = self._create_stack('stack_snaphot_not_belong_to_stack_2')
@@ -70,7 +72,7 @@ class SnapshotServiceTest(common.HeatTestCase):
                     'could not be found') % {'snapshot': snapshot_id,
                                              'stack': stk2.name}
         self.assertEqual(exception.SnapshotNotFound, ex.exc_info[0])
-        self.assertIn(expected, str(ex.exc_info[1]))
+        self.assertIn(expected, six.text_type(ex.exc_info[1]))
 
     @mock.patch.object(stack.Stack, 'load')
     def test_create_snapshot(self, mock_load):
@@ -84,6 +86,7 @@ class SnapshotServiceTest(common.HeatTestCase):
         self.assertIsNotNone(snapshot['creation_time'])
         self.assertEqual('snap1', snapshot['name'])
         self.assertEqual("IN_PROGRESS", snapshot['status'])
+        self.engine.thread_group_mgr.groups[stk.id].wait()
         snapshot = self.engine.show_snapshot(
             self.ctx, stk.identifier(), snapshot['id'])
         self.assertEqual("COMPLETE", snapshot['status'])
@@ -108,7 +111,7 @@ class SnapshotServiceTest(common.HeatTestCase):
         self.assertEqual(exception.ActionInProgress, ex.exc_info[0])
         msg = ("Stack %(stack)s already has an action (%(action)s) "
                "in progress.") % {'stack': stack_name, 'action': stk.action}
-        self.assertEqual(msg, str(ex.exc_info[1]))
+        self.assertEqual(msg, six.text_type(ex.exc_info[1]))
 
         mock_load.assert_called_once_with(self.ctx, stack=mock.ANY)
 
@@ -132,6 +135,7 @@ class SnapshotServiceTest(common.HeatTestCase):
 
         snapshot1 = self.engine.stack_snapshot(
             self.ctx, stk1.identifier(), 'snap1')
+        self.engine.thread_group_mgr.groups[stk1.id].wait()
         snapshot_id = snapshot1['id']
 
         mock_load.assert_called_once_with(self.ctx, stack=mock.ANY)
@@ -149,7 +153,7 @@ class SnapshotServiceTest(common.HeatTestCase):
                     'could not be found') % {'snapshot': snapshot_id,
                                              'stack': stk2.name}
         self.assertEqual(exception.SnapshotNotFound, ex.exc_info[0])
-        self.assertIn(expected, str(ex.exc_info[1]))
+        self.assertIn(expected, six.text_type(ex.exc_info[1]))
 
         mock_load.assert_called_once_with(self.ctx, stack=mock.ANY)
         mock_load.reset_mock()
@@ -168,7 +172,7 @@ class SnapshotServiceTest(common.HeatTestCase):
                                self.engine.delete_snapshot,
                                self.ctx, stk.identifier(), snapshot.id)
         msg = 'Deleting in-progress snapshot is not supported'
-        self.assertIn(msg, str(ex.exc_info[1]))
+        self.assertIn(msg, six.text_type(ex.exc_info[1]))
         self.assertEqual(exception.NotSupported, ex.exc_info[0])
 
     @mock.patch.object(stack.Stack, 'load')
@@ -178,8 +182,10 @@ class SnapshotServiceTest(common.HeatTestCase):
 
         snapshot = self.engine.stack_snapshot(
             self.ctx, stk.identifier(), 'snap1')
+        self.engine.thread_group_mgr.groups[stk.id].wait()
         snapshot_id = snapshot['id']
         self.engine.delete_snapshot(self.ctx, stk.identifier(), snapshot_id)
+        self.engine.thread_group_mgr.groups[stk.id].wait()
 
         ex = self.assertRaises(dispatcher.ExpectedException,
                                self.engine.show_snapshot, self.ctx,
@@ -197,6 +203,7 @@ class SnapshotServiceTest(common.HeatTestCase):
             self.ctx, stk.identifier(), 'snap1')
         self.assertIsNotNone(snapshot['id'])
         self.assertEqual("IN_PROGRESS", snapshot['status'])
+        self.engine.thread_group_mgr.groups[stk.id].wait()
 
         snapshots = self.engine.stack_list_snapshots(
             self.ctx, stk.identifier())
@@ -218,8 +225,10 @@ class SnapshotServiceTest(common.HeatTestCase):
 
         snapshot = self.engine.stack_snapshot(
             self.ctx, stk.identifier(), 'snap1')
+        self.engine.thread_group_mgr.groups[stk.id].wait()
         snapshot_id = snapshot['id']
         self.engine.stack_restore(self.ctx, stk.identifier(), snapshot_id)
+        self.engine.thread_group_mgr.groups[stk.id].wait()
         self.assertEqual((stk.RESTORE, stk.COMPLETE), stk.state)
         self.assertEqual(2, mock_load.call_count)
 
@@ -230,12 +239,13 @@ class SnapshotServiceTest(common.HeatTestCase):
 
         snapshot1 = self.engine.stack_snapshot(
             self.ctx, stk1.identifier(), 'snap1')
+        self.engine.thread_group_mgr.groups[stk1.id].wait()
         snapshot_id = snapshot1['id']
 
         mock_load.assert_called_once_with(self.ctx, stack=mock.ANY)
         mock_load.reset_mock()
 
-        stk2 = self._create_stack('stack_snapshot_restore_other_stack_2')
+        stk2 = self._create_stack('stack_snapshot_restore_other_stack_1')
         mock_load.return_value = stk2
 
         ex = self.assertRaises(dispatcher.ExpectedException,
@@ -246,6 +256,6 @@ class SnapshotServiceTest(common.HeatTestCase):
                     'could not be found') % {'snapshot': snapshot_id,
                                              'stack': stk2.name}
         self.assertEqual(exception.SnapshotNotFound, ex.exc_info[0])
-        self.assertIn(expected, str(ex.exc_info[1]))
+        self.assertIn(expected, six.text_type(ex.exc_info[1]))
 
         mock_load.assert_called_once_with(self.ctx, stack=mock.ANY)

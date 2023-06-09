@@ -16,6 +16,7 @@ import re
 import sys
 
 from oslo_log import log
+import six
 
 from heat.common.i18n import _
 from heat.engine import constraints
@@ -100,7 +101,7 @@ class HeatCustomGuidelines(object):
 
     def _check_resource_schemas(self, resource, schema, schema_name,
                                 error_path=None):
-        for key, value in schema.items():
+        for key, value in six.iteritems(schema):
             if error_path is None:
                 error_path = [resource.__name__, key]
             else:
@@ -128,7 +129,7 @@ class HeatCustomGuidelines(object):
             error_path.pop()
 
     def _check_resource_methods(self, resource):
-        for method in resource.__dict__.values():
+        for method in six.itervalues(resource.__dict__):
             # need to skip non-functions attributes
             if not callable(method):
                 continue
@@ -158,7 +159,7 @@ class HeatCustomGuidelines(object):
                 cls_file = open(cls.__module__.replace('.', '/') + '.py')
             except IOError as ex:
                 LOG.warning('Cannot perform trailing spaces check on '
-                            'resource module: %s', str(ex))
+                            'resource module: %s', six.text_type(ex))
                 continue
             lines = [line.strip() for line in cls_file.readlines()]
             idx = 0
@@ -198,7 +199,7 @@ class HeatCustomGuidelines(object):
                               'with uppercase letter') % error_key.title(),
                  'snippet': description})
             self.print_guideline_error(**error_kwargs)
-        if not (description.endswith('.') or description.endswith('.)')):
+        if not description.endswith('.'):
             error_kwargs.update(
                 {'message': _('%s description summary omitted '
                               'terminator at the end') % error_key.title(),
@@ -249,8 +250,7 @@ class HeatCustomGuidelines(object):
                 if re.search("^(:param|:type|:returns|:rtype|:raises)",
                              line):
                     params = True
-        if not params and not (doclines[-2].endswith('.') or
-                               doclines[-2].endswith('.)')):
+        if not params and not doclines[-2].endswith('.'):
             error_kwargs.update(
                 {'message': _('%s description omitted '
                               'terminator at the end') % error_key.title(),

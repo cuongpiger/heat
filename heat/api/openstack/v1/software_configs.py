@@ -11,6 +11,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import six
 from webob import exc
 
 from heat.api.openstack.v1 import util
@@ -41,26 +42,14 @@ class SoftwareConfigController(object):
         try:
             return param_utils.extract_bool(name, value)
         except ValueError as e:
-            raise exc.HTTPBadRequest(str(e))
-
-    def _extract_int_param(self, name, value,
-                           allow_zero=True, allow_negative=False):
-        try:
-            return param_utils.extract_int(name, value,
-                                           allow_zero, allow_negative)
-        except ValueError as e:
-            raise exc.HTTPBadRequest(str(e))
+            raise exc.HTTPBadRequest(six.text_type(e))
 
     def _index(self, req, use_admin_cnxt=False):
-        param_types = {
+        whitelist = {
             'limit': util.PARAM_TYPE_SINGLE,
             'marker': util.PARAM_TYPE_SINGLE
         }
-        params = util.get_allowed_params(req.params, param_types)
-
-        key = rpc_api.PARAM_LIMIT
-        if key in params:
-            params[key] = self._extract_int_param(key, params[key])
+        params = util.get_allowed_params(req.params, whitelist)
 
         if use_admin_cnxt:
             cnxt = context.get_admin_context()

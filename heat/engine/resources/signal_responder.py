@@ -10,13 +10,13 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-from urllib import parse
 
 from keystoneclient.contrib.ec2 import utils as ec2_utils
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
 from oslo_utils import timeutils
+from six.moves.urllib import parse as urlparse
 
 from heat.common import exception
 from heat.common.i18n import _
@@ -94,9 +94,6 @@ class SignalResponder(stack_user.StackUser):
         return self.properties.get(
             self.SIGNAL_TRANSPORT) == self.ZAQAR_SIGNAL
 
-    def _get_region_name(self):
-        return self.client_plugin('heat')._get_region_name()
-
     def _get_heat_signal_credentials(self):
         """Return OpenStack credentials that can be used to send a signal.
 
@@ -107,14 +104,15 @@ class SignalResponder(stack_user.StackUser):
             if self.password is None:
                 self.password = password_gen.generate_openstack_password()
             self._create_user()
-        return {'auth_url': self.keystone().server_keystone_endpoint_url(
+        return {'auth_url':  self.keystone().server_keystone_endpoint_url(
                 fallback_endpoint=self.keystone().v3_endpoint),
                 'username': self.physical_resource_name(),
                 'user_id': self._get_user_id(),
                 'password': self.password,
                 'project_id': self.stack.stack_user_project_id,
                 'domain_id': self.keystone().stack_domain_id,
-                'region_name': self._get_region_name()}
+                'region_name': (self.context.region_name or
+                                cfg.CONF.region_name_for_services)}
 
     def _get_ec2_signed_url(self, signal_type=SIGNAL,
                             never_expire=False):
@@ -152,7 +150,7 @@ class SignalResponder(stack_user.StackUser):
             endpoint = heat_client_plugin.get_heat_cfn_url()
             signal_url = ''.join([endpoint, signal_type])
 
-        host_url = parse.urlparse(signal_url)
+        host_url = urlparse.urlparse(signal_url)
 
         path = self.identifier().arn_url_path()
 
@@ -160,7 +158,7 @@ class SignalResponder(stack_user.StackUser):
         # processing in the CFN API (ec2token.py) has an unquoted path, so we
         # need to calculate the signature with the path component unquoted, but
         # ensure the actual URL contains the quoted version...
-        unquoted_path = parse.unquote(host_url.path + path)
+        unquoted_path = urlparse.unquote(host_url.path + path)
         params = {'SignatureMethod': 'HmacSHA256',
                   'SignatureVersion': '2',
                   'AWSAccessKeyId': access_key}
@@ -175,7 +173,7 @@ class SignalResponder(stack_user.StackUser):
         signer = ec2_utils.Ec2Signer(secret_key)
         request['params']['Signature'] = signer.generate(request)
 
-        qs = parse.urlencode(request['params'])
+        qs = urlparse.urlencode(request['params'])
         url = "%s%s?%s" % (signal_url.lower(),
                            path, qs)
 
@@ -206,7 +204,7 @@ class SignalResponder(stack_user.StackUser):
         if project_id is not None:
             path = project_id + path[path.find('/'):]
 
-        url = parse.urljoin(url, '%s/signal' % path)
+        url = urlparse.urljoin(url, '%s/signal' % path)
 
         self.data_set('heat_signal_url', url)
         return url

@@ -14,6 +14,7 @@
 import collections
 import functools
 import inspect
+import six
 
 from oslo_log import log as logging
 from oslo_messaging import rpc
@@ -29,9 +30,12 @@ def asynchronous(function):
     run on a future iteration of the event loop.
     """
 
-    sig = inspect.signature(function)
-    arg_names = [name for name, param in sig.parameters.items()
-                 if param.kind == param.POSITIONAL_OR_KEYWORD]
+    if six.PY2:
+        arg_names = inspect.getargspec(function).args
+    else:
+        sig = inspect.signature(function)
+        arg_names = [name for name, param in sig.parameters.items()
+                     if param.kind == param.POSITIONAL_OR_KEYWORD]
     MessageData = collections.namedtuple(function.__name__, arg_names[1:])
 
     @functools.wraps(function)
@@ -107,6 +111,5 @@ class MessageProcessor(object):
     def clear(self):
         """Delete all the messages from the queue."""
         self.queue.clear()
-
 
 __all__ = ['MessageProcessor', 'asynchronous']

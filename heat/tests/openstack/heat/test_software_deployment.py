@@ -14,8 +14,10 @@
 import contextlib
 import copy
 import re
-from unittest import mock
 import uuid
+
+import mock
+import six
 
 from oslo_serialization import jsonutils
 
@@ -228,7 +230,7 @@ class SoftwareDeploymentTest(common.HeatTestCase):
         err = self.assertRaises(exc.StackValidationFailed, deployment.validate)
         self.assertEqual("Property error: "
                          "Resources.deployment_mysql.Properties: "
-                         "Property server not assigned", str(err))
+                         "Property server not assigned", six.text_type(err))
 
     def test_validate_failed(self):
         template = dict(self.template_with_server)
@@ -240,7 +242,7 @@ class SoftwareDeploymentTest(common.HeatTestCase):
         self.assertEqual("Resource server's property "
                          "user_data_format should be set to "
                          "SOFTWARE_CONFIG since there are "
-                         "software deployments on it.", str(err))
+                         "software deployments on it.", six.text_type(err))
 
     def mock_software_config(self):
         config = {
@@ -680,7 +682,7 @@ class SoftwareDeploymentTest(common.HeatTestCase):
         err = self.assertRaises(
             exc.Error, self.deployment.check_create_complete, mock_sd)
         self.assertEqual(
-            'Deployment to server failed: something wrong', str(err))
+            'Deployment to server failed: something wrong', six.text_type(err))
 
     def test_handle_create_cancel(self):
         self._create_stack(self.template)
@@ -1143,7 +1145,7 @@ class SoftwareDeploymentTest(common.HeatTestCase):
             self.deployment.FnGetAtt, 'foo2')
         self.assertEqual(
             'The Referenced Attribute (deployment_mysql foo2) is incorrect.',
-            str(err))
+            six.text_type(err))
 
     def test_handle_action(self):
         self._create_stack(self.template)

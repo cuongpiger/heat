@@ -65,7 +65,7 @@ class ServerNetworkMixin(object):
                 "/".join([self.NETWORKS, self.NETWORK_PORT]))
 
         # if user only specifies network and floating ip, floating ip
-        # can't be associated as the neutron port isn't created/managed
+        # can't be associated as the the neutron port isn't created/managed
         # by heat
         if floating_ip is not None:
             if net_id is not None and port is None and subnet is None:
@@ -190,6 +190,12 @@ class ServerNetworkMixin(object):
         creating. We need to store information about that ports, so store
         their IDs to data with key `external_ports`.
         """
+        # check if os-attach-interfaces extension is available on this cloud.
+        # If it's not, then novaclient's interface_list method cannot be used
+        # to get the list of interfaces.
+        if not self.client_plugin().has_extension('os-attach-interfaces'):
+            return
+
         server = self.client().servers.get(self.resource_id)
         ifaces = server.interface_list()
         external_port_ids = set(iface.port_id for iface in ifaces)

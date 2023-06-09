@@ -10,7 +10,8 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-from unittest import mock
+import mock
+import six
 
 from heat.common import exception
 from heat.common import template_format
@@ -79,7 +80,7 @@ class CinderQuotaTest(common.HeatTestCase):
     def _test_validate(self, resource, error_msg):
         exc = self.assertRaises(exception.StackValidationFailed,
                                 resource.validate)
-        self.assertIn(error_msg, str(exc))
+        self.assertIn(error_msg, six.text_type(exc))
 
     def _test_invalid_property(self, prop_name):
         my_quota = self.stack['my_quota']
@@ -155,7 +156,7 @@ class CinderQuotaTest(common.HeatTestCase):
         err = self.assertRaises(ValueError, self.my_quota.handle_create)
         self.assertEqual(
             self.err_msg % {'property': 'gigabytes', 'value': 5, 'total': 6},
-            str(err))
+            six.text_type(err))
 
     def test_quota_with_invalid_volumes(self):
         fake_v = self.fv(0)
@@ -166,7 +167,7 @@ class CinderQuotaTest(common.HeatTestCase):
         err = self.assertRaises(ValueError, self.my_quota.handle_create)
         self.assertEqual(
             self.err_msg % {'property': 'volumes', 'value': 3, 'total': 4},
-            str(err))
+            six.text_type(err))
 
     def test_quota_with_invalid_snapshots(self):
         fake_v = self.fv(0)
@@ -178,7 +179,7 @@ class CinderQuotaTest(common.HeatTestCase):
         err = self.assertRaises(ValueError, self.my_quota.handle_create)
         self.assertEqual(
             self.err_msg % {'property': 'snapshots', 'value': 2, 'total': 4},
-            str(err))
+            six.text_type(err))
 
     def _test_quota_with_unlimited_value(self, prop_name):
         my_quota = self.stack['my_quota']

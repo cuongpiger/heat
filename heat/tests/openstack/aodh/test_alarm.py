@@ -14,7 +14,9 @@
 
 import copy
 import json
-from unittest import mock
+
+import mock
+import six
 
 from heat.common import exception
 from heat.common import template_format
@@ -348,7 +350,7 @@ class AodhAlarmTest(common.HeatTestCase):
         rsrc.properties.data = rsrc.get_alarm_props(properties)
         self.assertIsNone(rsrc.properties.data.get('matching_metadata'))
         for key in rsrc.properties.data['threshold_rule']['query']:
-            self.assertIsInstance(key['value'], str)
+            self.assertIsInstance(key['value'], six.text_type)
 
     def test_no_matching_metadata(self):
         """Make sure that we can pass in an empty matching_metadata."""
@@ -379,7 +381,7 @@ class AodhAlarmTest(common.HeatTestCase):
                                       rsrc.validate)
             self.assertEqual(
                 "Property error: Resources.MEMAlarmHigh.Properties.%s: "
-                "Value '60a' is not an integer" % p, str(error))
+                "Value '60a' is not an integer" % p, six.text_type(error))
 
     def test_mem_alarm_high_not_integer_parameters(self):
         orig_snippet = template_format.parse(not_string_alarm_template)
@@ -391,12 +393,12 @@ class AodhAlarmTest(common.HeatTestCase):
             resource_defns = stack.t.resource_definitions(stack)
             rsrc = alarm.AodhAlarm(
                 'MEMAlarmHigh', resource_defns['MEMAlarmHigh'], stack)
-            # python 3.4.3 and python3.10 return slightly different error
-            # messages, so try to handle this by regexp
+            # python 3.4.3 returns another error message
+            # so try to handle this by regexp
             msg = ("Property error: Resources.MEMAlarmHigh.Properties.%s: "
                    r"int\(\) argument must be a string"
                    "(, a bytes-like object)?"
-                   " or a (real )?number, not 'list'" % p)
+                   " or a number, not 'list'" % p)
             self.assertRaisesRegex(exception.StackValidationFailed,
                                    msg, rsrc.validate)
 
@@ -413,7 +415,7 @@ class AodhAlarmTest(common.HeatTestCase):
         self.assertEqual(
             "Property error: Resources.MEMAlarmHigh.Properties: "
             "Property meter_name not assigned",
-            str(error))
+            six.text_type(error))
 
         for p in ('period', 'evaluation_periods', 'statistic',
                   'comparison_operator'):

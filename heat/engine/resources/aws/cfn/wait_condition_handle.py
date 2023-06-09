@@ -11,6 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import six
+
 from heat.engine.resources import signal_responder
 from heat.engine.resources import wait_condition as wc_base
 from heat.engine import support
@@ -37,9 +39,9 @@ class WaitConditionHandle(wc_base.BaseWaitConditionHandle):
     def get_reference_id(self):
         if self.resource_id:
             wc = signal_responder.WAITCONDITION
-            return str(self._get_ec2_signed_url(signal_type=wc))
+            return six.text_type(self._get_ec2_signed_url(signal_type=wc))
         else:
-            return str(self.name)
+            return six.text_type(self.name)
 
     def metadata_update(self, new_metadata=None):
         """DEPRECATED. Should use handle_signal instead."""

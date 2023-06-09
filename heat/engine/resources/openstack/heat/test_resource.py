@@ -14,6 +14,7 @@
 import datetime
 import eventlet
 from oslo_utils import timeutils
+import six
 
 from heat.common.i18n import _
 from heat.engine import attributes
@@ -217,12 +218,12 @@ class TestResource(resource.Resource):
                     obj.get(entity_id)
                 except Exception as exc:
                     LOG.debug('%s.%s(%s) %s' % (client_name, self.entity,
-                                                entity_id, str(exc)))
+                                                entity_id, six.text_type(exc)))
             else:
                 # just sleep some more
                 eventlet.sleep(1)
 
-        if isinstance(started_at, str):
+        if isinstance(started_at, six.string_types):
             started_at = timeutils.parse_isotime(started_at)
 
         started_at = timeutils.normalize_time(started_at)

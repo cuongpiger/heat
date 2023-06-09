@@ -13,6 +13,7 @@
 
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
+import six
 import tempfile
 
 from heat.common import auth_plugin
@@ -48,7 +49,7 @@ class TempCACertFile(object):
             try:
                 self._cacert_temp_file = tempfile.NamedTemporaryFile()
                 self._cacert_temp_file.write(
-                    str(self._cacert).encode('utf-8'))
+                    six.text_type(self._cacert).encode('utf-8'))
                 # Add seek func to make sure the writen context will flush to
                 # tempfile with python 2.7. we can use flush() for python 2.7
                 # but not 3.5.
@@ -71,8 +72,6 @@ class RemoteStack(resource.Resource):
     stack will have remote stack.
     """
     default_client_name = 'heat'
-
-    entity = 'stacks'
 
     PROPERTIES = (
         CONTEXT, TEMPLATE, TIMEOUT, PARAMETERS,
@@ -265,7 +264,7 @@ class RemoteStack(resource.Resource):
                 location = "remote cloud"
             else:
                 location = 'region "%s"' % self._region_name
-            exc_info = dict(location=location, exc=str(ex))
+            exc_info = dict(location=location, exc=six.text_type(ex))
             msg = _('Cannot establish connection to Heat endpoint at '
                     '%(location)s due to "%(exc)s"') % exc_info
             raise exception.StackValidationFailed(message=msg)
@@ -286,7 +285,7 @@ class RemoteStack(resource.Resource):
                 location = "remote cloud"
             else:
                 location = 'region "%s"' % self._region_name
-            exc_info = dict(location=location, exc=str(ex))
+            exc_info = dict(location=location, exc=six.text_type(ex))
             msg = _('Failed validating stack template using Heat endpoint at '
                     '%(location)s due to "%(exc)s"') % exc_info
             raise exception.StackValidationFailed(message=msg)
@@ -315,8 +314,6 @@ class RemoteStack(resource.Resource):
                 with TempCACertFile(self.cacert) as cacert_path:
                     self.heat(
                         cacert_path).stacks.delete(stack_id=self.resource_id)
-                    return self.resource_id
-        return None
 
     def handle_resume(self):
         if self.resource_id is None:
@@ -417,12 +414,15 @@ class RemoteStack(resource.Resource):
     def check_create_complete(self, *args):
         return self._check_action_complete(action=self.CREATE)
 
-    def check_delete_complete(self, deleting_resource_id=None):
-        if deleting_resource_id is not None:
-            with self.client_plugin().ignore_not_found:
-                return self._check_action_complete(action=self.DELETE)
+    def check_delete_complete(self, *args):
+        if self.resource_id is None:
+            return True
 
-        return True
+        try:
+            return self._check_action_complete(action=self.DELETE)
+        except Exception as ex:
+            self.client_plugin().ignore_not_found(ex)
+            return True
 
     def check_resume_complete(self, *args):
         return self._check_action_complete(action=self.RESUME)

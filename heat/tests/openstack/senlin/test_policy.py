@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import copy
-from unittest import mock
+import mock
 
 from openstack.clustering.v1._proxy import Proxy
 from openstack import exceptions

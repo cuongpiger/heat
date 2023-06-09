@@ -11,8 +11,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
-
+import mock
 from openstack import exceptions
 
 from heat.engine.clients.os import senlin as senlin_plugin

@@ -17,6 +17,7 @@ APIs for dealing with input and output definitions for Software Configurations.
 
 import collections
 import copy
+import six
 
 from heat.common.i18n import _
 
@@ -103,7 +104,7 @@ class IOConfig(object):
         try:
             self._props.validate()
         except exception.StackValidationFailed as exc:
-            raise ValueError(str(exc))
+            raise ValueError(six.text_type(exc))
 
     def name(self):
         """Return the name of the input or output."""
@@ -178,14 +179,10 @@ def check_io_schema_list(io_configs):
     Raises TypeError if the list itself is not a list, or if any of the
     members are not dicts.
     """
-    if (
-        not isinstance(io_configs, collections.abc.Sequence) or
-        isinstance(io_configs, collections.abc.Mapping) or
-        isinstance(io_configs, str)
-    ):
+    if (not isinstance(io_configs, collections.Sequence) or
+            isinstance(io_configs, collections.Mapping) or
+            isinstance(io_configs, six.string_types)):
         raise TypeError('Software Config I/O Schema must be in a list')
 
-    if not all(
-        isinstance(conf, collections.abc.Mapping) for conf in io_configs
-    ):
+    if not all(isinstance(conf, collections.Mapping) for conf in io_configs):
         raise TypeError('Software Config I/O Schema must be a dict')

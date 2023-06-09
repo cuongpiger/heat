@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import copy
-from unittest import mock
-
+import mock
 from oslo_config import cfg
+import six
 
 from heat.common import exception
 from heat.common import template_format
@@ -122,7 +122,7 @@ class SenlinNodeTest(common.HeatTestCase):
         ex = self.assertRaises(exception.ResourceFailure, create_task)
         expected = ('ResourceInError: resources.senlin-node: '
                     'Went to status FAILED due to "oops"')
-        self.assertEqual(expected, str(ex))
+        self.assertEqual(expected, six.text_type(ex))
 
     def test_node_delete_success(self):
         node = self._create_node()
@@ -139,7 +139,7 @@ class SenlinNodeTest(common.HeatTestCase):
         delete_task = scheduler.TaskRunner(node.delete)
         ex = self.assertRaises(exception.ResourceFailure, delete_task)
         expected = 'Error: resources.senlin-node: oops'
-        self.assertEqual(expected, str(ex))
+        self.assertEqual(expected, six.text_type(ex))
 
     def test_node_update_profile(self):
         node = self._create_node()
@@ -180,17 +180,17 @@ class SenlinNodeTest(common.HeatTestCase):
         props['cluster'] = 'new_cluster'
         rsrc_defns = template.Template(new_t).resource_definitions(self.stack)
         new_node = rsrc_defns['senlin-node']
-        self.senlin_mock.remove_nodes_from_cluster.return_value = {
+        self.senlin_mock.cluster_del_nodes.return_value = {
             'action': 'remove_node_from_cluster'
         }
-        self.senlin_mock.add_nodes_to_cluster.return_value = {
+        self.senlin_mock.cluster_add_nodes.return_value = {
             'action': 'add_node_to_cluster'
         }
         scheduler.TaskRunner(node.update, new_node)()
         self.assertEqual((node.UPDATE, node.COMPLETE), node.state)
-        self.senlin_mock.remove_nodes_from_cluster.assert_called_once_with(
+        self.senlin_mock.cluster_del_nodes.assert_called_once_with(
             cluster='fake_cluster_id', nodes=[node.resource_id])
-        self.senlin_mock.add_nodes_to_cluster.assert_called_once_with(
+        self.senlin_mock.cluster_add_nodes.assert_called_once_with(
             cluster='new_cluster_id', nodes=[node.resource_id])
 
     def test_node_update_failed(self):
@@ -208,7 +208,7 @@ class SenlinNodeTest(common.HeatTestCase):
         ex = self.assertRaises(exception.ResourceFailure, update_task)
         expected = ('ResourceInError: resources.senlin-node: Went to '
                     'status FAILED due to "oops"')
-        self.assertEqual(expected, str(ex))
+        self.assertEqual(expected, six.text_type(ex))
         self.assertEqual((node.UPDATE, node.FAILED), node.state)
         self.assertEqual(2, self.senlin_mock.get_action.call_count)
 

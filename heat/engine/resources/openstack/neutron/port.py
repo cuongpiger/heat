@@ -13,8 +13,8 @@
 
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
+import six
 
-from heat.common import exception
 from heat.common.i18n import _
 from heat.engine import attributes
 from heat.engine import constraints
@@ -54,11 +54,11 @@ class Port(neutron.NeutronResource):
     EXTRA_PROPERTIES = (
         VALUE_SPECS, ADMIN_STATE_UP, MAC_ADDRESS,
         ALLOWED_ADDRESS_PAIRS, VNIC_TYPE, QOS_POLICY,
-        PORT_SECURITY_ENABLED, PROPAGATE_UPLINK_STATUS, NO_FIXED_IPS,
+        PORT_SECURITY_ENABLED,
     ) = (
         'value_specs', 'admin_state_up', 'mac_address',
         'allowed_address_pairs', 'binding:vnic_type', 'qos_policy',
-        'port_security_enabled', 'propagate_uplink_status', 'no_fixed_ips',
+        'port_security_enabled',
     )
 
     _FIXED_IP_KEYS = (
@@ -78,13 +78,12 @@ class Port(neutron.NeutronResource):
         MAC_ADDRESS_ATTR, NAME_ATTR, NETWORK_ID_ATTR, SECURITY_GROUPS_ATTR,
         STATUS, TENANT_ID, ALLOWED_ADDRESS_PAIRS_ATTR, SUBNETS_ATTR,
         PORT_SECURITY_ENABLED_ATTR, QOS_POLICY_ATTR, DNS_ASSIGNMENT,
-        NETWORK_ATTR, PROPAGATE_UPLINK_STATUS_ATTR,
+        NETWORK_ATTR,
     ) = (
         'admin_state_up', 'device_id', 'device_owner', 'fixed_ips',
         'mac_address', 'name', 'network_id', 'security_groups',
         'status', 'tenant_id', 'allowed_address_pairs', 'subnets',
         'port_security_enabled', 'qos_policy_id', 'dns_assignment', 'network',
-        'propagate_uplink_status',
     )
 
     properties_schema = {
@@ -285,7 +284,7 @@ class Port(neutron.NeutronResource):
             constraints=[
                 constraints.AllowedValues(['normal', 'direct', 'macvtap',
                                            'direct-physical', 'baremetal',
-                                           'virtio-forwarder', 'smart-nic']),
+                                           'virtio-forwarder']),
             ],
             support_status=support.SupportStatus(version='2015.1'),
             update_allowed=True,
@@ -307,19 +306,6 @@ class Port(neutron.NeutronResource):
             ],
             update_allowed=True,
             support_status=support.SupportStatus(version='6.0.0')
-        ),
-        PROPAGATE_UPLINK_STATUS: properties.Schema(
-            properties.Schema.BOOLEAN,
-            _('Flag to enable/disable propagate uplink status on the port.'),
-            update_allowed=True,
-            support_status=support.SupportStatus(version='15.0.0')
-        ),
-        NO_FIXED_IPS: properties.Schema(
-            properties.Schema.BOOLEAN,
-            _('Flag to disable all fixed ips on the port.'),
-            update_allowed=True,
-            support_status=support.SupportStatus(version='16.0.0'),
-            default=False
         ),
     }
 
@@ -410,11 +396,6 @@ class Port(neutron.NeutronResource):
             type=attributes.Schema.MAP,
             support_status=support.SupportStatus(version='11.0.0'),
         ),
-        PROPAGATE_UPLINK_STATUS_ATTR: attributes.Schema(
-            _("Enable/Disable propagate uplink status for the port."),
-            support_status=support.SupportStatus(version='15.0.0'),
-            type=attributes.Schema.BOOLEAN
-        ),
     }
 
     def translation_rules(self, props):
@@ -450,14 +431,6 @@ class Port(neutron.NeutronResource):
             )
         ]
 
-    def validate(self):
-        super(Port, self).validate()
-        fixed_ips = self.properties.get(self.FIXED_IPS)
-        no_fixed_ips = self.properties.get(self.NO_FIXED_IPS, False)
-        if fixed_ips and no_fixed_ips:
-            raise exception.ResourcePropertyConflict(self.FIXED_IPS,
-                                                     self.NO_FIXED_IPS)
-
     def add_dependencies(self, deps):
         super(Port, self).add_dependencies(deps)
         # Depend on any Subnet in this template with the same
@@ -465,7 +438,7 @@ class Port(neutron.NeutronResource):
         # It is not known which subnet a port might be assigned
         # to so all subnets in a network should be created before
         # the ports in that network.
-        for res in self.stack.values():
+        for res in six.itervalues(self.stack):
             if res.has_interface('OS::Neutron::Subnet'):
                 try:
                     dep_network = res.properties.get(subnet.Subnet.NETWORK)
@@ -496,28 +469,24 @@ class Port(neutron.NeutronResource):
             self.set_tags(tags)
 
     def _prepare_port_properties(self, props, prepare_for_update=False):
-        if not props.pop(self.NO_FIXED_IPS, False):
-            if self.FIXED_IPS in props:
-                fixed_ips = props[self.FIXED_IPS]
-                if fixed_ips:
-                    for fixed_ip in fixed_ips:
-                        for key, value in list(fixed_ip.items()):
-                            if value is None:
-                                fixed_ip.pop(key)
-                        if self.FIXED_IP_SUBNET in fixed_ip:
-                            fixed_ip['subnet_id'] = \
-                                fixed_ip.pop(self.FIXED_IP_SUBNET)
-                else:
-                    # Passing empty list would have created a port without
-                    # fixed_ips during CREATE and released the existing
-                    # fixed_ips during UPDATE (default neutron behaviour).
-                    # However, for backward compatibility we will let neutron
-                    # assign ip for CREATE and leave the assigned ips during
-                    # UPDATE by not passing it. ref bug #1538473.
-                    del props[self.FIXED_IPS]
-        else:
-            props[self.FIXED_IPS] = []
-
+        if self.FIXED_IPS in props:
+            fixed_ips = props[self.FIXED_IPS]
+            if fixed_ips:
+                for fixed_ip in fixed_ips:
+                    for key, value in list(fixed_ip.items()):
+                        if value is None:
+                            fixed_ip.pop(key)
+                    if self.FIXED_IP_SUBNET in fixed_ip:
+                        fixed_ip[
+                            'subnet_id'] = fixed_ip.pop(self.FIXED_IP_SUBNET)
+            else:
+                # Passing empty list would have created a port without
+                # fixed_ips during CREATE and released the existing
+                # fixed_ips during UPDATE (default neutron behaviour).
+                # However, for backward compatibility we will let neutron
+                # assign ip for CREATE and leave the assigned ips during
+                # UPDATE by not passing it. ref bug #1538473.
+                del props[self.FIXED_IPS]
         # delete empty MAC addresses so that Neutron validation code
         # wouldn't fail as it not accepts Nones
         if self.ALLOWED_ADDRESS_PAIRS in props:

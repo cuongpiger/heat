@@ -12,6 +12,7 @@
 #    under the License.
 
 import itertools
+import six
 
 from heat.common import template_format
 from heat.engine import stack
@@ -228,7 +229,7 @@ class DepAttrsTest(common.HeatTestCase):
                                  template.Template(self.parsed_tmpl))
 
     def test_dep_attrs(self):
-        for res in self.stack.values():
+        for res in six.itervalues(self.stack):
             definitions = (self.stack.defn.resource_definition(n)
                            for n in self.parsed_tmpl['resources'])
             self.assertEqual(self.expected[res.name],
@@ -236,7 +237,7 @@ class DepAttrsTest(common.HeatTestCase):
                                  d.dep_attrs(res.name) for d in definitions)))
 
     def test_all_dep_attrs(self):
-        for res in self.stack.values():
+        for res in six.itervalues(self.stack):
             definitions = (self.stack.defn.resource_definition(n)
                            for n in self.parsed_tmpl['resources'])
             attrs = set(itertools.chain.from_iterable(

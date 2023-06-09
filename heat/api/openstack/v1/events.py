@@ -13,6 +13,7 @@
 
 import itertools
 
+import six
 from webob import exc
 
 from heat.api.openstack.v1 import util
@@ -83,7 +84,7 @@ class EventController(object):
 
     Implements the API actions.
     """
-    # Define request scope (must match what is in policy.yaml or policies in
+    # Define request scope (must match what is in policy.json or policies in
     # code)
     REQUEST_SCOPE = 'events'
 
@@ -109,21 +110,21 @@ class EventController(object):
     @util.registered_identified_stack
     def index(self, req, identity, resource_name=None):
         """Lists summary information for all events."""
-        param_types = {
+        whitelist = {
             'limit': util.PARAM_TYPE_SINGLE,
             'marker': util.PARAM_TYPE_SINGLE,
             'sort_dir': util.PARAM_TYPE_SINGLE,
             'sort_keys': util.PARAM_TYPE_MULTI,
             'nested_depth': util.PARAM_TYPE_SINGLE,
         }
-        filter_param_types = {
+        filter_whitelist = {
             'resource_status': util.PARAM_TYPE_MIXED,
             'resource_action': util.PARAM_TYPE_MIXED,
             'resource_name': util.PARAM_TYPE_MIXED,
             'resource_type': util.PARAM_TYPE_MIXED,
         }
-        params = util.get_allowed_params(req.params, param_types)
-        filter_params = util.get_allowed_params(req.params, filter_param_types)
+        params = util.get_allowed_params(req.params, whitelist)
+        filter_params = util.get_allowed_params(req.params, filter_whitelist)
 
         int_params = (rpc_api.PARAM_LIMIT, rpc_api.PARAM_NESTED_DEPTH)
         try:
@@ -132,7 +133,7 @@ class EventController(object):
                     params[key] = param_utils.extract_int(
                         key, params[key], allow_zero=True)
         except ValueError as e:
-            raise exc.HTTPBadRequest(str(e))
+            raise exc.HTTPBadRequest(six.text_type(e))
 
         if resource_name is None:
             if not filter_params:

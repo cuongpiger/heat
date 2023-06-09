@@ -11,9 +11,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
-
 import eventlet
+import mock
+
 from oslo_context import context
 
 from heat.engine import service

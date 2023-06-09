@@ -11,7 +11,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
 
 from heat.engine.clients.os import monasca as client_plugin
 from heat.engine.resources.openstack.monasca import alarm_definition

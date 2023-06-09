@@ -12,9 +12,10 @@
 #    under the License.
 
 import os
-from unittest import mock
 
+import mock
 import re
+import six
 import yaml
 
 from heat.common import config
@@ -93,7 +94,7 @@ class YamlMinimalTest(common.HeatTestCase):
         parse_ex = self.assertRaises(ValueError,
                                      template_format.parse,
                                      tmpl_str)
-        self.assertIn(msg_str, str(parse_ex))
+        self.assertIn(msg_str, six.text_type(parse_ex))
 
     def test_long_yaml(self):
         template = {'HeatTemplateFormatVersion': '2012-12-12'}
@@ -109,7 +110,7 @@ class YamlMinimalTest(common.HeatTestCase):
                'bytes) exceeds maximum allowed size (%(limit)s bytes).') % {
                    'actual_len': len(str(long_yaml)),
                    'limit': config.cfg.CONF.max_template_size}
-        self.assertEqual(msg, str(ex))
+        self.assertEqual(msg, six.text_type(ex))
 
     def test_parse_no_version_format(self):
         yaml = ''
@@ -154,7 +155,7 @@ class YamlParseExceptions(common.HeatTestCase):
         ('parser', dict(raised_exception=yaml.parser.ParserError())),
         ('reader',
          dict(raised_exception=yaml.reader.ReaderError(
-             '', 42, 'x'.encode('latin-1'), '', ''))),
+             '', 42, six.b('x'), '', ''))),
     ]
 
     def test_parse_to_value_exception(self):
@@ -168,7 +169,7 @@ class YamlParseExceptions(common.HeatTestCase):
                                     'file://test.yaml')
 
             self.assertIn('Error parsing template file://test.yaml',
-                          str(err))
+                          six.text_type(err))
 
 
 class JsonYamlResolvedCompareTest(common.HeatTestCase):

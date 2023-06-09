@@ -11,6 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import six
+
 from heat.common import exception
 from heat.common.i18n import _
 from heat.engine import attributes
@@ -35,12 +37,10 @@ class Router(neutron.NeutronResource):
 
     PROPERTIES = (
         NAME, EXTERNAL_GATEWAY, VALUE_SPECS, ADMIN_STATE_UP,
-        L3_AGENT_ID, L3_AGENT_IDS, DISTRIBUTED, HA, AVAILABILITY_ZONE_HINTS,
-        TAGS,
+        L3_AGENT_ID, L3_AGENT_IDS, DISTRIBUTED, HA, TAGS,
     ) = (
         'name', 'external_gateway_info', 'value_specs', 'admin_state_up',
-        'l3_agent_id', 'l3_agent_ids', 'distributed', 'ha',
-        'availability_zone_hints', 'tags',
+        'l3_agent_id', 'l3_agent_ids', 'distributed', 'ha', 'tags',
     )
 
     _EXTERNAL_GATEWAY_KEYS = (
@@ -173,13 +173,6 @@ class Router(neutron.NeutronResource):
               'do not support distributed and ha at the same time.'),
             support_status=support.SupportStatus(version='2015.1')
         ),
-        AVAILABILITY_ZONE_HINTS: properties.Schema(
-            properties.Schema.LIST,
-            _('Availability zone candidates for the router. It requires the '
-              'availability_zone extension to be available.'),
-            update_allowed=True,
-            support_status=support.SupportStatus(version='19.0.0')
-        ),
         TAGS: properties.Schema(
             properties.Schema.LIST,
             _('The tags to be added to the router.'),
@@ -273,7 +266,7 @@ class Router(neutron.NeutronResource):
         external_gw = self.properties[self.EXTERNAL_GATEWAY]
         if external_gw:
             external_gw_net = external_gw.get(self.EXTERNAL_GATEWAY_NETWORK)
-            for res in self.stack.values():
+            for res in six.itervalues(self.stack):
                 if res.has_interface('OS::Neutron::Subnet'):
                     try:
                         subnet_net = res.properties.get(subnet.Subnet.NETWORK)
@@ -646,7 +639,7 @@ class RouterGateway(neutron.NeutronResource):
 
     def add_dependencies(self, deps):
         super(RouterGateway, self).add_dependencies(deps)
-        for resource in self.stack.values():
+        for resource in six.itervalues(self.stack):
             # depend on any RouterInterface in this template with the same
             # router_id as this router_id
             if resource.has_interface('OS::Neutron::RouterInterface'):

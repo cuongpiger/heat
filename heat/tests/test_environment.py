@@ -13,10 +13,11 @@
 
 import os.path
 import sys
-from unittest import mock
 
 import fixtures
+import mock
 from oslo_config import cfg
+import six
 
 from heat.common import environment_format
 from heat.common import exception
@@ -208,7 +209,7 @@ def constraint_mapping():
         env = environment.Environment({})
         error = self.assertRaises(ValueError,
                                   resources._load_global_environment, env)
-        self.assertEqual("oops", str(error))
+        self.assertEqual("oops", six.text_type(error))
 
     def test_constraints_registry_stevedore(self):
         env = environment.Environment({})
@@ -787,7 +788,7 @@ class ResourceRegistryTest(common.HeatTestCase):
                '\'post-delete\')')
         ex = self.assertRaises(exception.InvalidBreakPointHook,
                                registry.load, {'resources': resources})
-        self.assertEqual(msg, str(ex))
+        self.assertEqual(msg, six.text_type(ex))
 
     def test_list_type_validation_invalid_support_status(self):
         registry = environment.ResourceRegistry(None, {})
@@ -796,7 +797,7 @@ class ResourceRegistryTest(common.HeatTestCase):
                                registry.get_types,
                                support_status='junk')
         msg = ('Invalid support status and should be one of %s' %
-               str(support.SUPPORT_STATUSES))
+               six.text_type(support.SUPPORT_STATUSES))
 
         self.assertIn(msg, ex.message)
 

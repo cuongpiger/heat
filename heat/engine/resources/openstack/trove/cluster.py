@@ -63,9 +63,9 @@ class TroveCluster(resource.Resource):
     )
 
     _INSTANCE_KEYS = (
-        FLAVOR, VOLUME_SIZE, NETWORKS, AVAILABILITY_ZONE,
+        FLAVOR, VOLUME_SIZE, NETWORKS,
     ) = (
-        'flavor', 'volume_size', 'networks', 'availability_zone',
+        'flavor', 'volume_size', 'networks',
     )
 
     _NICS_KEYS = (
@@ -169,11 +169,6 @@ class TroveCluster(resource.Resource):
                             },
                         ),
                     ),
-                    AVAILABILITY_ZONE: properties.Schema(
-                        properties.Schema.STRING,
-                        _('Name of the availability zone for DB instance.'),
-                        support_status=support.SupportStatus(version='14.0.0'),
-                    ),
                 }
             )
         ),
@@ -235,9 +230,6 @@ class TroveCluster(resource.Resource):
             instance_nics = self.get_instance_nics(instance)
             if instance_nics:
                 instance_dict["nics"] = instance_nics
-            instance_availability_zone = instance[self.AVAILABILITY_ZONE]
-            if instance_availability_zone:
-                instance_dict["availability_zone"] = instance_availability_zone
             instances.append(instance_dict)
 
         args = {

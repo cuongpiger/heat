@@ -14,7 +14,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
+import six
 
 from heat.common import exception
 from heat.common.i18n import _
@@ -125,7 +126,7 @@ class DockerContainerTest(common.HeatTestCase):
         exc = self.assertRaises(exception.ResourceInError,
                                 docker_res.check_create_complete,
                                 'foo')
-        self.assertIn("Container startup failed", str(exc))
+        self.assertIn("Container startup failed", six.text_type(exc))
 
     def test_start_with_bindings_and_links(self):
         t = template_format.parse(template)
@@ -330,7 +331,7 @@ class DockerContainerTest(common.HeatTestCase):
         args = dict(arg=arg, min_version=min_version)
         expected = _('"%(arg)s" is not supported for API version '
                      '< "%(min_version)s"') % args
-        self.assertEqual(expected, str(msg))
+        self.assertEqual(expected, six.text_type(msg))
 
     def test_start_with_read_only_for_low_api_version(self):
         self.arg_for_low_api_version('read_only', True, '1.16')

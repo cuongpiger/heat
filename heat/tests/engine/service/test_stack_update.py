@@ -10,21 +10,21 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
 import uuid
 
 import eventlet.queue
+import mock
 from oslo_config import cfg
 from oslo_messaging import conffixture
 from oslo_messaging.rpc import dispatcher
+import six
 
-from heat.common import context
 from heat.common import environment_util as env_util
 from heat.common import exception
 from heat.common import messaging
 from heat.common import service_utils
 from heat.common import template_format
-from heat.db import api as db_api
+from heat.db.sqlalchemy import api as db_api
 from heat.engine.clients.os import glance
 from heat.engine.clients.os import nova
 from heat.engine.clients.os import swift
@@ -46,7 +46,6 @@ class ServiceStackUpdateTest(common.HeatTestCase):
     def setUp(self):
         super(ServiceStackUpdateTest, self).setUp()
         self.useFixture(conffixture.ConfFixture(cfg.CONF))
-        self.patchobject(context, 'StoredContext')
         self.ctx = utils.dummy_context()
         self.man = service.EngineService('a-host', 'a-topic')
         self.man.thread_group_mgr = tools.DummyThreadGroupManager()
@@ -105,8 +104,7 @@ class ServiceStackUpdateTest(common.HeatTestCase):
             username='test_username',
             converge=True
         )
-        mock_load.assert_called_once_with(self.ctx, stack=s,
-                                          check_refresh_cred=True)
+        mock_load.assert_called_once_with(self.ctx, stack=s)
         mock_validate.assert_called_once_with()
 
     def _test_stack_update_with_environment_files(self, stack_name,
@@ -225,8 +223,7 @@ class ServiceStackUpdateTest(common.HeatTestCase):
             username='test_username',
             converge=False
         )
-        mock_load.assert_called_once_with(self.ctx, stack=s,
-                                          check_refresh_cred=True)
+        mock_load.assert_called_once_with(self.ctx, stack=s)
         mock_validate.assert_called_once_with()
 
     def test_stack_update_existing_parameters(self):
@@ -388,28 +385,18 @@ resources:
             self.ctx, stk, t, {}, None, None, None, api_args, None)
         self.assertEqual(['tag1'], updated_stack.tags)
 
-        # update clear old tags
-        api_args[rpc_api.STACK_TAGS] = []
-        _, _, updated_stack = self.man._prepare_stack_updates(
-            self.ctx, stk, t, {}, None, None, None, api_args, None)
-        self.assertEqual([], updated_stack.tags)
-
         # with new tags
         api_args[rpc_api.STACK_TAGS] = ['tag2']
         _, _, updated_stack = self.man._prepare_stack_updates(
             self.ctx, stk, t, {}, None, None, None, api_args, None)
         self.assertEqual(['tag2'], updated_stack.tags)
-        api_args[rpc_api.STACK_TAGS] = ['tag3']
-        _, _, updated_stack = self.man._prepare_stack_updates(
-            self.ctx, stk, t, {}, None, None, None, api_args, None)
-        self.assertEqual(['tag3'], updated_stack.tags)
 
         # with no PARAM_EXISTING flag and no tags
         del api_args[rpc_api.PARAM_EXISTING]
         del api_args[rpc_api.STACK_TAGS]
         _, _, updated_stack = self.man._prepare_stack_updates(
             self.ctx, stk, t, {}, None, None, None, api_args, None)
-        self.assertEqual([], updated_stack.tags)
+        self.assertIsNone(updated_stack.tags)
 
     def test_stack_update_existing_registry(self):
         # Use a template with existing flag and ensure the
@@ -559,8 +546,7 @@ resources:
         mock_validate.assert_called_once_with()
         mock_tmpl.assert_called_once_with(template, files=None)
         mock_env.assert_called_once_with(params)
-        mock_load.assert_called_once_with(self.ctx, stack=s,
-                                          check_refresh_cred=True)
+        mock_load.assert_called_once_with(self.ctx, stack=s)
         mock_stack.assert_called_once_with(
             self.ctx, stk.name, stk.t,
             convergence=False,
@@ -648,7 +634,7 @@ resources:
         self.assertEqual(exception.NotSupported, ex.exc_info[0])
         self.assertIn("Cancelling update when stack is "
                       "UPDATE_COMPLETE",
-                      str(ex.exc_info[1]))
+                      six.text_type(ex.exc_info[1]))
 
     @mock.patch.object(stack_object.Stack, 'count_total_resources')
     def test_stack_update_equals(self, ctr):
@@ -708,8 +694,7 @@ resources:
             username='test_username',
             converge=False
         )
-        mock_load.assert_called_once_with(self.ctx, stack=s,
-                                          check_refresh_cred=True)
+        mock_load.assert_called_once_with(self.ctx, stack=s)
         mock_validate.assert_called_once_with()
 
     def test_stack_update_stack_id_equal(self):
@@ -756,11 +741,9 @@ resources:
                          old_stack['A'].properties['Foo'])
 
         self.assertEqual(create_stack['A'].id, old_stack['A'].id)
-        mock_load.assert_called_once_with(self.ctx, stack=s,
-                                          check_refresh_cred=True)
+        mock_load.assert_called_once_with(self.ctx, stack=s)
 
     def test_stack_update_exceeds_resource_limit(self):
-        self.patchobject(context, 'StoredContext')
         stack_name = 'test_stack_update_exceeds_resource_limit'
         params = {}
         tpl = {'HeatTemplateFormatVersion': '2012-12-12',
@@ -782,7 +765,7 @@ resources:
                                None, {rpc_api.PARAM_CONVERGE: False})
         self.assertEqual(exception.RequestLimitExceeded, ex.exc_info[0])
         self.assertIn(exception.StackResourceLimitExceeded.msg_fmt,
-                      str(ex.exc_info[1]))
+                      six.text_type(ex.exc_info[1]))
 
     def test_stack_update_verify_err(self):
         stack_name = 'service_update_verify_err_test_stack'
@@ -830,8 +813,7 @@ resources:
             username='test_username',
             converge=False
         )
-        mock_load.assert_called_once_with(self.ctx, stack=s,
-                                          check_refresh_cred=True)
+        mock_load.assert_called_once_with(self.ctx, stack=s)
         mock_validate.assert_called_once_with()
 
     def test_stack_update_nonexist(self):
@@ -877,7 +859,7 @@ resources:
                                template, params, None, api_args)
         self.assertEqual(exception.MissingCredentialError, ex.exc_info[0])
         self.assertEqual('Missing required credential: X-Auth-Key',
-                         str(ex.exc_info[1]))
+                         six.text_type(ex.exc_info[1]))
 
         mock_get.assert_called_once_with(self.ctx, stk.identifier())
 
@@ -895,8 +877,7 @@ resources:
             user_creds_id=u'1', username='test_username',
             converge=False
         )
-        mock_load.assert_called_once_with(self.ctx, stack=s,
-                                          check_refresh_cred=True)
+        mock_load.assert_called_once_with(self.ctx, stack=s)
 
     def test_stack_update_existing_template(self):
         '''Update a stack using the same template.'''
@@ -959,7 +940,7 @@ resources:
 
         self.assertEqual(exception.NotSupported, ex.exc_info[0])
         self.assertIn("PATCH update to non-COMPLETE stack",
-                      str(ex.exc_info[1]))
+                      six.text_type(ex.exc_info[1]))
 
     def test_update_immutable_parameter_disallowed(self):
 

@@ -13,22 +13,23 @@
 
 import collections
 import datetime
+import eventlet
 import itertools
 import json
 import os
 import sys
-from unittest import mock
 import uuid
 
-import eventlet
+import mock
 from oslo_config import cfg
+import six
 
 from heat.common import exception
 from heat.common.i18n import _
 from heat.common import short_id
 from heat.common import timeutils
-from heat.db import api as db_api
-from heat.db import models
+from heat.db.sqlalchemy import api as db_api
+from heat.db.sqlalchemy import models
 from heat.engine import attributes
 from heat.engine.cfn import functions as cfn_funcs
 from heat.engine import clients
@@ -172,7 +173,7 @@ class ResourceTest(common.HeatTestCase):
                                resource.Resource, 'wrong/name',
                                snippet, self.stack)
         self.assertEqual('Resource name may not contain "/"',
-                         str(ex))
+                         six.text_type(ex))
 
     @mock.patch.object(translation, 'resolve_and_find')
     @mock.patch.object(parser.Stack, 'db_resource_get')
@@ -226,7 +227,7 @@ class ResourceTest(common.HeatTestCase):
                                resource.Resource, resource_name,
                                snippet, self.stack)
         self.assertIn(_('Resource "%s" has no type') % resource_name,
-                      str(ex))
+                      six.text_type(ex))
 
     def test_state_defaults(self):
         tmpl = rsrc_defn.ResourceDefinition('test_res_def', 'Foo')
@@ -246,7 +247,7 @@ class ResourceTest(common.HeatTestCase):
                 ex = self.assertRaises(exception.NotSupported,
                                        res.signal)
                 self.assertEqual('Signal resource during %s is not '
-                                 'supported.' % action, str(ex))
+                                 'supported.' % action, six.text_type(ex))
                 ev.assert_called_with(
                     action, status,
                     'Cannot signal resource during %s' % action)
@@ -390,7 +391,7 @@ class ResourceTest(common.HeatTestCase):
                     "(%(type)s) can not be found.") %
                    {'external_id': external_id,
                     'type': res.type()})
-        self.assertEqual(message, str(e))
+        self.assertEqual(message, six.text_type(e))
 
     def test_updated_from_external(self):
         tmpl = rsrc_defn.ResourceDefinition('test_resource',
@@ -405,7 +406,7 @@ class ResourceTest(common.HeatTestCase):
         err = self.assertRaises(exception.ResourceFailure,
                                 scheduler.TaskRunner(res.update, utmpl)
                                 )
-        self.assertEqual(expected_err_msg, str(err))
+        self.assertEqual(expected_err_msg, six.text_type(err))
 
     def test_state_set_invalid(self):
         tmpl = rsrc_defn.ResourceDefinition('test_resource', 'Foo')
@@ -916,7 +917,7 @@ class ResourceTest(common.HeatTestCase):
                                res.update_template_diff_properties,
                                after_props, before_props)
         self.assertIn("Update to properties Spam, Viking of",
-                      str(ex))
+                      six.text_type(ex))
 
     def test_resource(self):
         tmpl = rsrc_defn.ResourceDefinition('test_resource', 'Foo',
@@ -991,7 +992,7 @@ class ResourceTest(common.HeatTestCase):
         res.state_set(res.CREATE, res.IN_PROGRESS, 'test_store')
 
         # Modernity, the data is where it belongs
-        # The DB object data is encrypted
+        # The db object data is encrypted
         rsrc_prop_data_db_obj = db_api.resource_prop_data_get(
             self.stack.context, res._rsrc_prop_data_id)
         self.assertNotEqual(rsrc_prop_data_db_obj['data'], {'Foo': 'lucky'})
@@ -1013,7 +1014,7 @@ class ResourceTest(common.HeatTestCase):
                 'Property Foo not assigned')
         create = scheduler.TaskRunner(res.create)
         err = self.assertRaises(exception.ResourceFailure, create)
-        self.assertIn(estr, str(err))
+        self.assertIn(estr, six.text_type(err))
         self.assertEqual((res.CREATE, res.FAILED), res.state)
 
     def test_create_fail_prop_typo(self):
@@ -1027,7 +1028,7 @@ class ResourceTest(common.HeatTestCase):
                 'Unknown Property Food')
         create = scheduler.TaskRunner(res.create)
         err = self.assertRaises(exception.ResourceFailure, create)
-        self.assertIn(estr, str(err))
+        self.assertIn(estr, six.text_type(err))
         self.assertEqual((res.CREATE, res.FAILED), res.state)
 
     def test_create_fail_metadata_parse_error(self):
@@ -1131,7 +1132,7 @@ class ResourceTest(common.HeatTestCase):
                 'Went to status ERROR due to "just because"')
         create = scheduler.TaskRunner(res.create)
         err = self.assertRaises(exception.ResourceFailure, create)
-        self.assertEqual(estr, str(err))
+        self.assertEqual(estr, six.text_type(err))
         self.assertEqual((res.CREATE, res.FAILED), res.state)
         self.assertEqual(
             1, generic_rsrc.ResourceWithProps.handle_create.call_count)
@@ -1286,7 +1287,7 @@ class ResourceTest(common.HeatTestCase):
         updater = scheduler.TaskRunner(res.update, utmpl)
         ex = self.assertRaises(resource.UpdateReplace, updater)
         self.assertEqual('The Resource test_resource requires replacement.',
-                         str(ex))
+                         six.text_type(ex))
         generic_rsrc.ResourceWithProps.handle_update.assert_called_once_with(
             utmpl, mock.ANY, prop_diff)
 
@@ -1309,7 +1310,7 @@ class ResourceTest(common.HeatTestCase):
         updater = scheduler.TaskRunner(res.update, utmpl)
         ex = self.assertRaises(resource.UpdateReplace, updater)
         self.assertEqual('The Resource Unknown requires replacement.',
-                         str(ex))
+                         six.text_type(ex))
         generic_rsrc.ResourceWithProps.handle_update.assert_called_once_with(
             utmpl, mock.ANY, prop_diff)
 
@@ -1487,7 +1488,7 @@ class ResourceTest(common.HeatTestCase):
 
         exc = self.assertRaises(exception.Error,
                                 res._verify_check_conditions, checks)
-        exc_text = str(exc)
+        exc_text = six.text_type(exc)
         self.assertNotIn("'foo2':", exc_text)
         self.assertNotIn("'foo4':", exc_text)
         self.assertIn("'foo1': expected 'bar1', got 'baz1'", exc_text)
@@ -1524,9 +1525,9 @@ class ResourceTest(common.HeatTestCase):
         for state in invalid_states:
             res.state_set(*state)
             suspend = scheduler.TaskRunner(res.suspend)
-            expected = 'State %s invalid for suspend' % str(state)
+            expected = 'State %s invalid for suspend' % six.text_type(state)
             exc = self.assertRaises(exception.ResourceFailure, suspend)
-            self.assertIn(expected, str(exc))
+            self.assertIn(expected, six.text_type(exc))
 
     def test_resume_fail_invalid_states(self):
         tmpl = rsrc_defn.ResourceDefinition('test_resource',
@@ -1544,9 +1545,9 @@ class ResourceTest(common.HeatTestCase):
         for state in invalid_states:
             res.state_set(*state)
             resume = scheduler.TaskRunner(res.resume)
-            expected = 'State %s invalid for resume' % str(state)
+            expected = 'State %s invalid for resume' % six.text_type(state)
             exc = self.assertRaises(exception.ResourceFailure, resume)
-            self.assertIn(expected, str(exc))
+            self.assertIn(expected, six.text_type(exc))
 
     def test_suspend_fail_exception(self):
         tmpl = rsrc_defn.ResourceDefinition('test_resource',
@@ -1869,7 +1870,8 @@ class ResourceTest(common.HeatTestCase):
                         prop.schema.value,
                         res_name)
                 else:
-                    for nest_prop_name, nest_prop in prop.schema.items():
+                    for nest_prop_name, nest_prop in six.iteritems(
+                            prop.schema):
                         _validate_property_schema(nest_prop_name,
                                                   nest_prop,
                                                   res_name)
@@ -1878,8 +1880,8 @@ class ResourceTest(common.HeatTestCase):
         for res_type in resource_types:
             res_class = env.get_class(res_type)
             if hasattr(res_class, "properties_schema"):
-                for property_schema_name, property_schema in \
-                        res_class.properties_schema.items():
+                for property_schema_name, property_schema in six.iteritems(
+                        res_class.properties_schema):
                     _validate_property_schema(
                         property_schema_name, property_schema,
                         res_class.__name__)
@@ -1970,7 +1972,7 @@ class ResourceTest(common.HeatTestCase):
                                   'prop4': ['a', 'list'],
                                   'prop5': True}
 
-        # The DB data should be encrypted when _store() is called
+        # The db data should be encrypted when _store() is called
         res = generic_rsrc.GenericResource('test_res_enc', tmpl, self.stack)
         res._stored_properties_data = stored_properties_data
         res._rsrc_prop_data = None
@@ -1979,7 +1981,7 @@ class ResourceTest(common.HeatTestCase):
         self.assertNotEqual('string',
                             db_res.rsrc_prop_data.data['prop1'])
 
-        # The DB data should be encrypted when state_set is called
+        # The db data should be encrypted when state_set is called
         res = generic_rsrc.GenericResource('test_res_enc', tmpl, self.stack)
         res._stored_properties_data = stored_properties_data
         res.state_set(res.CREATE, res.IN_PROGRESS, 'test_store')
@@ -2015,7 +2017,7 @@ class ResourceTest(common.HeatTestCase):
                                   'prop4': ['a', 'list'],
                                   'prop5': True}
 
-        # The DB data should not be encrypted when state_set()
+        # The db data should not be encrypted when state_set()
         # is called
         res = generic_rsrc.GenericResource('test_res_enc', tmpl, self.stack)
         res._stored_properties_data = stored_properties_data
@@ -2024,7 +2026,7 @@ class ResourceTest(common.HeatTestCase):
         db_res = db_api.resource_get(res.context, res.id)
         self.assertEqual('string', db_res.rsrc_prop_data.data['prop1'])
 
-        # The DB data should not be encrypted when _store() is called
+        # The db data should not be encrypted when _store() is called
         res = generic_rsrc.GenericResource('test_res_enc', tmpl, self.stack)
         res._stored_properties_data = stored_properties_data
         db_res = db_api.resource_get(res.context, res.id)
@@ -2064,7 +2066,7 @@ class ResourceTest(common.HeatTestCase):
                                    -1, pcb)
             self.assertTrue(mock_create.called)
 
-        self.assertCountEqual([1, 3], res.requires)
+        self.assertItemsEqual([1, 3], res.requires)
         self._assert_resource_lock(res.id, None, None)
 
     def test_create_convergence_throws_timeout(self):
@@ -2094,7 +2096,7 @@ class ResourceTest(common.HeatTestCase):
         self.assertRaises(exception.ResourceNotAvailable,
                           res.create_convergence, self.stack.t.id, {5, 3},
                           'engine-007', self.dummy_timeout, self.dummy_event)
-        self.assertCountEqual([5, 3], res.requires)
+        self.assertItemsEqual([5, 3], res.requires)
         # The locking happens in create which we mocked out
         self._assert_resource_lock(res.id, None, None)
 
@@ -2114,7 +2116,7 @@ class ResourceTest(common.HeatTestCase):
         tr()
         mock_adopt.assert_called_once_with(
             resource_data={'resource_id': 'fluffy'})
-        self.assertCountEqual([5, 3], res.requires)
+        self.assertItemsEqual([5, 3], res.requires)
         self._assert_resource_lock(res.id, None, None)
 
     def test_adopt_convergence_bad_data(self):
@@ -2129,7 +2131,7 @@ class ResourceTest(common.HeatTestCase):
                                   {5, 3}, 'engine-007', self.dummy_timeout,
                                   self.dummy_event)
         exc = self.assertRaises(exception.ResourceFailure, tr)
-        self.assertIn('Resource ID was not provided', str(exc))
+        self.assertIn('Resource ID was not provided', six.text_type(exc))
 
     @mock.patch.object(resource.Resource, 'update_template_diff_properties')
     @mock.patch.object(resource.Resource, '_needs_update')
@@ -2164,7 +2166,7 @@ class ResourceTest(common.HeatTestCase):
                                   {4, 3}, 'engine-007', 120, new_stack)
         tr()
 
-        self.assertCountEqual([3, 4], res.requires)
+        self.assertItemsEqual([3, 4], res.requires)
         self.assertEqual(res.action, resource.Resource.UPDATE)
         self.assertEqual(res.status, resource.Resource.COMPLETE)
         self._assert_resource_lock(res.id, None, 2)
@@ -2271,7 +2273,7 @@ class ResourceTest(common.HeatTestCase):
         ex = self.assertRaises(exception.UpdateInProgress, tr)
         msg = ("The resource %s is already being updated." %
                res.name)
-        self.assertEqual(msg, str(ex))
+        self.assertEqual(msg, six.text_type(ex))
         # ensure requirements are not updated for failed resource
         rs = resource_objects.Resource.get_obj(self.stack.context, res.id)
         self.assertEqual([2, 1], rs.requires)
@@ -2317,7 +2319,7 @@ class ResourceTest(common.HeatTestCase):
 
         self.assertEqual(new_temp.id, res.current_template_id)
         # check if requires was updated
-        self.assertCountEqual([2, 3, 4], res.requires)
+        self.assertItemsEqual([2, 3, 4], res.requires)
         self.assertEqual(res.action, resource.Resource.UPDATE)
         self.assertEqual(res.status, resource.Resource.FAILED)
         self._assert_resource_lock(res.id, None, 2)
@@ -2357,7 +2359,7 @@ class ResourceTest(common.HeatTestCase):
         # ensure that current_template_id was not updated
         self.assertEqual(stack.t.id, res.current_template_id)
         # ensure that requires was not updated
-        self.assertCountEqual([2], res.requires)
+        self.assertItemsEqual([2], res.requires)
         self._assert_resource_lock(res.id, None, 2)
 
     def test_convergence_update_replace_rollback(self):
@@ -2485,7 +2487,7 @@ class ResourceTest(common.HeatTestCase):
         ex = self.assertRaises(exception.UpdateInProgress, tr)
         msg = ("The resource %s is already being updated." %
                res.name)
-        self.assertEqual(msg, str(ex))
+        self.assertEqual(msg, six.text_type(ex))
 
     @mock.patch.object(resource_objects.Resource, 'get_obj')
     def test_update_replacement_data(self, mock_get_obj):
@@ -2716,7 +2718,7 @@ class ResourceDeleteRetryTest(common.HeatTestCase):
 
         exc = self.assertRaises(exception.ResourceFailure,
                                 scheduler.TaskRunner(res.delete))
-        exc_text = str(exc)
+        exc_text = six.text_type(exc)
         self.assertIn('Conflict', exc_text)
         self.assertEqual(
             self.num_retries + 1,
@@ -3060,7 +3062,7 @@ class ResourceDependenciesTest(common.HeatTestCase):
         stack = parser.Stack(utils.dummy_context(), 'test', tmpl)
         ex = self.assertRaises(exception.InvalidTemplateReference,
                                stack.validate)
-        self.assertIn('"baz" (in bar.Properties.Foo)', str(ex))
+        self.assertIn('"baz" (in bar.Properties.Foo)', six.text_type(ex))
 
     def test_validate_value_fail(self):
         tmpl = template.Template({
@@ -3079,7 +3081,7 @@ class ResourceDependenciesTest(common.HeatTestCase):
                                stack.validate)
         self.assertIn("Property error: resources.bar.properties.FooInt: "
                       "Value 'notanint' is not an integer",
-                      str(ex))
+                      six.text_type(ex))
 
         # You can turn off value validation via strict_validate
         stack_novalidate = parser.Stack(utils.dummy_context(), 'test', tmpl,
@@ -3240,7 +3242,7 @@ class ResourceDependenciesTest(common.HeatTestCase):
         stack = parser.Stack(utils.dummy_context(), 'test', tmpl)
         ex = self.assertRaises(exception.InvalidTemplateReference,
                                getattr, stack, 'dependencies')
-        self.assertIn('"baz" (in bar.Properties.Foo)', str(ex))
+        self.assertIn('"baz" (in bar.Properties.Foo)', six.text_type(ex))
 
     def test_hot_getatt_fail(self):
         tmpl = template.Template({
@@ -3258,7 +3260,7 @@ class ResourceDependenciesTest(common.HeatTestCase):
         stack = parser.Stack(utils.dummy_context(), 'test', tmpl)
         ex = self.assertRaises(exception.InvalidTemplateReference,
                                getattr, stack, 'dependencies')
-        self.assertIn('"baz" (in bar.Properties.Foo)', str(ex))
+        self.assertIn('"baz" (in bar.Properties.Foo)', six.text_type(ex))
 
     def test_getatt_fail_nested_deep(self):
         tmpl = template.Template({
@@ -3282,7 +3284,7 @@ class ResourceDependenciesTest(common.HeatTestCase):
         ex = self.assertRaises(exception.InvalidTemplateReference,
                                getattr, stack, 'dependencies')
         self.assertIn('"baz" (in bar.Properties.Foo.Fn::Join[1][3])',
-                      str(ex))
+                      six.text_type(ex))
 
     def test_hot_getatt_fail_nested_deep(self):
         tmpl = template.Template({
@@ -3306,7 +3308,7 @@ class ResourceDependenciesTest(common.HeatTestCase):
         ex = self.assertRaises(exception.InvalidTemplateReference,
                                getattr, stack, 'dependencies')
         self.assertIn('"baz" (in bar.Properties.Foo.Fn::Join[1][3])',
-                      str(ex))
+                      six.text_type(ex))
 
     def test_dependson(self):
         tmpl = template.Template({
@@ -3361,7 +3363,7 @@ class ResourceDependenciesTest(common.HeatTestCase):
         stack = parser.Stack(utils.dummy_context(), 'test', tmpl)
         ex = self.assertRaises(exception.InvalidTemplateReference,
                                getattr, stack, 'dependencies')
-        self.assertIn('"wibble" (in foo)', str(ex))
+        self.assertIn('"wibble" (in foo)', six.text_type(ex))
 
 
 class MetadataTest(common.HeatTestCase):
@@ -3878,7 +3880,7 @@ class ResourceAvailabilityTest(common.HeatTestCase):
                    'type UnavailableResourceType, reason: '
                    'Service endpoint not in service catalog.')
             self.assertEqual(msg,
-                             str(ex),
+                             six.text_type(ex),
                              'invalid exception message')
 
             # Make sure is_service_available is called on the right class
@@ -3914,7 +3916,7 @@ class ResourceAvailabilityTest(common.HeatTestCase):
                    'type UnavailableResourceType, reason: '
                    'Authorization failed.')
             self.assertEqual(msg,
-                             str(ex),
+                             six.text_type(ex),
                              'invalid exception message')
 
             # Make sure is_service_available is called on the right class
@@ -3997,7 +3999,7 @@ class ResourceAvailabilityTest(common.HeatTestCase):
         with mock.patch.object(res, '_default_client_plugin',
                                return_value=client_plugin):
             ex = self.assertRaises(exception.Error, res.handle_delete)
-        self.assertEqual('boom!', str(ex))
+        self.assertEqual('boom!', six.text_type(ex))
         delete.assert_called_once_with('12345')
 
     def test_handle_delete_no_entity(self):
@@ -4064,84 +4066,6 @@ class ResourceAvailabilityTest(common.HeatTestCase):
 
         self.assertRaises(MyException, res.handle_delete)
 
-    @mock.patch.object(clients.OpenStackClients, 'client_plugin')
-    def test_service_deployed_required_extension_true_string(
-            self,
-            mock_client_plugin_method):
-        """Test availability of resource with a required extension. """
-
-        mock_service_types, mock_client_plugin = self._mock_client_plugin(
-            ['test_type']
-        )
-        mock_client_plugin.has_extension = mock.Mock(
-            side_effect=[True, True])
-        mock_client_plugin_method.return_value = mock_client_plugin
-
-        rsrc = generic_rsrc.ResourceWithDefaultClientNameMultiStrExt
-        rsrc.is_service_available(
-            context=mock.Mock())[0]
-        mock_client_plugin_method.assert_called_once_with(
-            generic_rsrc.ResourceWithDefaultClientName.default_client_name)
-        mock_service_types.assert_called_once_with()
-        mock_client_plugin.does_endpoint_exist.assert_called_once_with(
-            service_type='test_type',
-            service_name=(generic_rsrc.ResourceWithDefaultClientName
-                          .default_client_name))
-        mock_client_plugin.has_extension.has_calls(
-            [('foo'), ('bar')])
-
-    @mock.patch.object(clients.OpenStackClients, 'client_plugin')
-    def test_service_deployed_required_extension_true_list(
-            self,
-            mock_client_plugin_method):
-        """Test availability of resource with a required extension. """
-
-        mock_service_types, mock_client_plugin = self._mock_client_plugin(
-            ['test_type']
-        )
-        mock_client_plugin.has_extension = mock.Mock(
-            side_effect=[True, True])
-        mock_client_plugin_method.return_value = mock_client_plugin
-
-        rsrc = generic_rsrc.ResourceWithDefaultClientNameMultiExt
-        rsrc.is_service_available(
-            context=mock.Mock())[0]
-        mock_client_plugin_method.assert_called_once_with(
-            generic_rsrc.ResourceWithDefaultClientName.default_client_name)
-        mock_service_types.assert_called_once_with()
-        mock_client_plugin.does_endpoint_exist.assert_called_once_with(
-            service_type='test_type',
-            service_name=(generic_rsrc.ResourceWithDefaultClientName
-                          .default_client_name))
-        mock_client_plugin.has_extension.has_calls(
-            [('foo'), ('bar')])
-
-    @mock.patch.object(clients.OpenStackClients, 'client_plugin')
-    def test_service_deployed_required_extension_true_list_fail(
-            self,
-            mock_client_plugin_method):
-        """Test availability of resource with a required extension. """
-
-        mock_service_types, mock_client_plugin = self._mock_client_plugin(
-            ['test_type']
-        )
-        mock_client_plugin.has_extension = mock.Mock(
-            side_effect=[True, False])
-        mock_client_plugin_method.return_value = mock_client_plugin
-
-        rsrc = generic_rsrc.ResourceWithDefaultClientNameMultiExt
-        self.assertFalse(rsrc.is_service_available(
-            context=mock.Mock())[0])
-        mock_client_plugin_method.assert_called_once_with(
-            generic_rsrc.ResourceWithDefaultClientName.default_client_name)
-        mock_service_types.assert_called_once_with()
-        mock_client_plugin.does_endpoint_exist.assert_called_once_with(
-            service_type='test_type',
-            service_name=(generic_rsrc.ResourceWithDefaultClientName
-                          .default_client_name))
-        mock_client_plugin.has_extension.has_calls(
-            [('foo'), ('bar')])
-
 
 class TestLiveStateUpdate(common.HeatTestCase):
 
@@ -4205,7 +4129,7 @@ class TestLiveStateUpdate(common.HeatTestCase):
                                              'FooInt': 2})
         res = generic_rsrc.ResourceWithProps('test_resource',
                                              tmpl, self.stack)
-        for prop in res.properties.props.values():
+        for prop in six.itervalues(res.properties.props):
             prop.schema.update_allowed = True
         res.update_allowed_properties = ('Foo', 'FooInt',)
 
@@ -4221,7 +4145,7 @@ class TestLiveStateUpdate(common.HeatTestCase):
         """
         res.update_allowed_properties = []
         res.update_allowed_set = []
-        for prop in res.properties.props.values():
+        for prop in six.itervalues(res.properties.props):
             prop.schema.update_allowed = False
 
     def test_update_resource_live_state(self):
@@ -4265,7 +4189,7 @@ class TestLiveStateUpdate(common.HeatTestCase):
         ex = self.assertRaises(exception.EntityNotFound,
                                res.get_live_resource_data)
         self.assertEqual('The Resource (test_resource) could not be found.',
-                         str(ex))
+                         six.text_type(ex))
         self._clean_tests_after_resource_live_state(res)
 
     def test_parse_live_resource_data(self):
@@ -4368,7 +4292,7 @@ class ResourceUpdateRestrictionTest(common.HeatTestCase):
 
         self.assertEqual('ResourceActionRestricted: resources.bar: '
                          'update is restricted for resource.',
-                         str(error))
+                         six.text_type(error))
         self.assertEqual('UPDATE', error.action)
         self.assertEqual((res.CREATE, res.COMPLETE), res.state)
         ev.assert_called_with(res.UPDATE, res.FAILED,
@@ -4395,7 +4319,7 @@ class ResourceUpdateRestrictionTest(common.HeatTestCase):
                                   scheduler.TaskRunner(res.update, snippet))
         self.assertEqual('ResourceActionRestricted: resources.bar: '
                          'replace is restricted for resource.',
-                         str(error))
+                         six.text_type(error))
         self.assertEqual('UPDATE', error.action)
         self.assertEqual((res.CREATE, res.COMPLETE), res.state)
         ev.assert_called_with(res.UPDATE, res.FAILED,
@@ -4442,7 +4366,7 @@ class ResourceUpdateRestrictionTest(common.HeatTestCase):
                                                props)
         error = self.assertRaises(resource.UpdateReplace,
                                   scheduler.TaskRunner(res.update, snippet))
-        self.assertIn('requires replacement', str(error))
+        self.assertIn('requires replacement', six.text_type(error))
         self.assertEqual(1, prep_replace.call_count)
         ev.assert_not_called()
 
@@ -4472,7 +4396,7 @@ class ResourceUpdateRestrictionTest(common.HeatTestCase):
                                                        eventlet.event.Event()))
         self.assertEqual('ResourceActionRestricted: resources.bar: '
                          'replace is restricted for resource.',
-                         str(error))
+                         six.text_type(error))
         self.assertEqual('UPDATE', error.action)
         self.assertEqual((res.CREATE, res.COMPLETE), res.state)
         ev.assert_called_with(res.UPDATE, res.FAILED,
@@ -4502,7 +4426,7 @@ class ResourceUpdateRestrictionTest(common.HeatTestCase):
                                                        self.dummy_timeout,
                                                        self.new_stack,
                                                        eventlet.event.Event()))
-        self.assertIn('requires replacement', str(error))
+        self.assertIn('requires replacement', six.text_type(error))
         ev.assert_not_called()
 
 
@@ -4511,9 +4435,9 @@ class TestResourceMapping(common.HeatTestCase):
     def _check_mapping_func(self, func, module):
         self.assertTrue(callable(func))
         res = func()
-        self.assertIsInstance(res, collections.abc.Mapping)
-        for r_type, r_class in res.items():
-            self.assertIsInstance(r_type, str)
+        self.assertIsInstance(res, collections.Mapping)
+        for r_type, r_class in six.iteritems(res):
+            self.assertIsInstance(r_type, six.string_types)
             type_elements = r_type.split('::')
             # type has fixed format
             # Platform type::Service/Type::Optional Sub-sections::Name
@@ -4521,11 +4445,11 @@ class TestResourceMapping(common.HeatTestCase):
             # type should be OS or AWS
             self.assertIn(type_elements[0], ('AWS', 'OS'))
             # check that value is a class object
-            self.assertIsInstance(r_class, type)
+            self.assertIsInstance(r_class, six.class_types)
             # check that class is subclass of Resource base class
             self.assertTrue(issubclass(r_class, resource.Resource))
             # check that mentioned class is presented in the same module
-            self.assertTrue(hasattr(module, str(r_class.__name__)))
+            self.assertTrue(hasattr(module, six.text_type(r_class.__name__)))
         return len(res)
 
     def test_resource_mappings(self):

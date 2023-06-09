@@ -12,6 +12,7 @@
 #    under the License.
 
 from requests import exceptions
+import six
 
 from heat.common import exception
 from heat.common.i18n import _
@@ -94,7 +95,7 @@ class NestedStack(stack_resource.StackResource):
     def get_reference_id(self):
         identifier = self.nested_identifier()
         if identifier is None:
-            return str(self.name)
+            return six.text_type(self.name)
 
         return identifier.arn()
 

@@ -11,7 +11,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
 
 from heat.engine.resources.openstack.neutron.sfc import port_pair
 from heat.engine import stack
@@ -27,8 +27,8 @@ sample_template = {
             'properties': {
                 'name': 'test_port_pair',
                 'description': 'desc',
-                'ingress': '6af055d3-26f6-48dd-a597-7611d7e58d35',
-                'egress': '6af055d3-26f6-48dd-a597-7611d7e58d35',
+                'ingress':  '6af055d3-26f6-48dd-a597-7611d7e58d35',
+                'egress':  '6af055d3-26f6-48dd-a597-7611d7e58d35',
                 'service_function_parameters': {'correlation': None}
             }
         }
@@ -155,4 +155,4 @@ class PortPairTest(common.HeatTestCase):
             {
                 'name': 'name-updated',
                 'description': 'description-updated',
-            }, self.test_resource.resource_id)
+            },  self.test_resource.resource_id)

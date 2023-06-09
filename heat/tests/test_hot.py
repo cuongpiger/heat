@@ -12,7 +12,8 @@
 #    under the License.
 
 import copy
-from unittest import mock
+import mock
+import six
 
 from heat.common import exception
 from heat.common import identifier
@@ -69,10 +70,6 @@ heat_template_version: 2017-02-24
 
 hot_pike_tpl_empty = template_format.parse('''
 heat_template_version: 2017-09-01
-''')
-
-hot_wallaby_tpl_empty = template_format.parse('''
-heat_template_version: 2021-04-16
 ''')
 
 hot_tpl_empty_sections = template_format.parse('''
@@ -247,7 +244,7 @@ class HOTemplateTest(common.HeatTestCase):
         error = self.assertRaises(exception.StackValidationFailed,
                                   tmpl.__getitem__, tmpl.RESOURCES)
         self.assertEqual('Each resource must contain a type key.',
-                         str(error))
+                         six.text_type(error))
 
     def test_translate_resources_bad_type(self):
         """Test translation of resources including invalid keyword."""
@@ -272,7 +269,7 @@ class HOTemplateTest(common.HeatTestCase):
                                 tmpl.__getitem__, tmpl.RESOURCES)
         self.assertEqual('"Type" is not a valid keyword '
                          'inside a resource definition',
-                         str(err))
+                         six.text_type(err))
 
     def test_translate_resources_bad_properties(self):
         """Test translation of resources including invalid keyword."""
@@ -297,7 +294,7 @@ class HOTemplateTest(common.HeatTestCase):
                                 tmpl.__getitem__, tmpl.RESOURCES)
         self.assertEqual('"Properties" is not a valid keyword '
                          'inside a resource definition',
-                         str(err))
+                         six.text_type(err))
 
     def test_translate_resources_resources_without_name(self):
         hot_tpl = template_format.parse('''
@@ -315,8 +312,8 @@ class HOTemplateTest(common.HeatTestCase):
         error = self.assertRaises(exception.StackValidationFailed,
                                   tmpl.__getitem__, tmpl.RESOURCES)
         self.assertEqual('"resources" must contain a map of resource maps. '
-                         'Found a [%s] instead' % str,
-                         str(error))
+                         'Found a [%s] instead' % six.text_type,
+                         six.text_type(error))
 
     def test_translate_resources_bad_metadata(self):
         """Test translation of resources including invalid keyword."""
@@ -342,7 +339,7 @@ class HOTemplateTest(common.HeatTestCase):
 
         self.assertEqual('"Metadata" is not a valid keyword '
                          'inside a resource definition',
-                         str(err))
+                         six.text_type(err))
 
     def test_translate_resources_bad_depends_on(self):
         """Test translation of resources including invalid keyword."""
@@ -367,7 +364,7 @@ class HOTemplateTest(common.HeatTestCase):
                                 tmpl.__getitem__, tmpl.RESOURCES)
         self.assertEqual('"DependsOn" is not a valid keyword '
                          'inside a resource definition',
-                         str(err))
+                         six.text_type(err))
 
     def test_translate_resources_bad_deletion_policy(self):
         """Test translation of resources including invalid keyword."""
@@ -392,7 +389,7 @@ class HOTemplateTest(common.HeatTestCase):
                                 tmpl.__getitem__, tmpl.RESOURCES)
         self.assertEqual('"DeletionPolicy" is not a valid keyword '
                          'inside a resource definition',
-                         str(err))
+                         six.text_type(err))
 
     def test_translate_resources_bad_update_policy(self):
         """Test translation of resources including invalid keyword."""
@@ -417,7 +414,7 @@ class HOTemplateTest(common.HeatTestCase):
                                 tmpl.__getitem__, tmpl.RESOURCES)
         self.assertEqual('"UpdatePolicy" is not a valid keyword '
                          'inside a resource definition',
-                         str(err))
+                         six.text_type(err))
 
     def test_get_outputs_good(self):
         """Test get outputs."""
@@ -448,7 +445,7 @@ class HOTemplateTest(common.HeatTestCase):
         error = self.assertRaises(exception.StackValidationFailed,
                                   tmpl.__getitem__, tmpl.OUTPUTS)
         self.assertEqual('Each output must contain a value key.',
-                         str(error))
+                         six.text_type(error))
 
     def test_get_outputs_bad_without_name(self):
         """Test get outputs without name."""
@@ -464,8 +461,8 @@ class HOTemplateTest(common.HeatTestCase):
         error = self.assertRaises(exception.StackValidationFailed,
                                   tmpl.__getitem__, tmpl.OUTPUTS)
         self.assertEqual('"outputs" must contain a map of output maps. '
-                         'Found a [%s] instead' % str,
-                         str(error))
+                         'Found a [%s] instead' % six.text_type,
+                         six.text_type(error))
 
     def test_get_outputs_bad_description(self):
         """Test get outputs with bad description name."""
@@ -481,7 +478,7 @@ class HOTemplateTest(common.HeatTestCase):
         tmpl = template.Template(hot_tpl)
         err = self.assertRaises(exception.StackValidationFailed,
                                 tmpl.__getitem__, tmpl.OUTPUTS)
-        self.assertIn('Description', str(err))
+        self.assertIn('Description', six.text_type(err))
 
     def test_get_outputs_bad_value(self):
         """Test get outputs with bad value name."""
@@ -497,7 +494,7 @@ class HOTemplateTest(common.HeatTestCase):
         tmpl = template.Template(hot_tpl)
         err = self.assertRaises(exception.StackValidationFailed,
                                 tmpl.__getitem__, tmpl.OUTPUTS)
-        self.assertIn('Value', str(err))
+        self.assertIn('Value', six.text_type(err))
 
     def test_resource_group_list_join(self):
         """Test list_join on a ResourceGroup's inner attributes
@@ -599,7 +596,7 @@ class HOTemplateTest(common.HeatTestCase):
         tmpl = template.Template(hot_tpl_empty)
         ex = self.assertRaises(TypeError, self.resolve, snippet, tmpl)
         self.assertIn('"str_replace" params must be strings or numbers, '
-                      'param jsonvar1 is not valid', str(ex))
+                      'param jsonvar1 is not valid', six.text_type(ex))
 
     def test_liberty_str_replace_map_param(self):
         """Test str_replace function with non-string map param."""
@@ -620,7 +617,7 @@ class HOTemplateTest(common.HeatTestCase):
         tmpl = template.Template(hot_tpl_empty)
         ex = self.assertRaises(TypeError, self.resolve, snippet, tmpl)
         self.assertIn('"str_replace" params must be strings or numbers, '
-                      'param listvar1 is not valid', str(ex))
+                      'param listvar1 is not valid', six.text_type(ex))
 
     def test_liberty_str_replace_list_param(self):
         """Test str_replace function with non-string param."""
@@ -754,7 +751,7 @@ class HOTemplateTest(common.HeatTestCase):
         tmpl = template.Template(hot_ocata_tpl_empty)
         ex = self.assertRaises(ValueError, self.resolve, snippet, tmpl)
         self.assertEqual('The following params were not found in the '
-                         'template: var3', str(ex))
+                         'template: var3', six.text_type(ex))
 
         snippet = {'str_replace_strict':
                    {'template': 'Template var1 string var2',
@@ -763,7 +760,7 @@ class HOTemplateTest(common.HeatTestCase):
 
         ex = self.assertRaises(ValueError, self.resolve, snippet, tmpl)
         self.assertEqual('The following params were not found in the '
-                         'template: var0', str(ex))
+                         'template: var0', six.text_type(ex))
 
         # str_replace_vstrict has same behaviour
         snippet = {'str_replace_vstrict':
@@ -775,7 +772,7 @@ class HOTemplateTest(common.HeatTestCase):
         tmpl = template.Template(hot_pike_tpl_empty)
         ex = self.assertRaises(ValueError, self.resolve, snippet, tmpl)
         self.assertEqual('The following params were not found in the '
-                         'template: longvarname,var0,var', str(ex))
+                         'template: longvarname,var0,var', six.text_type(ex))
 
     def test_str_replace_strict_empty_param_ok(self):
         """Test str_replace_strict function with empty params."""
@@ -802,7 +799,7 @@ class HOTemplateTest(common.HeatTestCase):
             snippet['str_replace_vstrict']['params']['var2'] = val
             ex = self.assertRaises(ValueError, self.resolve, snippet, tmpl)
             self.assertIn('str_replace_vstrict has an undefined or empty '
-                          'value for param var2', str(ex))
+                          'value for param var2', six.text_type(ex))
 
     def test_str_replace_invalid_param_keys(self):
         """Test str_replace function parameter keys.
@@ -825,7 +822,7 @@ class HOTemplateTest(common.HeatTestCase):
         ex = self.assertRaises(exception.StackValidationFailed,
                                self.resolve, snippet, tmpl)
         self.assertIn('"str_replace" syntax should be str_replace:\\n',
-                      str(ex))
+                      six.text_type(ex))
 
     def test_str_replace_strict_invalid_param_keys(self):
         """Test str_replace function parameter keys.
@@ -846,7 +843,7 @@ class HOTemplateTest(common.HeatTestCase):
             ex = self.assertRaises(exception.StackValidationFailed,
                                    self.resolve, snippet, tmpl)
         self.assertIn('"str_replace_strict" syntax should be '
-                      'str_replace_strict:\\n', str(ex))
+                      'str_replace_strict:\\n', six.text_type(ex))
 
     def test_str_replace_invalid_param_types(self):
         """Test str_replace function parameter values.
@@ -868,7 +865,7 @@ class HOTemplateTest(common.HeatTestCase):
         ex = self.assertRaises(exception.StackValidationFailed,
                                self.resolve, snippet, tmpl)
         self.assertIn('str_replace: "str_replace" parameters must be a'
-                      ' mapping', str(ex))
+                      ' mapping', six.text_type(ex))
 
     def test_str_replace_invalid_param_type_init(self):
         """Test str_replace function parameter values.
@@ -882,7 +879,7 @@ class HOTemplateTest(common.HeatTestCase):
             TypeError,
             cfn_functions.Replace,
             None, 'Fn::Replace', args)
-        self.assertIn('parameters must be a mapping', str(ex))
+        self.assertIn('parameters must be a mapping', six.text_type(ex))
 
     def test_str_replace_ref_get_param(self):
         """Test str_replace referencing parameters."""
@@ -941,7 +938,7 @@ class HOTemplateTest(common.HeatTestCase):
                                       snippet, tmpl, stack)
         self.assertEqual(
             'Argument to "get_file" must be a string',
-            str(notStrErr))
+            six.text_type(notStrErr))
 
     def test_get_file_missing_files(self):
         """Test get_file function with no matching key in files section."""
@@ -958,7 +955,7 @@ class HOTemplateTest(common.HeatTestCase):
         self.assertEqual(
             ('No content found in the "files" section for '
              'get_file path: file:///tmp/foo.yaml'),
-            str(missingErr))
+            six.text_type(missingErr))
 
     def test_get_file_nested_does_not_resolve(self):
         """Test get_file function does not resolve nested calls."""
@@ -1002,7 +999,7 @@ class HOTemplateTest(common.HeatTestCase):
         k_tmpl = template.Template(hot_kilo_tpl_empty)
         exc = self.assertRaises(TypeError, self.resolve, snippet, k_tmpl)
         self.assertEqual("Items to join must be strings not {'foo': 'json'}",
-                         str(exc))
+                         six.text_type(exc))
 
     def test_join_object_type_fail(self):
         not_serializable = object
@@ -1010,10 +1007,10 @@ class HOTemplateTest(common.HeatTestCase):
         l_tmpl = template.Template(hot_liberty_tpl_empty)
         exc = self.assertRaises(TypeError, self.resolve, snippet, l_tmpl)
         self.assertIn('Items to join must be string, map or list not',
-                      str(exc))
+                      six.text_type(exc))
         k_tmpl = template.Template(hot_kilo_tpl_empty)
         exc = self.assertRaises(TypeError, self.resolve, snippet, k_tmpl)
-        self.assertIn("Items to join must be strings", str(exc))
+        self.assertIn("Items to join must be strings", six.text_type(exc))
 
     def test_join_json_fail(self):
         not_serializable = object
@@ -1021,9 +1018,9 @@ class HOTemplateTest(common.HeatTestCase):
         l_tmpl = template.Template(hot_liberty_tpl_empty)
         exc = self.assertRaises(TypeError, self.resolve, snippet, l_tmpl)
         self.assertIn('Items to join must be string, map or list',
-                      str(exc))
+                      six.text_type(exc))
         self.assertIn("failed json serialization",
-                      str(exc))
+                      six.text_type(exc))
 
     def test_join_invalid(self):
         snippet = {'list_join': 'bad'}
@@ -1031,25 +1028,25 @@ class HOTemplateTest(common.HeatTestCase):
         exc = self.assertRaises(exception.StackValidationFailed,
                                 self.resolve, snippet, l_tmpl)
         self.assertIn('list_join: Incorrect arguments to "list_join"',
-                      str(exc))
+                      six.text_type(exc))
 
         k_tmpl = template.Template(hot_kilo_tpl_empty)
         exc1 = self.assertRaises(exception.StackValidationFailed,
                                  self.resolve, snippet, k_tmpl)
         self.assertIn('list_join: Incorrect arguments to "list_join"',
-                      str(exc1))
+                      six.text_type(exc1))
 
     def test_join_int_invalid(self):
         snippet = {'list_join': 5}
         l_tmpl = template.Template(hot_liberty_tpl_empty)
         exc = self.assertRaises(exception.StackValidationFailed,
                                 self.resolve, snippet, l_tmpl)
-        self.assertIn('list_join: Incorrect arguments', str(exc))
+        self.assertIn('list_join: Incorrect arguments', six.text_type(exc))
 
         k_tmpl = template.Template(hot_kilo_tpl_empty)
         exc1 = self.assertRaises(exception.StackValidationFailed,
                                  self.resolve, snippet, k_tmpl)
-        self.assertIn('list_join: Incorrect arguments', str(exc1))
+        self.assertIn('list_join: Incorrect arguments', six.text_type(exc1))
 
     def test_join_invalid_value(self):
         snippet = {'list_join': [',']}
@@ -1057,19 +1054,19 @@ class HOTemplateTest(common.HeatTestCase):
         exc = self.assertRaises(exception.StackValidationFailed,
                                 self.resolve, snippet, l_tmpl)
         self.assertIn('list_join: Incorrect arguments to "list_join"',
-                      str(exc))
+                      six.text_type(exc))
 
         k_tmpl = template.Template(hot_kilo_tpl_empty)
         exc1 = self.assertRaises(exception.StackValidationFailed,
                                  self.resolve, snippet, k_tmpl)
         self.assertIn('list_join: Incorrect arguments to "list_join"',
-                      str(exc1))
+                      six.text_type(exc1))
 
     def test_join_invalid_multiple(self):
         snippet = {'list_join': [',', 'bad', ['foo']]}
         tmpl = template.Template(hot_liberty_tpl_empty)
         exc = self.assertRaises(TypeError, self.resolve, snippet, tmpl)
-        self.assertIn('must operate on a list', str(exc))
+        self.assertIn('must operate on a list', six.text_type(exc))
 
     def test_merge(self):
         snippet = {'map_merge': [{'f1': 'b1', 'f2': 'b2'}, {'f1': 'b2'}]}
@@ -1089,7 +1086,7 @@ class HOTemplateTest(common.HeatTestCase):
         snippet = {'map_merge': [{'f1': 'b1', 'f2': 'b2'}, ['f1', 'b2']]}
         tmpl = template.Template(hot_mitaka_tpl_empty)
         exc = self.assertRaises(TypeError, self.resolve, snippet, tmpl)
-        self.assertIn('Incorrect arguments', str(exc))
+        self.assertIn('Incorrect arguments', six.text_type(exc))
 
     def test_merge_containing_repeat(self):
         snippet = {'map_merge': {'repeat': {'template': {'ROLE': 'ROLE'},
@@ -1388,12 +1385,12 @@ class HOTemplateTest(common.HeatTestCase):
 
         error_msg = ('equals: Arguments to "equals" must be '
                      'of the form: [value_1, value_2]')
-        self.assertIn(error_msg, str(exc))
+        self.assertIn(error_msg, six.text_type(exc))
 
         snippet = {'equals': "invalid condition"}
         exc = self.assertRaises(exception.StackValidationFailed,
                                 self.resolve_condition, snippet, tmpl)
-        self.assertIn(error_msg, str(exc))
+        self.assertIn(error_msg, six.text_type(exc))
 
     def test_equals_with_non_supported_function(self):
 
@@ -1403,7 +1400,7 @@ class HOTemplateTest(common.HeatTestCase):
                               {'get_attr': [None, 'att2']}]}
         exc = self.assertRaises(exception.StackValidationFailed,
                                 self.resolve_condition, snippet, tmpl)
-        self.assertIn('"get_attr" is invalid', str(exc))
+        self.assertIn('"get_attr" is invalid', six.text_type(exc))
 
     def test_if(self):
         snippet = {'if': ['create_prod', 'value_if_true', 'value_if_false']}
@@ -1510,42 +1507,13 @@ resources:
         self.assertEqual('', self.stack['AResource'].properties['Foo'])
 
     def test_if_invalid_args(self):
-        snippets = [
-            {'if': ['create_prod', 'one_value']},
-            {'if': ['create_prod', 'one_value', 'two_values', 'three_values']},
-        ]
+        snippet = {'if': ['create_prod', 'one_value']}
         tmpl = template.Template(hot_newton_tpl_empty)
-        for snippet in snippets:
-            exc = self.assertRaises(exception.StackValidationFailed,
-                                    self.resolve, snippet, tmpl)
-            self.assertIn('Arguments to "if" must be of the form: '
-                          '[condition_name, value_if_true, value_if_false]',
-                          str(exc))
-
-    def test_if_nullable_invalid_args(self):
-        snippets = [
-            {'if': ['create_prod']},
-            {'if': ['create_prod', 'one_value', 'two_values', 'three_values']},
-        ]
-        tmpl = template.Template(hot_wallaby_tpl_empty)
-        for snippet in snippets:
-            exc = self.assertRaises(exception.StackValidationFailed,
-                                    self.resolve, snippet, tmpl)
-            self.assertIn('Arguments to "if" must be of the form: '
-                          '[condition_name, value_if_true, value_if_false]',
-                          str(exc))
-
-    def test_if_nullable(self):
-        snippet = {
-            'single': {'if': [False, 'value_if_true']},
-            'nested_true': {'if': [True, {'if': [False, 'foo']}, 'bar']},
-            'nested_false': {'if': [False, 'baz', {'if': [False, 'quux']}]},
-            'control': {'if': [False, True, None]},
-        }
-
-        tmpl = template.Template(hot_wallaby_tpl_empty)
-        resolved = self.resolve(snippet, tmpl, None)
-        self.assertEqual({'control': None}, resolved)
+        exc = self.assertRaises(exception.StackValidationFailed,
+                                self.resolve, snippet, tmpl)
+        self.assertIn('Arguments to "if" must be of the form: '
+                      '[condition_name, value_if_true, value_if_false]',
+                      six.text_type(exc))
 
     def test_if_condition_name_non_existing(self):
         snippet = {'if': ['cd_not_existing', 'value_true', 'value_false']}
@@ -1557,8 +1525,8 @@ resources:
             exc = self.assertRaises(exception.StackValidationFailed,
                                     self.resolve, snippet, tmpl, stack)
         self.assertIn('Invalid condition "cd_not_existing"',
-                      str(exc))
-        self.assertIn('if:', str(exc))
+                      six.text_type(exc))
+        self.assertIn('if:', six.text_type(exc))
 
     def _test_repeat(self, templ=hot_kilo_tpl_empty):
         """Test repeat function."""
@@ -1733,7 +1701,7 @@ resources:
         exc = self.assertRaises(exception.StackValidationFailed,
                                 self.resolve, snippet, tmpl)
         self.assertIn('"permutations" should be boolean type '
-                      'for repeat function', str(exc))
+                      'for repeat function', six.text_type(exc))
 
     def test_repeat_bad_args(self):
         """Tests reporting error by repeat function.
@@ -1789,7 +1757,7 @@ resources:
         ]
         for snippet in invalid_snippets:
             exc = self.assertRaises(TypeError, self.resolve, snippet, tmpl)
-            self.assertIn('must be a list of strings', str(exc))
+            self.assertIn('must be a list of strings', six.text_type(exc))
 
     def test_digest_incorrect_number_arguments(self):
         tmpl = template.Template(hot_kilo_tpl_empty)
@@ -1803,14 +1771,14 @@ resources:
         for snippet in invalid_snippets:
             exc = self.assertRaises(ValueError, self.resolve, snippet, tmpl)
             self.assertIn('usage: ["<algorithm>", "<value>"]',
-                          str(exc))
+                          six.text_type(exc))
 
     def test_digest_invalid_algorithm(self):
         tmpl = template.Template(hot_kilo_tpl_empty)
 
         snippet = {'digest': ['invalid_algorithm', 'foobar']}
         exc = self.assertRaises(ValueError, self.resolve, snippet, tmpl)
-        self.assertIn('Algorithm must be one of', str(exc))
+        self.assertIn('Algorithm must be one of', six.text_type(exc))
 
     def test_str_split(self):
         tmpl = template.Template(hot_liberty_tpl_empty)
@@ -1834,28 +1802,28 @@ resources:
         tmpl = template.Template(hot_liberty_tpl_empty)
         snippet = {'str_split': [',', 'bar,baz', 'bad']}
         exc = self.assertRaises(ValueError, self.resolve, snippet, tmpl)
-        self.assertIn('Incorrect index to \"str_split\"', str(exc))
+        self.assertIn('Incorrect index to \"str_split\"', six.text_type(exc))
 
     def test_str_split_index_out_of_range(self):
         tmpl = template.Template(hot_liberty_tpl_empty)
         snippet = {'str_split': [',', 'bar,baz', '2']}
         exc = self.assertRaises(ValueError, self.resolve, snippet, tmpl)
         expected = 'Incorrect index to \"str_split\" should be between 0 and 1'
-        self.assertEqual(expected, str(exc))
+        self.assertEqual(expected, six.text_type(exc))
 
     def test_str_split_bad_novalue(self):
         tmpl = template.Template(hot_liberty_tpl_empty)
         snippet = {'str_split': [',']}
         exc = self.assertRaises(ValueError, self.resolve, snippet, tmpl)
         self.assertIn('Incorrect arguments to \"str_split\"',
-                      str(exc))
+                      six.text_type(exc))
 
     def test_str_split_bad_empty(self):
         tmpl = template.Template(hot_liberty_tpl_empty)
         snippet = {'str_split': []}
         exc = self.assertRaises(ValueError, self.resolve, snippet, tmpl)
         self.assertIn('Incorrect arguments to \"str_split\"',
-                      str(exc))
+                      six.text_type(exc))
 
     def test_str_split_none_string_to_split(self):
         tmpl = template.Template(hot_liberty_tpl_empty)
@@ -1889,11 +1857,11 @@ resources:
 
         # Hot template test
         keyError = self.assertRaises(KeyError, tmpl.__getitem__, 'parameters')
-        self.assertIn(err_str, str(keyError))
+        self.assertIn(err_str, six.text_type(keyError))
 
         # CFN template test
         keyError = self.assertRaises(KeyError, tmpl.__getitem__, 'Parameters')
-        self.assertIn(err_str, str(keyError))
+        self.assertIn(err_str, six.text_type(keyError))
 
     def test_parameters_section_not_iterable(self):
         """Check parameters section is not returned using the template as iter.
@@ -1996,7 +1964,7 @@ resources:
                                   self.resolve,
                                   snippet,
                                   stack.t, stack)
-        self.assertIn(next(iter(snippet)), str(error))
+        self.assertIn(next(iter(snippet)), six.text_type(error))
 
     def test_resource_facade_missing_deletion_policy(self):
         snippet = {'resource_facade': 'deletion_policy'}
@@ -2074,7 +2042,7 @@ resources:
         empty = template.Template(copy.deepcopy(hot_tpl_empty))
         stack = parser.Stack(utils.dummy_context(), 'test_stack', source)
 
-        for defn in source.outputs(stack).values():
+        for defn in six.itervalues(source.outputs(stack)):
             empty.add_output(defn)
 
         self.assertEqual(hot_tpl['outputs'], empty.t['outputs'])
@@ -2409,7 +2377,7 @@ resources:
         tmpl = template.Template(hot_pike_tpl_empty)
         msg = 'Incorrect arguments'
         exc = self.assertRaises(TypeError, self.resolve, snippet, tmpl)
-        self.assertIn(msg, str(exc))
+        self.assertIn(msg, six.text_type(exc))
 
     def test_list_concat_with_dict_arg(self):
         snippet = {'list_concat': [{'k1': 'v2'}, ['v3', 'v4']]}
@@ -2441,7 +2409,7 @@ resources:
         exc = self.assertRaises(exception.StackValidationFailed,
                                 self.resolve, snippet, tmpl)
         msg = 'Incorrect arguments to '
-        self.assertIn(msg, str(exc))
+        self.assertIn(msg, six.text_type(exc))
 
     def test_contains_with_invalid_args_number(self):
         snippet = {'contains': ['v1', ['v1', 'v2'], 'redundant']}
@@ -2449,7 +2417,7 @@ resources:
         exc = self.assertRaises(exception.StackValidationFailed,
                                 self.resolve, snippet, tmpl)
         msg = 'must be of the form: [value1, [value1, value2]]'
-        self.assertIn(msg, str(exc))
+        self.assertIn(msg, six.text_type(exc))
 
     def test_contains_with_invalid_sequence(self):
         snippet = {'contains': ['v1', {'key': 'value'}]}
@@ -2457,7 +2425,7 @@ resources:
         exc = self.assertRaises(TypeError,
                                 self.resolve, snippet, tmpl)
         msg = 'should be a sequence'
-        self.assertIn(msg, str(exc))
+        self.assertIn(msg, six.text_type(exc))
 
 
 class HotStackTest(common.HeatTestCase):
@@ -2887,7 +2855,7 @@ class StackGetAttrValidationTest(common.HeatTestCase):
         try:
             stack.validate()
         except exception.StackValidationFailed as exc:
-            self.fail("Validation should have passed: %s" % str(exc))
+            self.fail("Validation should have passed: %s" % six.text_type(exc))
         self.assertEqual([],
                          stack.resources['resource2'].properties['a_list'])
         self.assertEqual({},
@@ -2904,7 +2872,7 @@ class StackGetAttrValidationTest(common.HeatTestCase):
         try:
             stack.validate()
         except exception.StackValidationFailed as exc:
-            self.fail("Validation should have passed: %s" % str(exc))
+            self.fail("Validation should have passed: %s" % six.text_type(exc))
         self.assertEqual([],
                          stack.resources['resource2'].properties['a_list'])
         self.assertEqual({},
@@ -3055,19 +3023,19 @@ class HOTParamValidatorTest(common.HeatTestCase):
 
         value = 'wp'
         err = self.assertRaises(exception.StackValidationFailed, v, value)
-        self.assertIn(len_desc, str(err))
+        self.assertIn(len_desc, six.text_type(err))
 
         value = 'abcdefghijklmnopq'
         err = self.assertRaises(exception.StackValidationFailed, v, value)
-        self.assertIn(len_desc, str(err))
+        self.assertIn(len_desc, six.text_type(err))
 
         value = 'abcdefgh1'
         err = self.assertRaises(exception.StackValidationFailed, v, value)
-        self.assertIn(pattern_desc1, str(err))
+        self.assertIn(pattern_desc1, six.text_type(err))
 
         value = 'Abcdefghi'
         err = self.assertRaises(exception.StackValidationFailed, v, value)
-        self.assertIn(pattern_desc2, str(err))
+        self.assertIn(pattern_desc2, six.text_type(err))
 
         value = 'abcdefghi'
         self.assertTrue(v(value))
@@ -3105,22 +3073,22 @@ class HOTParamValidatorTest(common.HeatTestCase):
         value = 'wp'
         err = self.assertRaises(exception.StackValidationFailed,
                                 run_parameters, value)
-        self.assertIn(len_desc, str(err))
+        self.assertIn(len_desc, six.text_type(err))
 
         value = 'abcdefghijklmnopq'
         err = self.assertRaises(exception.StackValidationFailed,
                                 run_parameters, value)
-        self.assertIn(len_desc, str(err))
+        self.assertIn(len_desc, six.text_type(err))
 
         value = 'abcdefgh1'
         err = self.assertRaises(exception.StackValidationFailed,
                                 run_parameters, value)
-        self.assertIn(pattern_desc1, str(err))
+        self.assertIn(pattern_desc1, six.text_type(err))
 
         value = 'Abcdefghi'
         err = self.assertRaises(exception.StackValidationFailed,
                                 run_parameters, value)
-        self.assertIn(pattern_desc2, str(err))
+        self.assertIn(pattern_desc2, six.text_type(err))
 
         value = 'abcdefghi'
         self.assertTrue(run_parameters(value))
@@ -3150,11 +3118,11 @@ class HOTParamValidatorTest(common.HeatTestCase):
 
         value = 29999
         err = self.assertRaises(exception.StackValidationFailed, v, value)
-        self.assertIn(range_desc, str(err))
+        self.assertIn(range_desc, six.text_type(err))
 
         value = 50001
         err = self.assertRaises(exception.StackValidationFailed, v, value)
-        self.assertIn(range_desc, str(err))
+        self.assertIn(range_desc, six.text_type(err))
 
         value = 30000
         self.assertTrue(v(value))
@@ -3193,11 +3161,11 @@ class HOTParamValidatorTest(common.HeatTestCase):
 
         value = "1"
         err = self.assertRaises(exception.StackValidationFailed, v, value)
-        self.assertEqual(desc, str(err))
+        self.assertEqual(desc, six.text_type(err))
 
         value = "2"
         err = self.assertRaises(exception.StackValidationFailed, v, value)
-        self.assertEqual(desc, str(err))
+        self.assertEqual(desc, six.text_type(err))
 
         value = "0"
         self.assertTrue(v(value))
@@ -3230,7 +3198,7 @@ class HOTParamValidatorTest(common.HeatTestCase):
                                                     param['db_port'])
         err = self.assertRaises(exception.InvalidSchemaError,
                                 schema.validate)
-        self.assertIn(range_desc, str(err))
+        self.assertIn(range_desc, six.text_type(err))
 
     def test_validate_schema_wrong_key(self):
         hot_tpl = template_format.parse('''
@@ -3243,7 +3211,7 @@ class HOTParamValidatorTest(common.HeatTestCase):
             exception.InvalidSchemaError, cfn_param.CfnParameters,
             "stack_testit", template.Template(hot_tpl))
         self.assertEqual("Invalid key 'foo' for parameter (param1)",
-                         str(error))
+                         six.text_type(error))
 
     def test_validate_schema_no_type(self):
         hot_tpl = template_format.parse('''
@@ -3256,7 +3224,7 @@ class HOTParamValidatorTest(common.HeatTestCase):
             exception.InvalidSchemaError, cfn_param.CfnParameters,
             "stack_testit", template.Template(hot_tpl))
         self.assertEqual("Missing parameter type for parameter: param1",
-                         str(error))
+                         six.text_type(error))
 
     def test_validate_schema_unknown_type(self):
         hot_tpl = template_format.parse('''
@@ -3269,7 +3237,7 @@ class HOTParamValidatorTest(common.HeatTestCase):
             exception.InvalidSchemaError, cfn_param.CfnParameters,
             "stack_testit", template.Template(hot_tpl))
         self.assertEqual(
-            "Invalid type (Unicode)", str(error))
+            "Invalid type (Unicode)", six.text_type(error))
 
     def test_validate_schema_constraints(self):
         hot_tpl = template_format.parse('''
@@ -3286,7 +3254,7 @@ class HOTParamValidatorTest(common.HeatTestCase):
             "stack_testit", template.Template(hot_tpl))
         self.assertEqual(
             "Invalid key 'allowed_valus' for parameter constraints",
-            str(error))
+            six.text_type(error))
 
     def test_validate_schema_constraints_not_list(self):
         hot_tpl = template_format.parse('''
@@ -3302,7 +3270,7 @@ class HOTParamValidatorTest(common.HeatTestCase):
             "stack_testit", template.Template(hot_tpl))
         self.assertEqual(
             "Invalid parameter constraints for parameter param1, "
-            "expected a list", str(error))
+            "expected a list", six.text_type(error))
 
     def test_validate_schema_constraints_not_mapping(self):
         hot_tpl = template_format.parse('''
@@ -3318,7 +3286,7 @@ class HOTParamValidatorTest(common.HeatTestCase):
             "stack_testit", template.Template(hot_tpl))
         self.assertEqual(
             "Invalid parameter constraints, expected a mapping",
-            str(error))
+            six.text_type(error))
 
     def test_validate_schema_empty_constraints(self):
         hot_tpl = template_format.parse('''
@@ -3333,7 +3301,7 @@ class HOTParamValidatorTest(common.HeatTestCase):
         error = self.assertRaises(
             exception.InvalidSchemaError, cfn_param.CfnParameters,
             "stack_testit", template.Template(hot_tpl))
-        self.assertEqual("No constraint expressed", str(error))
+        self.assertEqual("No constraint expressed", six.text_type(error))
 
     def test_validate_schema_constraints_range_wrong_format(self):
         hot_tpl = template_format.parse('''
@@ -3350,7 +3318,7 @@ class HOTParamValidatorTest(common.HeatTestCase):
             "stack_testit", template.Template(hot_tpl))
         self.assertEqual(
             "Invalid range constraint, expected a mapping",
-            str(error))
+            six.text_type(error))
 
     def test_validate_schema_constraints_range_invalid_key(self):
         hot_tpl = template_format.parse('''
@@ -3366,7 +3334,7 @@ class HOTParamValidatorTest(common.HeatTestCase):
             exception.InvalidSchemaError, cfn_param.CfnParameters,
             "stack_testit", template.Template(hot_tpl))
         self.assertEqual(
-            "Invalid key 'foo' for range constraint", str(error))
+            "Invalid key 'foo' for range constraint", six.text_type(error))
 
     def test_validate_schema_constraints_length_wrong_format(self):
         hot_tpl = template_format.parse('''
@@ -3383,7 +3351,7 @@ class HOTParamValidatorTest(common.HeatTestCase):
             "stack_testit", template.Template(hot_tpl))
         self.assertEqual(
             "Invalid length constraint, expected a mapping",
-            str(error))
+            six.text_type(error))
 
     def test_validate_schema_constraints_length_invalid_key(self):
         hot_tpl = template_format.parse('''
@@ -3399,7 +3367,7 @@ class HOTParamValidatorTest(common.HeatTestCase):
             exception.InvalidSchemaError, cfn_param.CfnParameters,
             "stack_testit", template.Template(hot_tpl))
         self.assertEqual(
-            "Invalid key 'foo' for length constraint", str(error))
+            "Invalid key 'foo' for length constraint", six.text_type(error))
 
     def test_validate_schema_constraints_wrong_allowed_pattern(self):
         hot_tpl = template_format.parse('''
@@ -3415,7 +3383,7 @@ class HOTParamValidatorTest(common.HeatTestCase):
             exception.InvalidSchemaError, cfn_param.CfnParameters,
             "stack_testit", template.Template(hot_tpl))
         self.assertEqual(
-            "AllowedPattern must be a string", str(error))
+            "AllowedPattern must be a string", six.text_type(error))
 
     def test_modulo_constraint(self):
         modulo_desc = 'Value must be an odd number'
@@ -3441,11 +3409,11 @@ class HOTParamValidatorTest(common.HeatTestCase):
 
         value = 2
         err = self.assertRaises(exception.StackValidationFailed, v, value)
-        self.assertIn(modulo_desc, str(err))
+        self.assertIn(modulo_desc, six.text_type(err))
 
         value = 100
         err = self.assertRaises(exception.StackValidationFailed, v, value)
-        self.assertIn(modulo_desc, str(err))
+        self.assertIn(modulo_desc, six.text_type(err))
 
         value = 1
         self.assertTrue(v(value))
@@ -3474,7 +3442,7 @@ class HOTParamValidatorTest(common.HeatTestCase):
         schema = hot_param.HOTParamSchema20170224.from_dict(
             modulo_name, param[modulo_name])
         err = self.assertRaises(exception.InvalidSchemaError, schema.validate)
-        self.assertIn(modulo_desc, str(err))
+        self.assertIn(modulo_desc, six.text_type(err))
 
 
 class TestGetAttAllAttributes(common.HeatTestCase):
@@ -3598,7 +3566,7 @@ class TestGetAttAllAttributes(common.HeatTestCase):
             if self.raises is not None:
                 ex = self.assertRaises(self.raises,
                                        self.resolve, self.snippet, tmpl, stack)
-                self.assertEqual(self.expected, str(ex))
+                self.assertEqual(self.expected, six.text_type(ex))
             else:
                 self.assertEqual(self.expected,
                                  self.resolve(self.snippet, tmpl, stack))

@@ -11,7 +11,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
 
 from heat.engine import worker
 from heat.tests.convergence.framework import message_processor

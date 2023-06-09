@@ -15,6 +15,9 @@ import copy
 
 from oslo_config import cfg
 from oslo_log import log as logging
+import six
+
+cfg.CONF.import_opt('max_server_name_length', 'heat.common.config')
 
 from heat.common import exception
 from heat.common.i18n import _
@@ -24,9 +27,6 @@ from heat.engine import constraints
 from heat.engine import properties
 from heat.engine import resource
 from heat.engine.resources import scheduler_hints as sh
-
-
-cfg.CONF.import_opt('max_server_name_length', 'heat.common.config')
 
 LOG = logging.getLogger(__name__)
 
@@ -396,7 +396,7 @@ class Instance(resource.Resource, sh.SchedulerHintsMixin):
 
         LOG.info('%(name)s._resolve_attribute(%(attname)s) == %(res)s',
                  {'name': self.name, 'attname': name, 'res': res})
-        return str(res) if res else None
+        return six.text_type(res) if res else None
 
     def _port_data_delete(self):
         # delete the port data which implicit-created
@@ -415,7 +415,7 @@ class Instance(resource.Resource, sh.SchedulerHintsMixin):
             unsorted_nics = []
             for entry in network_interfaces:
                 nic = (entry
-                       if not isinstance(entry, str)
+                       if not isinstance(entry, six.string_types)
                        else {'NetworkInterfaceId': entry,
                              'DeviceIndex': len(unsorted_nics)})
                 unsorted_nics.append(nic)
@@ -520,7 +520,7 @@ class Instance(resource.Resource, sh.SchedulerHintsMixin):
                 hint = tm[self.NOVA_SCHEDULER_HINT_KEY]
                 hint_value = tm[self.NOVA_SCHEDULER_HINT_VALUE]
                 if hint in scheduler_hints:
-                    if isinstance(scheduler_hints[hint], str):
+                    if isinstance(scheduler_hints[hint], six.string_types):
                         scheduler_hints[hint] = [scheduler_hints[hint]]
                     scheduler_hints[hint].append(hint_value)
                 else:
@@ -865,7 +865,7 @@ class Instance(resource.Resource, sh.SchedulerHintsMixin):
         status = cp.get_status(server)
         LOG.debug('%(name)s check_suspend_complete status = %(status)s',
                   {'name': self.name, 'status': status})
-        if status in (cp.deferred_server_statuses | {'ACTIVE'}):
+        if status in list(cp.deferred_server_statuses + ['ACTIVE']):
             return status == 'SUSPENDED'
         else:
             exc = exception.ResourceUnknownStatus(

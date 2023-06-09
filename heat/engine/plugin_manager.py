@@ -17,6 +17,7 @@ import sys
 
 from oslo_config import cfg
 from oslo_log import log
+import six
 
 from heat.common import plugin_loader
 
@@ -48,14 +49,15 @@ class PluginManager(object):
                                                   'heat.engine')
 
         def modules():
-            pkg_modules = map(plugin_loader.load_modules, packages())
+            pkg_modules = six.moves.map(plugin_loader.load_modules,
+                                        packages())
             return itertools.chain.from_iterable(pkg_modules)
 
         self.modules = list(modules())
 
     def map_to_modules(self, function):
         """Iterate over the results of calling a function on every module."""
-        return map(function, self.modules)
+        return six.moves.map(function, self.modules)
 
 
 class PluginMapping(object):
@@ -70,7 +72,7 @@ class PluginMapping(object):
         mappings provided by that module. Any other arguments passed will be
         passed to the mapping functions.
         """
-        if isinstance(names, str):
+        if isinstance(names, six.string_types):
             names = [names]
 
         self.names = ['%s_mapping' % name for name in names]
@@ -93,7 +95,7 @@ class PluginMapping(object):
                               'from %(module)s', fmt_data)
                     raise
                 else:
-                    if isinstance(mapping_dict, collections.abc.Mapping):
+                    if isinstance(mapping_dict, collections.Mapping):
                         return mapping_dict
                     elif mapping_dict is not None:
                         LOG.error('Invalid type for %(mapping_name)s '
@@ -107,5 +109,5 @@ class PluginMapping(object):
         Mappings are returned as a list of (key, value) tuples.
         """
         mod_dicts = plugin_manager.map_to_modules(self.load_from_module)
-        return itertools.chain.from_iterable(d.items() for d
+        return itertools.chain.from_iterable(six.iteritems(d) for d
                                              in mod_dicts)

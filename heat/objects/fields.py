@@ -15,11 +15,12 @@
 
 from oslo_serialization import jsonutils as json
 from oslo_versionedobjects import fields
+import six
 
 
 class Json(fields.FieldType):
     def coerce(self, obj, attr, value):
-        if isinstance(value, str):
+        if isinstance(value, six.string_types):
             loaded = json.loads(value)
             return loaded
         return value

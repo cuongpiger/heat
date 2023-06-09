@@ -16,10 +16,8 @@ import os
 
 from eventlet.green import socket
 from oslo_config import cfg
-from oslo_db import options as oslo_db_ops
 from oslo_log import log as logging
 from oslo_middleware import cors
-from oslo_policy import opts as policy_opts
 from osprofiler import opts as profiler
 
 from heat.common import exception
@@ -47,6 +45,12 @@ service_opts = [
                       'keystone catalog')),
     cfg.StrOpt('heat_waitcondition_server_url',
                help=_('URL of the Heat waitcondition server.')),
+    cfg.StrOpt('heat_watch_server_url',
+               default="",
+               deprecated_for_removal=True,
+               deprecated_reason='Heat CloudWatch Service has been removed.',
+               deprecated_since='10.0.0',
+               help=_('URL of the Heat CloudWatch server.')),
     cfg.StrOpt('instance_connection_is_secure',
                default="0",
                help=_('Instance connection to CFN/CW API via https.')),
@@ -56,13 +60,6 @@ service_opts = [
                       'SSL is used.')),
     cfg.StrOpt('region_name_for_services',
                help=_('Default region name used to get services endpoints.')),
-    cfg.StrOpt('region_name_for_shared_services',
-               help=_('Region name for shared services endpoints.')),
-    cfg.ListOpt('shared_services_types',
-                default=['image', 'volume', 'volumev3'],
-                help=_('The shared services located in the other region.'
-                       'Needs region_name_for_shared_services option to '
-                       'be set for this to take effect.')),
     cfg.StrOpt('heat_stack_user_role',
                default="heat_stack_user",
                help=_('Keystone role for heat template-defined users.')),
@@ -149,9 +146,9 @@ engine_opts = [
                help=_('Maximum resources allowed per top-level stack. '
                       '-1 stands for unlimited.')),
     cfg.IntOpt('max_stacks_per_tenant',
-               default=512,
-               help=_('Maximum number of stacks any one tenant may have '
-                      'active at one time. -1 stands for unlimited.')),
+               default=100,
+               help=_('Maximum number of stacks any one tenant may have'
+                      ' active at one time.')),
     cfg.IntOpt('action_retry_limit',
                default=5,
                help=_('Number of times to retry to bring a '
@@ -179,11 +176,6 @@ engine_opts = [
                         'this limitation, any nova feature supported with '
                         'microversion number above max_nova_api_microversion '
                         'will not be available.')),
-    cfg.FloatOpt('max_ironic_api_microversion',
-                 help=_('Maximum ironic API version for client plugin. With '
-                        'this limitation, any ironic feature supported with '
-                        'microversion number above '
-                        'max_ironic_api_microversion will not be available.')),
     cfg.IntOpt('event_purge_batch_size',
                min=1,
                default=200,
@@ -212,6 +204,12 @@ engine_opts = [
                default=2,
                help=_('RPC timeout for the engine liveness check that is used'
                       ' for stack locking.')),
+    cfg.BoolOpt('enable_cloud_watch_lite',
+                default=False,
+                deprecated_for_removal=True,
+                deprecated_reason='Heat CloudWatch Service has been removed.',
+                deprecated_since='10.0.0',
+                help=_('Enable the legacy OS::Heat::CWLiteAlarm resource.')),
     cfg.BoolOpt('enable_stack_abandon',
                 default=False,
                 help=_('Enable the preview Stack Abandon feature.')),
@@ -450,7 +448,7 @@ def list_opts():
     for client in ('aodh', 'barbican', 'cinder', 'designate',
                    'glance', 'heat', 'keystone', 'magnum', 'manila', 'mistral',
                    'monasca', 'neutron', 'nova', 'octavia', 'sahara', 'senlin',
-                   'swift', 'trove', 'vitrage', 'zaqar'
+                   'swift', 'trove', 'zaqar'
                    ):
         client_specific_group = 'clients_' + client
         yield client_specific_group, clients_opts
@@ -459,7 +457,6 @@ def list_opts():
     yield 'clients_keystone', keystone_client_opts
     yield 'clients_nova', client_http_log_debug_opts
     yield 'clients_cinder', client_http_log_debug_opts
-    yield oslo_db_ops.list_opts()[0]
 
 
 cfg.CONF.register_group(paste_deploy_group)
@@ -585,7 +582,3 @@ def set_config_defaults():
                        'DELETE',
                        'PATCH']
     )
-    # TODO(gmann): Remove setting the default value of config policy_file
-    # once oslo_policy change the default value to 'policy.yaml'.
-    # https://github.com/openstack/oslo.policy/blob/a626ad12fe5a3abd49d70e3e5b95589d279ab578/oslo_policy/opts.py#L49
-    policy_opts.set_defaults(cfg.CONF, 'policy.yaml')

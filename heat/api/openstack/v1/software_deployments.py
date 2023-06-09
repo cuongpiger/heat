@@ -37,10 +37,10 @@ class SoftwareDeploymentController(object):
     @util.registered_policy_enforce
     def index(self, req):
         """List software deployments."""
-        param_types = {
+        whitelist = {
             'server_id': util.PARAM_TYPE_SINGLE,
         }
-        params = util.get_allowed_params(req.params, param_types)
+        params = util.get_allowed_params(req.params, whitelist)
         sds = self.rpc_client.list_software_deployments(req.context, **params)
         return {'software_deployments': sds}
 

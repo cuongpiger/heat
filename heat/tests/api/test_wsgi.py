@@ -15,13 +15,14 @@
 #    under the License.
 
 
-from unittest import mock
-
 import fixtures
 import json
-from oslo_config import cfg
+import mock
+import six
 import socket
 import webob
+
+from oslo_config import cfg
 
 from heat.api.aws import exception as aws_exception
 from heat.common import exception
@@ -213,7 +214,7 @@ class ResourceTest(common.HeatTestCase):
                                  None)
         e = self.assertRaises(exception.HTTPExceptionDisguise,
                               resource, request)
-        self.assertEqual(message_es, str(e.exc))
+        self.assertEqual(message_es, six.text_type(e.exc))
 
 
 class ResourceExceptionHandlingTest(common.HeatTestCase):
@@ -234,11 +235,11 @@ class ResourceExceptionHandlingTest(common.HeatTestCase):
 
     def test_resource_client_exceptions_dont_log_error(self):
         class Controller(object):
-            def __init__(self, exception_to_raise):
-                self.exception_to_raise = exception_to_raise
+            def __init__(self, excpetion_to_raise):
+                self.excpetion_to_raise = excpetion_to_raise
 
             def raise_exception(self, req, body):
-                raise self.exception_to_raise()
+                raise self.excpetion_to_raise()
 
         actions = {'action': 'raise_exception', 'body': 'data'}
         env = {'wsgiorg.routing_args': [None, actions]}
@@ -249,7 +250,7 @@ class ResourceExceptionHandlingTest(common.HeatTestCase):
                                  None)
         e = self.assertRaises(self.exception_catch, resource, request)
         e = e.exc if hasattr(e, 'exc') else e
-        self.assertNotIn(str(e), self.LOG.output)
+        self.assertNotIn(six.text_type(e), self.LOG.output)
 
 
 class JSONRequestDeserializerTest(common.HeatTestCase):
@@ -386,7 +387,7 @@ class JSONRequestDeserializerTest(common.HeatTestCase):
         msg = ('Request limit exceeded: JSON body size '
                '(%s bytes) exceeds maximum allowed size (%s bytes).' % (
                    len(body), cfg.CONF.max_json_body_size))
-        self.assertEqual(msg, str(error))
+        self.assertEqual(msg, six.text_type(error))
 
 
 class GetSocketTestCase(common.HeatTestCase):
@@ -441,12 +442,10 @@ class GetSocketTestCase(common.HeatTestCase):
                           wsgi.cfg.CONF.heat_api, 1234)
 
     def test_get_socket_with_bind_problems(self):
-        err = wsgi.socket.error(
-            socket.errno.EADDRINUSE, 'Address already in use')
         self.useFixture(fixtures.MonkeyPatch(
             'heat.common.wsgi.eventlet.listen',
             mock.Mock(side_effect=(
-                [err] * 3 + [None]))))
+                [wsgi.socket.error(socket.errno.EADDRINUSE)] * 3 + [None]))))
         self.useFixture(fixtures.MonkeyPatch(
             'heat.common.wsgi.ssl.wrap_socket',
             lambda *x, **y: None))

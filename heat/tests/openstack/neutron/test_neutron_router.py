@@ -12,10 +12,11 @@
 #    under the License.
 
 import copy
-from unittest import mock
 
+import mock
 from neutronclient.common import exceptions as qe
 from neutronclient.v2_0 import client as neutronclient
+import six
 
 from heat.common import exception
 from heat.common import template_format
@@ -36,8 +37,6 @@ resources:
     properties:
       l3_agent_ids:
        - 792ff887-6c85-4a56-b518-23f24fa65581
-      availability_zone_hints:
-       - az1
 
   router_interface:
     type: OS::Neutron::RouterInterface
@@ -202,7 +201,7 @@ class NeutronRouterTest(common.HeatTestCase):
         exc = self.assertRaises(exception.ResourcePropertyConflict,
                                 rsrc.validate)
         self.assertIn('distributed, l3_agent_id/l3_agent_ids',
-                      str(exc))
+                      six.text_type(exc))
         # test distributed can not specify l3_agent_ids
         props['l3_agent_ids'] = ['id1', 'id2']
         stack = utils.parse_stack(t)
@@ -210,7 +209,7 @@ class NeutronRouterTest(common.HeatTestCase):
         exc = self.assertRaises(exception.ResourcePropertyConflict,
                                 rsrc.validate)
         self.assertIn('distributed, l3_agent_id/l3_agent_ids',
-                      str(exc))
+                      six.text_type(exc))
 
     def test_router_validate_l3_agents(self):
         t = template_format.parse(neutron_template)
@@ -223,7 +222,7 @@ class NeutronRouterTest(common.HeatTestCase):
         exc = self.assertRaises(exception.StackValidationFailed,
                                 rsrc.validate)
         self.assertIn('Non HA routers can only have one L3 agent',
-                      str(exc))
+                      six.text_type(exc))
         self.assertIsNone(rsrc.properties.get(rsrc.L3_AGENT_ID))
 
     def test_router_validate_ha_distribute(self):
@@ -241,7 +240,7 @@ class NeutronRouterTest(common.HeatTestCase):
         rsrc.reparse()
         exc = self.assertRaises(exception.ResourcePropertyConflict,
                                 rsrc.validate)
-        self.assertIn('distributed, ha', str(exc))
+        self.assertIn('distributed, ha', six.text_type(exc))
 
     def test_router_validate_ha_l3_agents(self):
         t = template_format.parse(neutron_template)
@@ -254,7 +253,7 @@ class NeutronRouterTest(common.HeatTestCase):
         exc = self.assertRaises(exception.StackValidationFailed,
                                 rsrc.validate)
         self.assertIn('Non HA routers can only have one L3 agent.',
-                      str(exc))
+                      six.text_type(exc))
 
     def test_router(self):
         t = template_format.parse(neutron_template)
@@ -264,7 +263,6 @@ class NeutronRouterTest(common.HeatTestCase):
         create_body = {
             'router': {
                 'name': utils.PhysName(stack.name, 'router'),
-                'availability_zone_hints': ['az1'],
                 'admin_state_up': True}}
         router_base_info = {
             'router': {
@@ -611,7 +609,7 @@ class NeutronRouterTest(common.HeatTestCase):
                                res.validate)
         self.assertEqual("At least one of the following properties "
                          "must be specified: subnet, port.",
-                         str(ex))
+                         six.text_type(ex))
 
     def test_gateway_router(self):
         def find_rsrc(resource, name_or_id, cmd_resource=None):

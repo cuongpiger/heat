@@ -16,16 +16,8 @@
 An OpenStack ReST API to Heat.
 """
 
-# flake8: noqa: E402
-
 import eventlet
 eventlet.monkey_patch(os=False)
-# Monkey patch the original current_thread to use the up-to-date _active
-# global variable. See https://bugs.launchpad.net/bugs/1863021 and
-# https://github.com/eventlet/eventlet/issues/592
-import __original_module_threading as orig_threading
-import threading  # noqa
-orig_threading.current_thread.__globals__['_active'] = threading._active
 
 import sys
 
@@ -34,6 +26,7 @@ import oslo_i18n as i18n
 from oslo_log import log as logging
 from oslo_reports import guru_meditation_report as gmr
 from oslo_service import systemd
+import six
 
 from heat.common import config
 from heat.common import messaging
@@ -41,32 +34,30 @@ from heat.common import profiler
 from heat.common import wsgi
 from heat import version
 
-
 i18n.enable_lazy()
 
-CONF = cfg.CONF
+LOG = logging.getLogger('heat.api')
 
 
 def launch_api(setup_logging=True):
     if setup_logging:
-        logging.register_options(CONF)
-    CONF(project='heat', prog='heat-api',
-         version=version.version_info.version_string())
+        logging.register_options(cfg.CONF)
+    cfg.CONF(project='heat', prog='heat-api',
+             version=version.version_info.version_string())
     if setup_logging:
-        logging.setup(CONF, CONF.prog)
-    LOG = logging.getLogger(CONF.prog)
+        logging.setup(cfg.CONF, 'heat-api')
     config.set_config_defaults()
     messaging.setup()
 
     app = config.load_paste_app()
 
-    port = CONF.heat_api.bind_port
-    host = CONF.heat_api.bind_host
+    port = cfg.CONF.heat_api.bind_port
+    host = cfg.CONF.heat_api.bind_host
     LOG.info('Starting Heat REST API on %(host)s:%(port)s',
              {'host': host, 'port': port})
-    profiler.setup(CONF.prog, host)
+    profiler.setup('heat-api', host)
     gmr.TextGuruMeditation.setup_autorun(version)
-    server = wsgi.Server(CONF.prog, CONF.heat_api)
+    server = wsgi.Server('heat-api', cfg.CONF.heat_api)
     server.start(app, default_port=port)
     return server
 
@@ -77,5 +68,5 @@ def main():
         systemd.notify_once()
         server.wait()
     except RuntimeError as e:
-        msg = str(e)
+        msg = six.text_type(e)
         sys.exit("ERROR: %s" % msg)

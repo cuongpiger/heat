@@ -11,9 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
-
 from mistralclient.auth import keystone
+import mock
 
 from heat.common import exception
 from heat.engine.clients.os import mistral

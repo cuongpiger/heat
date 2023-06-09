@@ -36,9 +36,6 @@ resource_types_policies = [
         name=POLICY_ROOT % 'OS::Nova::Quota',
         check_str=base.RULE_PROJECT_ADMIN),
     policy.RuleDefault(
-        name=POLICY_ROOT % 'OS::Octavia::Quota',
-        check_str=base.RULE_PROJECT_ADMIN),
-    policy.RuleDefault(
         name=POLICY_ROOT % 'OS::Manila::ShareType',
         check_str=base.RULE_PROJECT_ADMIN),
     policy.RuleDefault(
@@ -49,15 +46,6 @@ resource_types_policies = [
         check_str=base.RULE_PROJECT_ADMIN),
     policy.RuleDefault(
         name=POLICY_ROOT % 'OS::Neutron::QoSBandwidthLimitRule',
-        check_str=base.RULE_PROJECT_ADMIN),
-    policy.RuleDefault(
-        name=POLICY_ROOT % 'OS::Neutron::QoSDscpMarkingRule',
-        check_str=base.RULE_PROJECT_ADMIN),
-    policy.RuleDefault(
-        name=POLICY_ROOT % 'OS::Neutron::QoSMinimumBandwidthRule',
-        check_str=base.RULE_PROJECT_ADMIN),
-    policy.RuleDefault(
-        name=POLICY_ROOT % 'OS::Neutron::QoSMinimumPacketRateRule',
         check_str=base.RULE_PROJECT_ADMIN),
     policy.RuleDefault(
         name=POLICY_ROOT % 'OS::Neutron::Segment',
@@ -76,12 +64,6 @@ resource_types_policies = [
         check_str=base.RULE_PROJECT_ADMIN),
     policy.RuleDefault(
         name=POLICY_ROOT % 'OS::Blazar::Host',
-        check_str=base.RULE_PROJECT_ADMIN),
-    policy.RuleDefault(
-        name=POLICY_ROOT % 'OS::Octavia::Flavor',
-        check_str=base.RULE_PROJECT_ADMIN),
-    policy.RuleDefault(
-        name=POLICY_ROOT % 'OS::Octavia::FlavorProfile',
         check_str=base.RULE_PROJECT_ADMIN)
 ]
 

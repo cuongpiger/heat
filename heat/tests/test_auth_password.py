@@ -14,10 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest import mock
-
 from keystoneauth1 import exceptions as keystone_exc
+import mock
 from oslo_config import cfg
+import six
 import webob
 
 from heat.common import auth_password
@@ -33,7 +33,6 @@ EXPECTED_ENV_RESPONSE = {
     'HTTP_X_PROJECT_ID': 'tenant_id1',
     'HTTP_X_PROJECT_NAME': 'tenant_name1',
     'HTTP_X_USER_ID': 'user_id1',
-    'HTTP_X_USER_DOMAIN_ID': 'domain1',
     'HTTP_X_USER_NAME': 'user_name1',
     'HTTP_X_ROLES': 'role1,role2',
     'HTTP_X_AUTH_TOKEN': 'lalalalalala',
@@ -83,7 +82,7 @@ class FakeApp(object):
             if env[k] != v:
                 raise AssertionError('%s != %s' % (env[k], v))
         resp = webob.Response()
-        resp.body = 'SUCCESS'.encode('latin-1')
+        resp.body = six.b('SUCCESS')
         return resp(env, start_response)
 
 

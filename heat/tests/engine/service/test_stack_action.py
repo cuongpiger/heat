@@ -10,8 +10,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-from unittest import mock
-
+import mock
 from oslo_messaging.rpc import dispatcher
 
 from heat.common import exception
@@ -159,7 +158,6 @@ class StackServiceUpdateActionsNotSupportedTest(common.HeatTestCase):
                                self.ctx, old_stack.identifier(), template,
                                params, None, {})
         self.assertEqual(exception.NotSupported, ex.exc_info[0])
-        mock_load.assert_called_once_with(self.ctx, stack=s,
-                                          check_refresh_cred=True)
+        mock_load.assert_called_once_with(self.ctx, stack=s)
 
         old_stack.delete()

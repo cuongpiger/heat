@@ -11,7 +11,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
 import uuid
 
 from heat.common import exception
@@ -532,7 +532,7 @@ Resources:
                       'name': self.nic_name,
                       'admin_state_up': True}
         if security_groups:
-            self._port['security_groups'] = security_groups
+                self._port['security_groups'] = security_groups
 
         self.mockclient.create_port.return_value = {
             'port': {

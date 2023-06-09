@@ -24,7 +24,7 @@ from osprofiler import profiler
 
 from heat.common import context
 from heat.common import messaging as rpc_messaging
-from heat.db import api as db_api
+from heat.db.sqlalchemy import api as db_api
 from heat.engine import check_resource
 from heat.engine import node_data
 from heat.engine import stack as parser
@@ -110,9 +110,6 @@ class WorkerService(object):
         Marks the stack as FAILED due to cancellation, but, allows all
         in_progress resources to complete normally; no worker is stopped
         abruptly.
-
-        Any in-progress traversals are also stopped on all nested stacks that
-        are descendants of the one passed.
         """
         _stop_traversal(stack)
 
@@ -157,8 +154,9 @@ class WorkerService(object):
             db_api.resource_update_and_save(stack.context, rsrc.id, values)
             # The old resource might be in the graph (a rollback case);
             # just re-trigger it.
-            check_resource.retrigger_check_resource(stack.context,
-                                                    rsrc.replaces, stack)
+            key = parser.ConvergenceNode(rsrc.replaces, is_update)
+            check_resource.retrigger_check_resource(stack.context, is_update,
+                                                    key.rsrc_id, stack)
 
     @context.request_context
     @log_exceptions

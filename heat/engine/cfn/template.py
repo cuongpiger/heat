@@ -13,6 +13,8 @@
 
 import functools
 
+import six
+
 from heat.common import exception
 from heat.common.i18n import _
 from heat.engine.cfn import functions as cfn_funcs
@@ -96,12 +98,12 @@ class CfnTemplateBase(template_common.CommonTemplate):
     def param_schemata(self, param_defaults=None):
         params = self.t.get(self.PARAMETERS) or {}
         pdefaults = param_defaults or {}
-        for name, schema in params.items():
+        for name, schema in six.iteritems(params):
             if name in pdefaults:
                 params[name][parameters.DEFAULT] = pdefaults[name]
 
         return dict((name, parameters.Schema.from_dict(name, schema))
-                    for name, schema in params.items())
+                    for name, schema in six.iteritems(params))
 
     def get_section_name(self, section):
         return section
@@ -122,7 +124,7 @@ class CfnTemplateBase(template_common.CommonTemplate):
                     defn_data = dict(self._rsrc_defn_args(stack, name,
                                                           snippet))
                 except (TypeError, ValueError, KeyError) as ex:
-                    msg = str(ex)
+                    msg = six.text_type(ex)
                     raise exception.StackValidationFailed(message=msg)
 
                 defn = rsrc_defn.ResourceDefinition(name, **defn_data)
@@ -133,7 +135,7 @@ class CfnTemplateBase(template_common.CommonTemplate):
                         enabled = conditions.is_enabled(cond_name)
                     except ValueError as exc:
                         path = [self.RESOURCES, name, self.RES_CONDITION]
-                        message = str(exc)
+                        message = six.text_type(exc)
                         raise exception.StackValidationFailed(path=path,
                                                               message=message)
                     if not enabled:
@@ -232,7 +234,7 @@ class CfnTemplate(CfnTemplateBase):
 
         yield ('condition',
                self._parse_resource_field(self.RES_CONDITION,
-                                          (str, bool,
+                                          (six.string_types, bool,
                                            function.Function),
                                           'string or boolean',
                                           name, data, parse_cond))

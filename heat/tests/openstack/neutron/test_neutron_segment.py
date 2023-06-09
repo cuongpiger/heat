@@ -11,11 +11,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
-
+import mock
 from neutronclient.neutron import v2_0 as neutronV20
 from openstack import exceptions
 from oslo_utils import excutils
+import six
 
 from heat.common import exception
 from heat.common import template_format
@@ -141,7 +141,7 @@ class NeutronSegmentTest(common.HeatTestCase):
         errMsg = 'physical_network is required for vlan provider network.'
         error = self.assertRaises(exception.StackValidationFailed,
                                   rsrc.validate)
-        self.assertEqual(errMsg, str(error))
+        self.assertEqual(errMsg, six.text_type(error))
 
         props['physical_network'] = 'physnet'
         props['segmentation_id'] = '4095'
@@ -151,7 +151,7 @@ class NeutronSegmentTest(common.HeatTestCase):
                   'on each physical_network.')
         error = self.assertRaises(exception.StackValidationFailed,
                                   rsrc.validate)
-        self.assertEqual(errMsg, str(error))
+        self.assertEqual(errMsg, six.text_type(error))
 
     def test_validate_flat_type(self):
         self.t = template_format.parse(inline_templates.SEGMENT_TEMPLATE)
@@ -163,7 +163,7 @@ class NeutronSegmentTest(common.HeatTestCase):
         errMsg = ('segmentation_id is prohibited for flat provider network.')
         error = self.assertRaises(exception.StackValidationFailed,
                                   rsrc.validate)
-        self.assertEqual(errMsg, str(error))
+        self.assertEqual(errMsg, six.text_type(error))
 
     def test_validate_tunnel_type(self):
         self.t = template_format.parse(inline_templates.SEGMENT_TEMPLATE)
@@ -175,7 +175,7 @@ class NeutronSegmentTest(common.HeatTestCase):
         errMsg = ('physical_network is prohibited for vxlan provider network.')
         error = self.assertRaises(exception.StackValidationFailed,
                                   rsrc.validate)
-        self.assertEqual(errMsg, str(error))
+        self.assertEqual(errMsg, six.text_type(error))
 
     def test_segment_get_attr(self):
         segment_id = '477e8273-60a7-4c41-b683-fdb0bc7cd151'

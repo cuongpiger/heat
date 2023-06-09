@@ -28,9 +28,9 @@ class ZunClientPlugin(client_plugin.ClientPlugin):
     default_version = '1.12'
 
     supported_versions = [
-        V1_12, V1_18, V1_36,
+        V1_12, V1_18
     ] = [
-        '1.12', '1.18', '1.36',
+        '1.12', '1.18'
     ]
 
     def _create(self, version=None):

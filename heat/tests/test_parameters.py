@@ -12,6 +12,7 @@
 #    under the License.
 
 from oslo_serialization import jsonutils as json
+import six
 
 from heat.common import exception
 from heat.common import identifier
@@ -124,11 +125,11 @@ class ParameterTestCommon(common.HeatTestCase):
             err = self.assertRaises(exception.InvalidSchemaError,
                                     new_parameter, 'p', schema)
             self.assertIn('AllowedValues constraint invalid for Json',
-                          str(err))
+                          six.text_type(err))
         else:
             err = self.assertRaises(exception.InvalidSchemaError,
                                     new_parameter, 'p', schema)
-            self.assertIn('wibble', str(err))
+            self.assertIn('wibble', six.text_type(err))
 
     def test_description(self):
         description = 'Description of the parameter'
@@ -199,7 +200,7 @@ class ParameterTestSpecific(common.HeatTestCase):
                   'MinLength': '4'}
         err = self.assertRaises(exception.StackValidationFailed,
                                 new_parameter, 'p', schema, 'foo')
-        self.assertIn('wibble', str(err))
+        self.assertIn('wibble', six.text_type(err))
 
     def test_string_overflow(self):
         schema = {'Type': 'String',
@@ -207,7 +208,7 @@ class ParameterTestSpecific(common.HeatTestCase):
                   'MaxLength': '2'}
         err = self.assertRaises(exception.StackValidationFailed,
                                 new_parameter, 'p', schema, 'foo')
-        self.assertIn('wibble', str(err))
+        self.assertIn('wibble', six.text_type(err))
 
     def test_string_pattern_good(self):
         schema = {'Type': 'String',
@@ -221,7 +222,7 @@ class ParameterTestSpecific(common.HeatTestCase):
                   'AllowedPattern': '[a-z]*'}
         err = self.assertRaises(exception.StackValidationFailed,
                                 new_parameter, 'p', schema, '1foo')
-        self.assertIn('wibble', str(err))
+        self.assertIn('wibble', six.text_type(err))
 
     def test_string_pattern_bad_suffix(self):
         schema = {'Type': 'String',
@@ -229,7 +230,7 @@ class ParameterTestSpecific(common.HeatTestCase):
                   'AllowedPattern': '[a-z]*'}
         err = self.assertRaises(exception.StackValidationFailed,
                                 new_parameter, 'p', schema, 'foo1')
-        self.assertIn('wibble', str(err))
+        self.assertIn('wibble', six.text_type(err))
 
     def test_string_value_list_good(self):
         schema = {'Type': 'String',
@@ -248,7 +249,7 @@ class ParameterTestSpecific(common.HeatTestCase):
                   'AllowedValues': ['foo', 'bar', 'baz']}
         err = self.assertRaises(exception.StackValidationFailed,
                                 new_parameter, 'p', schema, 'blarg')
-        self.assertIn('wibble', str(err))
+        self.assertIn('wibble', six.text_type(err))
 
     def test_number_int_good(self):
         schema = {'Type': 'Number',
@@ -277,7 +278,7 @@ class ParameterTestSpecific(common.HeatTestCase):
                   'MinValue': '4'}
         err = self.assertRaises(exception.StackValidationFailed,
                                 new_parameter, 'p', schema, '3')
-        self.assertIn('wibble', str(err))
+        self.assertIn('wibble', six.text_type(err))
 
     def test_number_high(self):
         schema = {'Type': 'Number',
@@ -285,19 +286,19 @@ class ParameterTestSpecific(common.HeatTestCase):
                   'MaxValue': '2'}
         err = self.assertRaises(exception.StackValidationFailed,
                                 new_parameter, 'p', schema, '3')
-        self.assertIn('wibble', str(err))
+        self.assertIn('wibble', six.text_type(err))
 
     def test_number_bad(self):
         schema = {'Type': 'Number'}
         err = self.assertRaises(exception.StackValidationFailed,
                                 new_parameter, 'p', schema, 'str')
-        self.assertIn('float', str(err))
+        self.assertIn('float', six.text_type(err))
 
     def test_number_bad_type(self):
         schema = {'Type': 'Number'}
         err = self.assertRaises(exception.StackValidationFailed,
                                 new_parameter, 'p', schema, ['foo'])
-        self.assertIn('int', str(err))
+        self.assertIn('int', six.text_type(err))
 
     def test_number_value_list_good(self):
         schema = {'Type': 'Number',
@@ -311,7 +312,7 @@ class ParameterTestSpecific(common.HeatTestCase):
                   'AllowedValues': ['1', '3', '5']}
         err = self.assertRaises(exception.StackValidationFailed,
                                 new_parameter, 'p', schema, '2')
-        self.assertIn('wibble', str(err))
+        self.assertIn('wibble', six.text_type(err))
 
     def test_list_value_list_default_empty(self):
         schema = {'Type': 'CommaDelimitedList', 'Default': ''}
@@ -344,7 +345,7 @@ class ParameterTestSpecific(common.HeatTestCase):
         err = self.assertRaises(exception.StackValidationFailed,
                                 new_parameter, 'p', schema,
                                 'foo,baz,blarg')
-        self.assertIn('wibble', str(err))
+        self.assertIn('wibble', six.text_type(err))
 
     def test_list_validate_good(self):
         schema = {'Type': 'CommaDelimitedList'}
@@ -364,7 +365,7 @@ class ParameterTestSpecific(common.HeatTestCase):
         p.user_value = val_s
         err = self.assertRaises(exception.StackValidationFailed,
                                 p.validate)
-        self.assertIn('Parameter \'p\' is invalid', str(err))
+        self.assertIn('Parameter \'p\' is invalid', six.text_type(err))
 
     def test_map_value(self):
         '''Happy path for value that's already a map.'''
@@ -381,7 +382,7 @@ class ParameterTestSpecific(common.HeatTestCase):
         val = {"foo": "bar", "not_json": len}
         err = self.assertRaises(exception.StackValidationFailed,
                                 new_parameter, 'p', schema, val)
-        self.assertIn('Value must be valid JSON', str(err))
+        self.assertIn('Value must be valid JSON', six.text_type(err))
 
     def test_map_value_parse(self):
         '''Happy path for value that's a string.'''
@@ -399,7 +400,7 @@ class ParameterTestSpecific(common.HeatTestCase):
         val = "I am not a map"
         err = self.assertRaises(exception.StackValidationFailed,
                                 new_parameter, 'p', schema, val)
-        self.assertIn('Value must be valid JSON', str(err))
+        self.assertIn('Value must be valid JSON', six.text_type(err))
 
     def test_map_underrun(self):
         '''Test map length under MIN_LEN.'''
@@ -408,7 +409,7 @@ class ParameterTestSpecific(common.HeatTestCase):
         val = {"foo": "bar", "items": [1, 2, 3]}
         err = self.assertRaises(exception.StackValidationFailed,
                                 new_parameter, 'p', schema, val)
-        self.assertIn('out of range', str(err))
+        self.assertIn('out of range', six.text_type(err))
 
     def test_map_overrun(self):
         '''Test map length over MAX_LEN.'''
@@ -417,7 +418,7 @@ class ParameterTestSpecific(common.HeatTestCase):
         val = {"foo": "bar", "items": [1, 2, 3]}
         err = self.assertRaises(exception.StackValidationFailed,
                                 new_parameter, 'p', schema, val)
-        self.assertIn('out of range', str(err))
+        self.assertIn('out of range', six.text_type(err))
 
     def test_json_list(self):
         schema = {'Type': 'Json'}
@@ -451,7 +452,7 @@ class ParameterTestSpecific(common.HeatTestCase):
         p.user_value = val_s
         err = self.assertRaises(exception.StackValidationFailed,
                                 p.validate)
-        self.assertIn('Parameter \'p\' is invalid', str(err))
+        self.assertIn('Parameter \'p\' is invalid', six.text_type(err))
 
     def test_bool_value_true(self):
         schema = {'Type': 'Boolean'}
@@ -469,7 +470,7 @@ class ParameterTestSpecific(common.HeatTestCase):
         schema = {'Type': 'Boolean'}
         err = self.assertRaises(exception.StackValidationFailed,
                                 new_parameter, 'bo', schema, 'foo')
-        self.assertIn("Unrecognized value 'foo'", str(err))
+        self.assertIn("Unrecognized value 'foo'", six.text_type(err))
 
     def test_missing_param_str(self):
         '''Test missing user parameter.'''
@@ -496,7 +497,7 @@ class ParameterTestSpecific(common.HeatTestCase):
                                 new_parameter, 'testparam', schema, '234')
         expected = ("Parameter 'testparam' is invalid: "
                     '"234" does not match pattern "[a-z]*"')
-        self.assertEqual(expected, str(err))
+        self.assertEqual(expected, six.text_type(err))
 
 
 params_schema = json.loads('''{
@@ -602,7 +603,7 @@ class ParametersTest(ParametersBase):
                         'None'),
                     'AWS::StackName': 'test_params'}
 
-        mapped_params = params.map(str)
+        mapped_params = params.map(six.text_type)
         mapped_params['Uni'] = mapped_params['Uni'].encode('utf-8')
         self.assertEqual(expected, mapped_params)
 
@@ -693,7 +694,7 @@ class ParameterSchemaTest(common.HeatTestCase):
                                   parameters.Schema.from_dict, 'param_name',
                                   {"foo": "bar"})
         self.assertEqual("Invalid key 'foo' for parameter (param_name)",
-                         str(error))
+                         six.text_type(error))
 
     def test_validate_schema_no_type(self):
         error = self.assertRaises(exception.InvalidSchemaError,
@@ -701,4 +702,4 @@ class ParameterSchemaTest(common.HeatTestCase):
                                   'broken',
                                   {"Description": "Hi!"})
         self.assertEqual("Missing parameter type for parameter: broken",
-                         str(error))
+                         six.text_type(error))

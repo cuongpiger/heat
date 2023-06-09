@@ -11,7 +11,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from heat.db import api as db_api
+import six
+
+from heat.db.sqlalchemy import api as db_api
 from heat.engine import service
 from heat.engine import stack
 from heat.tests.convergence.framework import message_processor
@@ -47,7 +49,7 @@ class Engine(message_processor.MessageProcessor):
         """Converts the scenario template into hot template."""
         hot_tmpl = {"heat_template_version": "2013-05-23"}
         resources = {}
-        for res_name, res_def in scenario_tmpl.resources.items():
+        for res_name, res_def in six.iteritems(scenario_tmpl.resources):
             props = getattr(res_def, 'properties')
             depends = getattr(res_def, 'depends_on')
             res_defn = {"type": "OS::Heat::TestResource"}

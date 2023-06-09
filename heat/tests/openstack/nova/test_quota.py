@@ -10,11 +10,13 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-from unittest import mock
+import mock
+import six
 
 from heat.common import exception
 from heat.common import template_format
 from heat.engine.clients.os import keystone as k_plugin
+from heat.engine.clients.os import nova as n_plugin
 from heat.engine import rsrc_defn
 from heat.engine import stack as parser
 from heat.engine import template
@@ -60,6 +62,8 @@ class NovaQuotaTest(common.HeatTestCase):
         super(NovaQuotaTest, self).setUp()
 
         self.ctx = utils.dummy_context()
+        self.patchobject(n_plugin.NovaClientPlugin, 'has_extension',
+                         return_value=True)
         self.patchobject(k_plugin.KeystoneClientPlugin, 'get_project_id',
                          return_value='some_project_id')
         tpl = template_format.parse(quota_template)
@@ -81,7 +85,7 @@ class NovaQuotaTest(common.HeatTestCase):
     def _test_validate(self, resource, error_msg):
         exc = self.assertRaises(exception.StackValidationFailed,
                                 resource.validate)
-        self.assertIn(error_msg, str(exc))
+        self.assertIn(error_msg, six.text_type(exc))
 
     def _test_invalid_property(self, prop_name):
         my_quota = self.stack['my_quota']

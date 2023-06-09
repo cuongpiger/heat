@@ -14,8 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest import mock
-
+import mock
+import six
 import webob
 from webob import exc
 
@@ -29,7 +29,7 @@ class FakeApp(object):
     def __call__(self, environ, start_response):
         """Assert that headers are correctly set up when finally called."""
         resp = webob.Response()
-        resp.body = 'SUCCESS'.encode('latin-1')
+        resp.body = six.b('SUCCESS')
         return resp(environ, start_response)
 
 

@@ -12,8 +12,8 @@
 #    under the License.
 
 import json
-from unittest import mock
 
+import mock
 import webob.exc
 
 import heat.api.middleware.fault as fault
@@ -48,8 +48,8 @@ class SoftwareDeploymentControllerTest(tools.ControllerTest,
             resp = self.controller.index(req, tenant_id=self.tenant)
             self.assertEqual(
                 {'software_deployments': []}, resp)
-            params = mock_call.call_args[1]
-            self.assertEqual({}, params)
+            whitelist = mock_call.call_args[1]
+            self.assertEqual({}, whitelist)
         server_id = 'fb322564-7927-473d-8aad-68ae7fbf2abf'
         req = self._get('/software_deployments', {'server_id': server_id})
         with mock.patch.object(
@@ -59,8 +59,8 @@ class SoftwareDeploymentControllerTest(tools.ControllerTest,
             resp = self.controller.index(req, tenant_id=self.tenant)
             self.assertEqual(
                 {'software_deployments': []}, resp)
-            params = mock_call.call_args[1]
-            self.assertEqual({'server_id': server_id}, params)
+            whitelist = mock_call.call_args[1]
+            self.assertEqual({'server_id': server_id}, whitelist)
 
     @mock.patch.object(policy.Enforcer, 'enforce')
     def test_show(self, mock_enforce):

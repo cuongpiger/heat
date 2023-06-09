@@ -15,7 +15,6 @@ import copy
 import json
 
 from heat.common import exception
-from heat.common import short_id
 from heat.common import template_format
 from heat.engine import environment
 from heat.engine import stack as parser
@@ -56,7 +55,7 @@ outputs:
         return (template_strict, template_loose)
 
     def parse_stack(self, templ_obj):
-        stack_name = 'test_value_stack_%s' % short_id.generate_id()
+        stack_name = 'test_value_stack'
         stack = parser.Stack(utils.dummy_context(), stack_name, templ_obj)
         stack.validate()
         stack.store()

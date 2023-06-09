@@ -17,6 +17,7 @@ import ipaddress
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import uuidutils
+import six
 
 from heat.common import exception
 from heat.common.i18n import _
@@ -548,12 +549,11 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
         ),
         USER_DATA_UPDATE_POLICY: properties.Schema(
             properties.Schema.STRING,
-            _('Policy on how to apply a user_data update; by '
-              'ignoring it, by replacing the entire server, '
-              'or rebuild the server.'),
+            _('Policy on how to apply a user_data update; either by '
+              'ignoring it or by replacing the entire server.'),
             default='REPLACE',
             constraints=[
-                constraints.AllowedValues(['REPLACE', 'IGNORE', 'REBUILD']),
+                constraints.AllowedValues(['REPLACE', 'IGNORE']),
             ],
             support_status=support.SupportStatus(version='6.0.0'),
             update_allowed=True
@@ -705,20 +705,12 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
         ACCESSIPV4: attributes.Schema(
             _('The manually assigned alternative public IPv4 address '
               'of the server.'),
-            type=attributes.Schema.STRING,
-            support_status=support.SupportStatus(
-                status=support.DEPRECATED,
-                version='14.0.0',
-                previous_status=support.SupportStatus(version='2015.1')),
+            type=attributes.Schema.STRING
         ),
         ACCESSIPV6: attributes.Schema(
             _('The manually assigned alternative public IPv6 address '
               'of the server.'),
-            type=attributes.Schema.STRING,
-            support_status=support.SupportStatus(
-                status=support.DEPRECATED,
-                version='14.0.0',
-                previous_status=support.SupportStatus(version='2015.1'))
+            type=attributes.Schema.STRING
         ),
         CONSOLE_URLS: attributes.Schema(
             _("URLs of server's consoles. "
@@ -944,20 +936,10 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
 
     def parse_live_resource_data(self, resource_properties, resource_data):
         server, server_data = resource_data
-        flavor = server_data.get(self.FLAVOR)
-        # NOTE(pas-ha) since compute API 2.47 flavor in instance
-        # does not have "id" but "original_name" instead,
-        # check for both here, and fail if none of them are in flavor.
-        if "id" in flavor:
-            flavor_value = flavor["id"]
-        elif "original_name" in flavor:
-            flavor_value = flavor["original_name"]
-        else:
-            raise KeyError("Flavor does not contain id or original_name")
         result = {
             # there's a risk that flavor id will be int type, so cast to str
-            self.FLAVOR: str(flavor_value),
-            self.IMAGE: str(server_data.get(self.IMAGE)['id']),
+            self.FLAVOR: six.text_type(server_data.get(self.FLAVOR)['id']),
+            self.IMAGE: six.text_type(server_data.get(self.IMAGE)['id']),
             self.NAME: server_data.get(self.NAME),
             self.METADATA: server_data.get(self.METADATA),
             self.NETWORKS: self._get_live_networks(server, resource_properties)
@@ -997,7 +979,7 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
                         reality_net_ids.get(net_id).pop(idx)
                         break
 
-        for key, value in reality_nets.items():
+        for key, value in six.iteritems(reality_nets):
             for address in reality_nets[key]:
                 new_net = {self.NETWORK_ID: key,
                            self.NETWORK_FIXED_IP: address['addr']}
@@ -1261,7 +1243,7 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
             return
         if not nets:
             return
-        for res in self.stack.values():
+        for res in six.itervalues(self.stack):
             if res.has_interface('OS::Neutron::Subnet'):
                 try:
                     subnet_net = res.properties.get(subnet.Subnet.NETWORK)
@@ -1322,14 +1304,6 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
                                             'rebuild',
                                             handler_extra={'args': (image,),
                                                            'kwargs': kwargs})
-        return prg
-
-    def _update_user_data_rebuild(self, after_props):
-        user_data = after_props[self.USER_DATA]
-        prg = progress.ServerUpdateProgress(
-            self.resource_id,
-            'rebuild',
-            handler_extra={'args': (user_data,)})
         return prg
 
     def _update_networks(self, server, after_props):
@@ -1422,12 +1396,6 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
 
         if self.FLAVOR in prop_diff:
             updaters.extend(self._update_flavor(after_props))
-
-        if self.USER_DATA in prop_diff:
-            # We only care about rebuild here. The standard replace is
-            # dealt elsewere
-            if after_props[self.USER_DATA_UPDATE_POLICY] == 'REBUILD':
-                updaters.append(self._update_user_data_rebuild(after_props))
 
         if self.IMAGE in prop_diff:
             updaters.append(self._update_image(after_props))
@@ -1570,7 +1538,7 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
                     'flavor': flavor, 'flsz': flavor_obj.disk}
                 raise exception.StackValidationFailed(message=msg)
 
-    def validate(self):
+    def validate(self):  # noqa: C901
         """Validate any of the provided params."""
         super(Server, self).validate()
 
@@ -1760,7 +1728,7 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
         status = cp.get_status(server)
         LOG.debug('%(name)s check_suspend_complete status = %(status)s',
                   {'name': self.name, 'status': status})
-        if status in (cp.deferred_server_statuses | {'ACTIVE'}):
+        if status in list(cp.deferred_server_statuses + ['ACTIVE']):
             return status == 'SUSPENDED'
         else:
             exc = exception.ResourceUnknownStatus(
@@ -1807,11 +1775,7 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
     def check_snapshot_complete(self, image_id):
         image = self.client_plugin('glance').get_image(image_id)
         if image.status.lower() == self.IMAGE_ACTIVE:
-            server = self.client_plugin().get_server(self.resource_id)
-            task_state = getattr(server, 'OS-EXT-STS:task_state', '')
-            if task_state not in {'image_uploading', 'image_snapshot_pending',
-                                  'image_snapshot', 'image_pending_upload'}:
-                return True
+            return True
         elif image.status.lower() in (self.IMAGE_ERROR, self.IMAGE_DELETED):
             raise exception.Error(image.status)
 

@@ -11,8 +11,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
 import uuid
+
+import mock
 
 from heat.common import template_format
 from heat.engine.clients.os import glance

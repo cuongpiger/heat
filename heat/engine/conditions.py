@@ -13,6 +13,8 @@
 
 import collections
 
+import six
+
 from heat.common.i18n import _
 
 from heat.common import exception
@@ -24,12 +26,12 @@ _in_progress = object()
 
 class Conditions(object):
     def __init__(self, conditions_dict):
-        assert isinstance(conditions_dict, collections.abc.Mapping)
+        assert isinstance(conditions_dict, collections.Mapping)
         self._conditions = conditions_dict
         self._resolved = {}
 
     def validate(self):
-        for name, cond in self._conditions.items():
+        for name, cond in six.iteritems(self._conditions):
             self._check_condition_type(name, cond)
             function.validate(cond)
 
@@ -54,7 +56,7 @@ class Conditions(object):
         if isinstance(condition_name, bool):
             return condition_name
 
-        if not (isinstance(condition_name, str) and
+        if not (isinstance(condition_name, six.string_types) and
                 condition_name in self._conditions):
             raise ValueError(_('Invalid condition "%s"') % condition_name)
 

@@ -13,6 +13,7 @@
 
 import itertools
 
+import six
 from webob import exc
 
 from heat.api.openstack.v1 import util
@@ -74,7 +75,7 @@ class ResourceController(object):
 
     Implements the API actions.
     """
-    # Define request scope (must match what is in policy.yaml or policies in
+    # Define request scope (must match what is in policy.json or policies in
     # code)
     REQUEST_SCOPE = 'resource'
 
@@ -88,7 +89,7 @@ class ResourceController(object):
             try:
                 return extractor(key, req.params[key])
             except ValueError as e:
-                raise exc.HTTPBadRequest(str(e))
+                raise exc.HTTPBadRequest(six.text_type(e))
         else:
             return default
 
@@ -96,21 +97,21 @@ class ResourceController(object):
     def index(self, req, identity):
         """Lists information for all resources."""
 
-        param_types = {
-            'type': util.PARAM_TYPE_MIXED,
-            'status': util.PARAM_TYPE_MIXED,
-            'name': util.PARAM_TYPE_MIXED,
-            'action': util.PARAM_TYPE_MIXED,
-            'id': util.PARAM_TYPE_MIXED,
-            'physical_resource_id': util.PARAM_TYPE_MIXED,
+        whitelist = {
+            'type': 'mixed',
+            'status': 'mixed',
+            'name': 'mixed',
+            'action': 'mixed',
+            'id': 'mixed',
+            'physical_resource_id': 'mixed'
         }
 
         invalid_keys = (set(req.params.keys()) -
-                        set(list(param_types) + [rpc_api.PARAM_NESTED_DEPTH,
-                                                 rpc_api.PARAM_WITH_DETAIL]))
+                        set(list(whitelist) + [rpc_api.PARAM_NESTED_DEPTH,
+                                               rpc_api.PARAM_WITH_DETAIL]))
         if invalid_keys:
             raise exc.HTTPBadRequest(_('Invalid filter parameters %s') %
-                                     str(list(invalid_keys)))
+                                     six.text_type(list(invalid_keys)))
 
         nested_depth = self._extract_to_param(req,
                                               rpc_api.PARAM_NESTED_DEPTH,
@@ -121,7 +122,7 @@ class ResourceController(object):
                                              param_utils.extract_bool,
                                              default=False)
 
-        params = util.get_allowed_params(req.params, param_types)
+        params = util.get_allowed_params(req.params, whitelist)
 
         res_list = self.rpc_client.list_stack_resources(req.context,
                                                         identity,
@@ -135,8 +136,8 @@ class ResourceController(object):
     def show(self, req, identity, resource_name):
         """Gets detailed information for a resource."""
 
-        param_types = {'with_attr': util.PARAM_TYPE_MULTI}
-        params = util.get_allowed_params(req.params, param_types)
+        whitelist = {'with_attr': util.PARAM_TYPE_MULTI}
+        params = util.get_allowed_params(req.params, whitelist)
         if 'with_attr' not in params:
             params['with_attr'] = None
         res = self.rpc_client.describe_stack_resource(req.context,
@@ -185,7 +186,7 @@ class ResourceController(object):
                 RES_UPDATE_MARK_UNHEALTHY,
                 body[RES_UPDATE_MARK_UNHEALTHY])
         except ValueError as e:
-            raise exc.HTTPBadRequest(str(e))
+            raise exc.HTTPBadRequest(six.text_type(e))
 
         data[RES_UPDATE_STATUS_REASON] = body.get(RES_UPDATE_STATUS_REASON, "")
         self.rpc_client.resource_mark_unhealthy(req.context,

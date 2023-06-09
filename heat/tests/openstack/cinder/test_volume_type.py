@@ -11,7 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 import collections
-from unittest import mock
+import mock
+import six
 
 from heat.common import exception
 from heat.engine.clients.os import cinder as c_plugin
@@ -184,7 +185,7 @@ class CinderVolumeTypeTest(common.HeatTestCase):
                                self.my_volume_type.validate)
         expected = ('Can not specify property "projects" '
                     'if the volume type is public.')
-        self.assertEqual(expected, str(ex))
+        self.assertEqual(expected, six.text_type(ex))
 
     def test_validate_projects_when_private(self):
         tmpl = self.stack.t.t

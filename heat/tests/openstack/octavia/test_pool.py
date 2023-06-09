@@ -11,7 +11,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
 import yaml
 
 from osc_lib import exceptions
@@ -87,8 +87,7 @@ class PoolTest(common.HeatTestCase):
                 'listener_id': '123',
                 'loadbalancer_id': 'my_lb',
                 'protocol': 'HTTP',
-                'admin_state_up': True,
-                'tls_enabled': False,
+                'admin_state_up': True
             }
         }
 
@@ -135,7 +134,6 @@ class PoolTest(common.HeatTestCase):
             exceptions.Conflict(409), None]
         prop_diff = {
             'admin_state_up': False,
-            'session_persistence': {'type': 'source_ip'},
             'name': 'your_pool',
             'lb_algorithm': 'SOURCE_IP'
         }

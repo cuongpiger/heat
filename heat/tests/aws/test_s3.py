@@ -11,7 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
+import six
 
 from oslo_config import cfg
 import swiftclient.client as sc
@@ -254,7 +255,7 @@ class s3Test(common.HeatTestCase):
         ex = self.assertRaises(exception.ResourceFailure, deleter)
         self.assertIn("ResourceActionNotSupported: resources.test_resource: "
                       "The bucket you tried to delete is not empty",
-                      str(ex))
+                      six.text_type(ex))
         self.mock_con.put_container.assert_called_once_with(
             container_name,
             {'X-Container-Write': 'test_tenant:test_username',
@@ -277,7 +278,7 @@ class s3Test(common.HeatTestCase):
         rsrc = self.create_resource(t, stack, 'S3Bucket')
         deleter = scheduler.TaskRunner(rsrc.delete)
         ex = self.assertRaises(exception.ResourceFailure, deleter)
-        self.assertIn("Conflict", str(ex))
+        self.assertIn("Conflict", six.text_type(ex))
         self.mock_con.put_container.assert_called_once_with(
             container_name,
             {'X-Container-Write': 'test_tenant:test_username',

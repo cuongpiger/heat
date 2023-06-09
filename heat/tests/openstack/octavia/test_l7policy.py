@@ -11,7 +11,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
 import yaml
 
 from osc_lib import exceptions
@@ -145,7 +145,7 @@ class L7PolicyTest(common.HeatTestCase):
 
     def test_create_missing_properties(self):
         for prop in ('action', 'listener'):
-            tmpl = yaml.safe_load(inline_templates.L7POLICY_TEMPLATE)
+            tmpl = yaml.load(inline_templates.L7POLICY_TEMPLATE)
             del tmpl['resources']['l7policy']['properties'][prop]
             self._create_stack(tmpl=yaml.dump(tmpl))
 

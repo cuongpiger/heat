@@ -11,6 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import six
+
 from heat.common import exception
 from heat.common.i18n import _
 
@@ -76,7 +78,7 @@ class PropertiesGroup(object):
                 self.validate_schema(item)
             elif isinstance(item, list):
                 for name in item:
-                    if not isinstance(name, str):
+                    if not isinstance(name, six.string_types):
                         raise exception.InvalidSchemaError(message=next_msg)
             else:
                 raise exception.InvalidSchemaError(message=next_msg)

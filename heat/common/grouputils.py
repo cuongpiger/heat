@@ -11,6 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import six
+
 from heat.common import exception
 from heat.common.i18n import _
 from heat.engine import status
@@ -120,7 +122,7 @@ def get_members(group, include_failed=False):
     """
     resources = []
     if group.nested():
-        resources = [r for r in group.nested().values()
+        resources = [r for r in six.itervalues(group.nested())
                      if include_failed or r.status != r.FAILED]
 
     return sorted(resources,

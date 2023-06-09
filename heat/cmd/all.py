@@ -15,17 +15,8 @@
 
 An OpenStack Heat server that can run all services.
 """
-
-# flake8: noqa: E402
-
 import eventlet
 eventlet.monkey_patch(os=False)
-# Monkey patch the original current_thread to use the up-to-date _active
-# global variable. See https://bugs.launchpad.net/bugs/1863021 and
-# https://github.com/eventlet/eventlet/issues/592
-import __original_module_threading as orig_threading
-import threading  # noqa
-orig_threading.current_thread.__globals__['_active'] = threading._active
 
 import sys
 
@@ -33,6 +24,7 @@ from oslo_config import cfg
 import oslo_i18n as i18n
 from oslo_log import log as logging
 from oslo_service import systemd
+import six
 
 from heat.cmd import api
 from heat.cmd import api_cfn
@@ -43,6 +35,8 @@ from heat import version
 
 
 i18n.enable_lazy()
+
+LOG = logging.getLogger('heat.all')
 
 API_LAUNCH_OPTS = {'setup_logging': False}
 
@@ -73,15 +67,15 @@ def _start_service_threads(services):
 
 
 def launch_all(setup_logging=True):
-    if setup_logging:
-        logging.register_options(cfg.CONF)
-    cfg.CONF(project='heat', prog='heat-all',
-             version=version.version_info.version_string())
-    if setup_logging:
-        logging.setup(cfg.CONF, 'heat-all')
-    config.set_config_defaults()
-    messaging.setup()
-    return _start_service_threads(set(cfg.CONF.heat_all.enabled_services))
+        if setup_logging:
+            logging.register_options(cfg.CONF)
+        cfg.CONF(project='heat', prog='heat-all',
+                 version=version.version_info.version_string())
+        if setup_logging:
+            logging.setup(cfg.CONF, 'heat-all')
+        config.set_config_defaults()
+        messaging.setup()
+        return _start_service_threads(set(cfg.CONF.heat_all.enabled_services))
 
 
 def main():
@@ -91,5 +85,5 @@ def main():
         systemd.notify_once()
         [service.wait() for service in services]
     except RuntimeError as e:
-        msg = str(e)
+        msg = six.text_type(e)
         sys.exit("ERROR: %s" % msg)

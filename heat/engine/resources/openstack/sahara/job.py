@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import six
+
 from heat.common import exception
 from heat.common.i18n import _
 from heat.engine import attributes
@@ -297,7 +299,7 @@ class SaharaJob(signal_responder.SignalResponder, resource.Resource):
 
     def _resolve_attribute(self, name):
         if name == self.DEFAULT_EXECUTION_URL:
-            return str(self._get_ec2_signed_url(never_expire=True))
+            return six.text_type(self._get_ec2_signed_url(never_expire=True))
         elif name == self.EXECUTIONS:
             try:
                 job_execs = self.client().job_executions.find(

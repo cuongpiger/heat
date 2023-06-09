@@ -1,5 +1,0 @@
----
-fixes:
-- |
-  The `firewall_rules` property of the `OS::Neutron::FirewallPolicy`
-  resource type is now optional.

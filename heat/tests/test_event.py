@@ -11,12 +11,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
-
+import mock
 from oslo_config import cfg
 import uuid
 
-from heat.db import models
+from heat.db.sqlalchemy import models
 from heat.engine import event
 from heat.engine import stack
 from heat.engine import template
@@ -283,7 +282,7 @@ class EventEncryptedTest(EventCommon):
                         self.resource.name, self.resource.type())
         e.store()
 
-        # verify the resource_properties_data DB data is encrypted
+        # verify the resource_properties_data db data is encrypted
         e_obj = event_object.Event.get_all_by_stack(self.resource.context,
                                                     self.stack.id)[0]
         rpd_id = e_obj['rsrc_prop_data_id']

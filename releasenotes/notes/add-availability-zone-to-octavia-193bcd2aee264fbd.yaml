@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Add availabilty_zone parameter to OS::Octavia::LoadBalancer

@@ -19,6 +19,7 @@ import pydoc
 from docutils import core
 from docutils import nodes
 from docutils.parsers import rst
+import six
 
 from heat.common.i18n import _
 from heat.engine import attributes
@@ -26,24 +27,20 @@ from heat.engine import plugin_manager
 from heat.engine import properties
 from heat.engine import support
 
-_CODE_NAMES = {
-    '2013.1': 'Grizzly',
-    '2013.2': 'Havana',
-    '2014.1': 'Icehouse',
-    '2014.2': 'Juno',
-    '2015.1': 'Kilo',
-    '5.0.0': 'Liberty',
-    '6.0.0': 'Mitaka',
-    '7.0.0': 'Newton',
-    '8.0.0': 'Ocata',
-    '9.0.0': 'Pike',
-    '10.0.0': 'Queens',
-    '11.0.0': 'Rocky',
-    '12.0.0': 'Stein',
-    '13.0.0': 'Train',
-    '14.0.0': 'Ussuri',
-    '15.0.0': 'Victoria',
-}
+_CODE_NAMES = {'2013.1': 'Grizzly',
+               '2013.2': 'Havana',
+               '2014.1': 'Icehouse',
+               '2014.2': 'Juno',
+               '2015.1': 'Kilo',
+               '5.0.0': 'Liberty',
+               '6.0.0': 'Mitaka',
+               '7.0.0': 'Newton',
+               '8.0.0': 'Ocata',
+               '9.0.0': 'Pike',
+               '10.0.0': 'Queens',
+               '11.0.0': 'Rocky',
+               '12.0.0': 'Stein',
+               '13.0.0': 'Train'}
 
 all_resources = {}
 
@@ -248,10 +245,7 @@ resources:
         if not prop.implemented:
             para = nodes.line('', _('Not implemented.'))
             note = nodes.note('', para)
-            if sub_prop:
-                definition.append(para)
-            else:
-                definition.append(note)
+            definition.append(note)
             return
 
         if sub_prop and prop.type not in (properties.Schema.LIST,
@@ -292,8 +286,6 @@ resources:
             default = nodes.literal('', json.dumps(prop.default))
             para.append(default)
             definition.append(para)
-        elif prop_key == 'description' and prop.update_allowed:
-            para = nodes.line('', _('Defaults to the resource description'))
 
         for constraint in prop.constraints:
             para = nodes.line('', str(constraint))
@@ -359,14 +351,11 @@ resources:
         if not self.attrs_schemata:
             return
         section = self._section(parent, _('Attributes'), '%s-attrs')
-        definition_list = nodes.definition_list()
-        section.append(definition_list)
-
         for prop_key, prop in sorted(self.attrs_schemata.items()):
             if prop.support_status.status != support.HIDDEN:
                 description = prop.description
                 attr_section = self._prop_section(
-                    definition_list, prop_key, '%s-attr-' + prop_key)
+                    section, prop_key, '%s-attr-' + prop_key)
 
                 self._status_str(prop.support_status, attr_section)
 
@@ -378,12 +367,9 @@ resources:
         if not self.update_policy_schemata:
             return
         section = self._section(parent, _('update_policy'), '%s-updpolicy')
-        definition_list = nodes.definition_list()
-        section.append(definition_list)
-
         for _key, _prop in sorted(self.update_policy_schemata.items(),
                                   key=cmp_to_key(self.cmp_prop)):
-            self.contribute_property(definition_list, _key, _prop)
+            self.contribute_property(section, _key, _prop)
 
 
 class IntegrateResourcePages(ResourcePages):
@@ -436,7 +422,7 @@ def _filter_resources(prefix=None, path=None, statuses=None):
                     else:
                         filtered_resources[name] = [cls]
 
-    return sorted(filtered_resources.items())
+    return sorted(six.iteritems(filtered_resources))
 
 
 def _load_all_resources():

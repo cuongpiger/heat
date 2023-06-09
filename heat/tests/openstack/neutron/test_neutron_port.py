@@ -11,12 +11,12 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
-
+import mock
 from neutronclient.common import exceptions as qe
 from neutronclient.neutron import v2_0 as neutronV20
 from neutronclient.v2_0 import client as neutronclient
 from oslo_serialization import jsonutils
+import six
 
 from heat.common import exception
 from heat.common import template_format
@@ -56,17 +56,6 @@ resources:
 '''
 
 
-neutron_port_with_no_fixed_ips_template = '''
-heat_template_version: 2015-04-30
-description: Template to test port Neutron resource
-resources:
-  port:
-    type: OS::Neutron::Port
-    properties:
-      network: abcd1234
-      no_fixed_ips: true
-'''
-
 neutron_port_security_template = '''
 heat_template_version: 2015-04-30
 description: Template to test port Neutron resource
@@ -76,18 +65,6 @@ resources:
     properties:
       network: abcd1234
       port_security_enabled: False
-'''
-
-
-neutron_port_propagate_ul_status_template = '''
-heat_template_version: 2015-04-30
-description: Template to test port Neutron resource
-resources:
-  port:
-    type: OS::Neutron::Port
-    properties:
-      network: abcd1234
-      propagate_uplink_status: True
 '''
 
 
@@ -235,34 +212,6 @@ class NeutronPortTest(common.HeatTestCase):
             'device_owner': ''
         }})
 
-    def test_no_fixed_ips(self):
-        t = template_format.parse(neutron_port_with_no_fixed_ips_template)
-        stack = utils.parse_stack(t)
-
-        self.find_mock.return_value = 'abcd1234'
-
-        self.create_mock.return_value = {'port': {
-            "status": "BUILD",
-            "id": "fc68ea2c-b60b-4b4f-bd82-94ec81110766"
-        }}
-
-        self.port_show_mock.return_value = {'port': {
-            "status": "ACTIVE",
-            "id": "fc68ea2c-b60b-4b4f-bd82-94ec81110766",
-        }}
-
-        port = stack['port']
-        scheduler.TaskRunner(port.create)()
-        self.create_mock.assert_called_once_with({'port': {
-            'network_id': u'abcd1234',
-            'name': utils.PhysName(stack.name, 'port'),
-            'fixed_ips': [],
-            'admin_state_up': True,
-            'binding:vnic_type': 'normal',
-            'device_id': '',
-            'device_owner': ''
-        }})
-
     def test_port_security_enabled(self):
         t = template_format.parse(neutron_port_security_template)
         stack = utils.parse_stack(t)
@@ -284,34 +233,6 @@ class NeutronPortTest(common.HeatTestCase):
         self.create_mock.assert_called_once_with({'port': {
             'network_id': u'abcd1234',
             'port_security_enabled': False,
-            'name': utils.PhysName(stack.name, 'port'),
-            'admin_state_up': True,
-            'binding:vnic_type': 'normal',
-            'device_id': '',
-            'device_owner': ''
-            }})
-
-    def test_port_propagate_uplink_status(self):
-        t = template_format.parse(neutron_port_propagate_ul_status_template)
-        stack = utils.parse_stack(t)
-
-        self.find_mock.return_value = 'abcd1234'
-
-        self.create_mock.return_value = {'port': {
-            "status": "BUILD",
-            "id": "fc68ea2c-b60b-4b4f-bd82-94ec81110766"
-        }}
-
-        self.port_show_mock.return_value = {'port': {
-            "status": "ACTIVE",
-            "id": "fc68ea2c-b60b-4b4f-bd82-94ec81110766",
-        }}
-
-        port = stack['port']
-        scheduler.TaskRunner(port.create)()
-        self.create_mock.assert_called_once_with({'port': {
-            'network_id': u'abcd1234',
-            'propagate_uplink_status': True,
             'name': utils.PhysName(stack.name, 'port'),
             'admin_state_up': True,
             'binding:vnic_type': 'normal',
@@ -659,7 +580,6 @@ class NeutronPortTest(common.HeatTestCase):
                         'ipv4_address_scope': None, 'description': '',
                         'subnets': [subnet_dict['id']],
                         'port_security_enabled': True,
-                        'propagate_uplink_status': True,
                         'tenant_id': '58a61fc3992944ce971404a2ece6ff98',
                         'tags': [], 'ipv6_address_scope': None,
                         'project_id': '58a61fc3992944ce971404a2ece6ff98',
@@ -963,7 +883,6 @@ class NeutronPortTest(common.HeatTestCase):
             'tenant_id': '30f466e3d14b4251853899f9c26e2b66',
             'binding:profile': {},
             'port_security_enabled': True,
-            'propagate_uplink_status': True,
             'binding:vnic_type': 'normal',
             'fixed_ips': [
                 {'subnet_id': '02d9608f-8f30-4611-ad02-69855c82457f',
@@ -983,7 +902,6 @@ class NeutronPortTest(common.HeatTestCase):
             'admin_state_up': True,
             'device_owner': '',
             'port_security_enabled': True,
-            'propagate_uplink_status': True,
             'binding:vnic_type': 'normal',
             'fixed_ips': [
                 {'subnet': '02d9608f-8f30-4611-ad02-69855c82457f',
@@ -1065,11 +983,6 @@ class UpdatePortTest(common.HeatTestCase):
                                        fixed_ips=None,
                                        addr_pair=None,
                                        vnic_type='virtio-forwarder')),
-        ('smart_nic_vnic', dict(secgrp=None,
-                                value_specs={},
-                                fixed_ips=None,
-                                addr_pair=None,
-                                vnic_type='smart-nic')),
         ('with_all', dict(secgrp=['8a2f582a-e1cd-480f-b85d-b02631c10656'],
                           value_specs={},
                           fixed_ips=[
@@ -1170,7 +1083,7 @@ class UpdatePortTest(common.HeatTestCase):
 
         value_specs = update_dict.pop('value_specs')
         if value_specs:
-            for value_spec in value_specs.items():
+            for value_spec in six.iteritems(value_specs):
                 update_dict[value_spec[0]] = value_spec[1]
 
         tags = update_dict.pop('tags')

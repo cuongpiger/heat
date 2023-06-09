@@ -12,9 +12,9 @@
 #    under the License.
 
 import copy
-from unittest import mock
-
+import mock
 from oslo_config import cfg
+import six
 
 from heat.common import exception
 from heat.common import template_format
@@ -200,7 +200,7 @@ class TestMagnumCluster(common.HeatTestCase):
         exc = self.assertRaises(
             exception.ResourceFailure,
             scheduler.TaskRunner(b.create))
-        self.assertIn("Failed to create Cluster", str(exc))
+        self.assertIn("Failed to create Cluster", six.text_type(exc))
 
     def test_cluster_create_unknown_status(self):
         b = self._create_resource('cluster', self.rsrc_defn, self.stack,
@@ -208,7 +208,7 @@ class TestMagnumCluster(common.HeatTestCase):
         exc = self.assertRaises(
             exception.ResourceFailure,
             scheduler.TaskRunner(b.create))
-        self.assertIn("Unknown status creating Cluster", str(exc))
+        self.assertIn("Unknown status creating Cluster", six.text_type(exc))
 
     def _cluster_update(self, update_status='UPDATE_COMPLETE', exc_msg=None):
         b = self._create_resource('cluster', self.rsrc_defn, self.stack)
@@ -227,7 +227,7 @@ class TestMagnumCluster(common.HeatTestCase):
             exc = self.assertRaises(
                 exception.ResourceFailure,
                 scheduler.TaskRunner(b.update, new_bm))
-            self.assertIn(exc_msg, str(exc))
+            self.assertIn(exc_msg, six.text_type(exc))
 
     def test_cluster_update(self):
         self._cluster_update()

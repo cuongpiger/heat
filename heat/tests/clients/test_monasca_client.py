@@ -11,7 +11,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
+import six
+
+import monascaclient
 
 from heat.common import exception as heat_exception
 from heat.engine.clients.os import monasca as client_plugin
@@ -46,7 +49,8 @@ class MonascaClientPluginTest(common.HeatTestCase):
         client = plugin.client()
         self.assertIsNotNone(client.metrics)
 
-    def test_client_uses_session(self):
+    @mock.patch.object(monascaclient.client, '_session')
+    def test_client_uses_session(self, mock_session):
         context = mock.MagicMock()
         monasca_client = client_plugin.MonascaClientPlugin(context=context)
         self.assertIsNotNone(monasca_client._create())
@@ -93,6 +97,6 @@ class MonascaClientPluginNotificationTest(common.HeatTestCase):
                                self.sample_uuid)
         msg = ("The Monasca Notification (%(name)s) could not be found." %
                {'name': self.sample_uuid})
-        self.assertEqual(msg, str(ex))
+        self.assertEqual(msg, six.text_type(ex))
         self._client.notifications.get.assert_called_once_with(
             notification_id=self.sample_uuid)

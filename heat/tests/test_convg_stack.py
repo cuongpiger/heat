@@ -13,7 +13,7 @@
 
 from datetime import datetime
 from datetime import timedelta
-from unittest import mock
+import mock
 
 from oslo_config import cfg
 
@@ -197,7 +197,7 @@ class StackConvergenceCreateUpdateDeleteTest(common.HeatTestCase):
                                  [[4, False], [3, False]],
                                  [[4, False], [4, True]]]),
                          sorted(stack_db.current_deps['edges']))
-        r'''
+        '''
         To visualize:
 
         G(7, True)       H(6, True)

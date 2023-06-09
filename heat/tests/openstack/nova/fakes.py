@@ -14,14 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest import mock
-
+import mock
 from novaclient import client as base_client
 from novaclient import exceptions as nova_exceptions
 import requests
-from urllib import parse as urlparse
+from six.moves.urllib import parse as urlparse
 
 from heat.tests import fakes
+
 
 NOVA_API_VERSION = "2.1"
 
@@ -45,7 +45,7 @@ class FakeClient(fakes.FakeClient, Client):
 
 class FakeSessionClient(base_client.SessionClient):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self,  *args, **kwargs):
         super(FakeSessionClient, self).__init__(*args, **kwargs)
         self.callstack = []
 
@@ -321,9 +321,6 @@ class FakeSessionClient(base_client.SessionClient):
     def delete_servers_1234(self, **kw):
         return (202, None)
 
-    def delete_servers_5678(self, **kw):
-        return (202, None)
-
     def get_servers_9999(self, **kw):
         r = {'server': self.get_servers_detail()[1]['servers'][4]}
         return (200, r)
@@ -345,21 +342,21 @@ class FakeSessionClient(base_client.SessionClient):
         keys = list(body[action].keys()) if body[action] is not None else None
         if action == 'reboot':
             if keys != ['type']:
-                raise AssertionError('Unexpection action keys for %s: %s' %
-                                     (action, keys))
+                raise AssertionError('Unexpection action keys for %s: %s',
+                                     action, keys)
             if body[action]['type'] not in ['HARD', 'SOFT']:
-                raise AssertionError('Unexpected reboot type %s' %
+                raise AssertionError('Unexpected reboot type %s',
                                      body[action]['type'])
         elif action == 'rebuild':
             if 'adminPass' in keys:
                 keys.remove('adminPass')
             if keys != ['imageRef']:
-                raise AssertionError('Unexpection action keys for %s: %s' %
-                                     (action, keys))
+                raise AssertionError('Unexpection action keys for %s: %s',
+                                     action, keys)
             _body = self.get_servers_1234()[1]
         elif action == 'confirmResize':
             if body[action] is not None:
-                raise AssertionError('Unexpected data for confirmResize: %s' %
+                raise AssertionError('Unexpected data for confirmResize: %s',
                                      body[action])
             # This one method returns a different response code
             return (204, None)
@@ -370,8 +367,8 @@ class FakeSessionClient(base_client.SessionClient):
                         'lock', 'unlock',
                         'forceDelete']:
             if body[action] is not None:
-                raise AssertionError('Unexpected data for %s: %s' %
-                                     (action, body[action]))
+                raise AssertionError('Unexpected data for %s: %s',
+                                     action, body[action])
         else:
             expected_keys = {
                 'resize': {'flavorRef'},
@@ -389,8 +386,8 @@ class FakeSessionClient(base_client.SessionClient):
 
             if action in expected_keys:
                 if set(keys) != set(expected_keys[action]):
-                    raise AssertionError('Unexpection action keys for %s: %s' %
-                                         (action, keys))
+                    raise AssertionError('Unexpection action keys for %s: %s',
+                                         action, keys)
             else:
                 raise AssertionError("Unexpected server action: %s" % action)
 
@@ -413,8 +410,8 @@ class FakeSessionClient(base_client.SessionClient):
                       ]:
             keys = list(body[action].keys())
             if keys != ['address']:
-                raise AssertionError('Unexpection action keys for %s: %s' %
-                                     (action, keys))
+                raise AssertionError('Unexpection action keys for %s: %s',
+                                     action, keys)
 
         return (resp, _body)
 
@@ -455,19 +452,6 @@ class FakeSessionClient(base_client.SessionClient):
         return (200, {'flavor': {
             'id': 3, 'name': 'm1.large', 'ram': 512, 'disk': 20,
             'OS-FLV-EXT-DATA:ephemeral': 30}})
-
-    #
-    # Interfaces
-    #
-
-    def get_servers_5678_os_interface(self, **kw):
-        return (200, {'interfaceAttachments':
-                      [{"fixed_ips":
-                        [{"ip_address": "10.0.0.1",
-                          "subnet_id": "f8a6e8f8-c2ec-497c-9f23-da9616de54ef"
-                          }],
-                        "port_id": "ce531f90-199f-48c0-816c-13e38010b442"
-                        }]})
 
     #
     # Floating ips

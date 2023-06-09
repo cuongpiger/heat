@@ -19,24 +19,25 @@ import sys
 
 from oslo_config import cfg
 from oslo_log import log
+from six import moves
 
 from heat.common import context
 from heat.common import exception
 from heat.common.i18n import _
 from heat.common import messaging
 from heat.common import service_utils
-from heat.db import api as db_api
-from heat.db import migration as db_migration
+from heat.db.sqlalchemy import api as db_api
 from heat.objects import service as service_objects
 from heat.rpc import client as rpc_client
 from heat import version
+
 
 CONF = cfg.CONF
 
 
 def do_db_version():
     """Print database's current migration level."""
-    print(db_migration.db_version())
+    print(db_api.db_version(db_api.get_engine()))
 
 
 def do_db_sync():
@@ -44,7 +45,7 @@ def do_db_sync():
 
     Creating first if necessary.
     """
-    db_migration.db_sync(CONF.command.version)
+    db_api.db_sync(db_api.get_engine(), CONF.command.version)
 
 
 class ServiceManageCommand(object):
@@ -105,7 +106,7 @@ def do_reset_stack_status():
             "intended to recover from specific crashes."))
     print(_("It is advised to shutdown all Heat engines beforehand."))
     print(_("Continue ? [y/N]"))
-    data = input()
+    data = moves.input()
     if not data.lower().startswith('y'):
         return
     ctxt = context.get_admin_context()
@@ -185,7 +186,7 @@ def add_command_parsers(subparsers):
     parser.add_argument(
         '-b', '--batch_size', default='20',
         help=_('Number of stacks to delete at a time (per transaction). '
-               'Note that a single stack may have many DB rows '
+               'Note that a single stack may have many db rows '
                '(events, etc.) associated with it.'))
 
     # update_params parser
@@ -222,7 +223,6 @@ def add_command_parsers(subparsers):
     parser.set_defaults(func=do_properties_data_migrate)
 
     ServiceManageCommand.add_service_parsers(subparsers)
-
 
 command_opt = cfg.SubCommandOpt('command',
                                 title='Commands',

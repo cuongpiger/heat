@@ -14,8 +14,10 @@
 import collections
 import json
 import os
-from unittest import mock
 import uuid
+
+import mock
+import six
 
 from heat.common import exception
 from heat.common.i18n import _
@@ -32,7 +34,6 @@ from heat.engine import rsrc_defn
 from heat.engine import stack as parser
 from heat.engine import support
 from heat.engine import template
-from heat.objects import stack as stack_object
 from heat.tests import common
 from heat.tests import generic_resource as generic_rsrc
 from heat.tests import utils
@@ -440,7 +441,7 @@ class ProviderTemplateTest(common.HeatTestCase):
                                temp_res.validate)
         self.assertEqual("Property Foo type mismatch between facade "
                          "DummyResource (Map) and provider (String)",
-                         str(ex))
+                         six.text_type(ex))
 
     def test_properties_list_with_none(self):
         provider = {
@@ -625,7 +626,7 @@ class ProviderTemplateTest(common.HeatTestCase):
         ex = self.assertRaises(exception.NotFound, env.get_class,
                                'OS::ResourceType', 'fred')
         self.assertIn('Could not fetch remote template "some_magic.yaml"',
-                      str(ex))
+                      six.text_type(ex))
 
     def test_metadata_update_called(self):
         provider = {
@@ -738,7 +739,7 @@ class ProviderTemplateTest(common.HeatTestCase):
         """Test that templates are registered correctly.
 
         Test that templates persisted in the database prior to
-        https://review.opendev.org/#/c/79953/1 are registered correctly.
+        https://review.openstack.org/#/c/79953/1 are registered correctly.
         """
         env = {'resource_registry': {'http://example.com/test.template': None,
                                      'resources': {}}}
@@ -891,7 +892,7 @@ class ProviderTemplateTest(common.HeatTestCase):
         err = self.assertRaises(exception.StackValidationFailed,
                                 temp_res.validate)
         self.assertIn('Error parsing template http://heatr/bad_tmpl.yaml',
-                      str(err))
+                      six.text_type(err))
         mock_get.assert_called_once_with(test_templ_name,
                                          allowed_schemes=('http', 'https',))
 
@@ -973,10 +974,6 @@ class TemplateResourceCrudTest(common.HeatTestCase):
                                                       self.defn, self.stack)
         self.assertIsNone(self.res.validate())
 
-        self.patchobject(stack_object.Stack, 'get_status',
-                         return_value=('CREATE', 'COMPLETE',
-                                       'Created', 'Sometime'))
-
     def test_handle_create(self):
         self.res.create_with_template = mock.Mock(return_value=None)
 
@@ -1005,8 +1002,8 @@ class TemplateResourceCrudTest(common.HeatTestCase):
     def test_handle_delete(self):
         self.res.rpc_client = mock.MagicMock()
         self.res.id = 55
-        self.res.uuid = str(uuid.uuid4())
-        self.res.resource_id = str(uuid.uuid4())
+        self.res.uuid = six.text_type(uuid.uuid4())
+        self.res.resource_id = six.text_type(uuid.uuid4())
         self.res.action = self.res.CREATE
         self.res.nested = mock.MagicMock()
         ident = identifier.HeatIdentifier(self.ctx.tenant_id,

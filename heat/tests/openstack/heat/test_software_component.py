@@ -12,7 +12,8 @@
 #    under the License.
 
 import contextlib
-from unittest import mock
+import mock
+import six
 
 from heat.common import exception as exc
 from heat.common import template_format
@@ -281,6 +282,6 @@ class SoftwareComponentValidationTest(common.HeatTestCase):
         if self.err:
             err = self.assertRaises(self.err, self.stack.validate)
             if self.err_msg:
-                self.assertIn(self.err_msg, str(err))
+                self.assertIn(self.err_msg, six.text_type(err))
         else:
             self.assertIsNone(self.stack.validate())

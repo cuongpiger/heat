@@ -25,6 +25,7 @@ from oslo_utils import excutils
 from oslo_utils import timeutils as oslo_timeutils
 from oslo_utils import uuidutils
 from osprofiler import profiler
+import six
 
 from heat.common import context as common_context
 from heat.common import environment_format as env_fmt
@@ -74,20 +75,20 @@ class ForcedCancel(Exception):
 
 
 def reset_state_on_error(func):
-    @functools.wraps(func)
+    @six.wraps(func)
     def handle_exceptions(stack, *args, **kwargs):
         errmsg = None
         try:
             return func(stack, *args, **kwargs)
         except Exception as exc:
             with excutils.save_and_reraise_exception():
-                errmsg = str(exc)
+                errmsg = six.text_type(exc)
                 LOG.error('Unexpected exception in %(func)s: %(msg)s',
                           {'func': func.__name__, 'msg': errmsg})
         except BaseException as exc:
             with excutils.save_and_reraise_exception():
                 exc_type = type(exc).__name__
-                errmsg = '%s(%s)' % (exc_type, str(exc))
+                errmsg = '%s(%s)' % (exc_type, six.text_type(exc))
                 LOG.info('Stopped due to %(msg)s in %(func)s',
                          {'func': func.__name__, 'msg': errmsg})
         finally:
@@ -100,7 +101,8 @@ def reset_state_on_error(func):
     return handle_exceptions
 
 
-class Stack(collections.abc.Mapping):
+@six.python_2_unicode_compatible
+class Stack(collections.Mapping):
 
     ACTIONS = (
         CREATE, DELETE, UPDATE, ROLLBACK, SUSPEND, RESUME, ADOPT,
@@ -126,7 +128,7 @@ class Stack(collections.abc.Mapping):
                  nested_depth=0, strict_validate=True, convergence=False,
                  current_traversal=None, tags=None, prev_raw_template_id=None,
                  current_deps=None, cache_data=None,
-                 deleted_time=None, converge=False, refresh_cred=False):
+                 deleted_time=None, converge=False):
 
         """Initialise the Stack.
 
@@ -171,7 +173,6 @@ class Stack(collections.abc.Mapping):
         self._access_allowed_handlers = {}
         self._db_resources = None
         self._tags = tags
-        self._tags_stored = False
         self.adopt_stack_data = adopt_stack_data
         self.stack_user_project_id = stack_user_project_id
         self.created_time = created_time
@@ -181,15 +182,13 @@ class Stack(collections.abc.Mapping):
         self.nested_depth = nested_depth
         self.convergence = convergence
         self.current_traversal = current_traversal
+        self.tags = tags
         self.prev_raw_template_id = prev_raw_template_id
         self.current_deps = current_deps
         self._worker_client = None
         self._convg_deps = None
         self.thread_group_mgr = None
         self.converge = converge
-
-        # This flag is use to check whether credential needs to refresh or not
-        self.refresh_cred = refresh_cred
 
         # strict_validate can be used to disable value validation
         # in the resource properties schema, this is useful when
@@ -225,17 +224,14 @@ class Stack(collections.abc.Mapping):
     @property
     def tags(self):
         if self._tags is None:
-            if self.id is not None:
-                tags = stack_tag_object.StackTagList.get(self.context, self.id)
-                self._tags = [t.tag for t in tags] if tags else []
-            else:
-                self._tags = []
-            self._tags_stored = True
+            tags = stack_tag_object.StackTagList.get(
+                self.context, self.id)
+            if tags:
+                self._tags = [t.tag for t in tags]
         return self._tags
 
     @tags.setter
     def tags(self, value):
-        self._tags_stored = (value == self._tags)
         self._tags = value
 
     @property
@@ -338,7 +334,7 @@ class Stack(collections.abc.Mapping):
             resources = self._db_resources_get()
 
         stk_def_cache = {}
-        for rsc in resources.values():
+        for rsc in six.itervalues(resources):
             loaded_res = self._resource_from_db_resource(rsc, stk_def_cache)
             if loaded_res is not None:
                 yield loaded_res
@@ -521,14 +517,14 @@ class Stack(collections.abc.Mapping):
         """
         if self._dependencies is None:
             deps = dependencies.Dependencies()
-            for res in self.resources.values():
+            for res in six.itervalues(self.resources):
                 res.add_explicit_dependencies(deps)
             self._dependencies = deps
         return self._dependencies
 
     def _add_implicit_dependencies(self, deps, ignore_errors=True):
         """Augment the given dependencies with implicit ones from plugins."""
-        for res in self.resources.values():
+        for res in six.itervalues(self.resources):
             try:
                 res.add_dependencies(deps)
             except Exception as exc:
@@ -541,38 +537,13 @@ class Stack(collections.abc.Mapping):
                 else:
                     LOG.warning('Ignoring error adding implicit '
                                 'dependencies for %(res)s: %(err)s',
-                                {'res': str(res),
-                                 'err': str(exc)})
-
-    @classmethod
-    def _check_refresh_cred(cls, context, stack):
-        if stack.user_creds_id:
-            creds_obj = ucreds_object.UserCreds.get_by_id(
-                context, stack.user_creds_id)
-            creds = creds_obj.obj_to_primitive()["versioned_object.data"]
-            stored_context = common_context.StoredContext.from_dict(creds)
-
-            if cfg.CONF.deferred_auth_method == 'trusts':
-                old_trustor_proj_id = stored_context.tenant_id
-                old_trustor_user_id = stored_context.trustor_user_id
-
-                trustor_user_id = context.auth_plugin.get_user_id(
-                    context.clients.client('keystone').session)
-                trustor_proj_id = context.auth_plugin.get_project_id(
-                    context.clients.client('keystone').session)
-                return False if (
-                    old_trustor_user_id == trustor_user_id) and (
-                    old_trustor_proj_id == trustor_proj_id
-                    ) else True
-
-        # Should not raise error or allow refresh credential when we can't find
-        # user_creds_id in stack
-        return False
+                                {'res': six.text_type(res),
+                                 'err': six.text_type(exc)})
 
     @classmethod
     def load(cls, context, stack_id=None, stack=None, show_deleted=True,
              use_stored_context=False, force_reload=False, cache_data=None,
-             load_template=True, check_refresh_cred=False):
+             load_template=True):
         """Retrieve a Stack from the database."""
         if stack is None:
             stack = stack_object.Stack.get_by_id(
@@ -583,22 +554,13 @@ class Stack(collections.abc.Mapping):
             message = _('No stack exists with id "%s"') % str(stack_id)
             raise exception.NotFound(message)
 
-        refresh_cred = False
-        if check_refresh_cred and (
-            cfg.CONF.deferred_auth_method == 'trusts'
-        ):
-            if cls._check_refresh_cred(context, stack):
-                use_stored_context = False
-                refresh_cred = True
-
         if force_reload:
             stack.refresh()
 
         return cls._from_db(context, stack,
                             use_stored_context=use_stored_context,
                             cache_data=cache_data,
-                            load_template=load_template,
-                            refresh_cred=refresh_cred)
+                            load_template=load_template)
 
     @classmethod
     def load_all(cls, context, limit=None, marker=None, sort_keys=None,
@@ -632,7 +594,7 @@ class Stack(collections.abc.Mapping):
     @classmethod
     def _from_db(cls, context, stack,
                  use_stored_context=False, cache_data=None,
-                 load_template=True, refresh_cred=False):
+                 load_template=True):
         if load_template:
             template = tmpl.Template.load(
                 context, stack.raw_template_id, stack.raw_template)
@@ -656,8 +618,7 @@ class Stack(collections.abc.Mapping):
                    prev_raw_template_id=stack.prev_raw_template_id,
                    current_deps=stack.current_deps, cache_data=cache_data,
                    nested_depth=stack.nested_depth,
-                   deleted_time=stack.deleted_at,
-                   refresh_cred=refresh_cred)
+                   deleted_time=stack.deleted_at)
 
     def get_kwargs_for_cloning(self, keep_status=False, only_db=False,
                                keep_tags=False):
@@ -691,7 +652,7 @@ class Stack(collections.abc.Mapping):
             stack.update({
                 'action': self.action,
                 'status': self.status,
-                'status_reason': str(self.status_reason)})
+                'status_reason': six.text_type(self.status_reason)})
 
         if only_db:
             stack['parent_resource_name'] = self.parent_resource_name
@@ -725,17 +686,6 @@ class Stack(collections.abc.Mapping):
             s['raw_template_id'] = self.t.id
 
         if self.id is not None:
-            if self.refresh_cred:
-                keystone = self.clients.client('keystone')
-                trust_ctx = keystone.regenerate_trust_context()
-                new_creds = ucreds_object.UserCreds.create(trust_ctx)
-                s['user_creds_id'] = new_creds.id
-
-                self._delete_user_cred(raise_keystone_exception=True)
-
-                self.user_creds_id = new_creds.id
-                self.refresh_cred = False
-
             if exp_trvsl is None and not ignore_traversal_check:
                 exp_trvsl = self.current_traversal
 
@@ -763,30 +713,20 @@ class Stack(collections.abc.Mapping):
                 self.user_creds_id = new_creds.id
 
             if self.convergence:
-                # create a traversal ID
-                self.current_traversal = uuidutils.generate_uuid()
-                s['current_traversal'] = self.current_traversal
+                    # create a traversal ID
+                    self.current_traversal = uuidutils.generate_uuid()
+                    s['current_traversal'] = self.current_traversal
 
             new_s = stack_object.Stack.create(self.context, s)
             self.id = new_s.id
             self.created_time = new_s.created_at
 
-        self._store_tags()
+        if self.tags:
+            stack_tag_object.StackTagList.set(self.context, self.id, self.tags)
 
         self._set_param_stackid()
 
         return self.id
-
-    def _store_tags(self):
-        if (self._tags is not None and
-                not self._tags_stored and
-                self.id is not None):
-            tags = self._tags
-            if tags:
-                stack_tag_object.StackTagList.set(self.context, self.id, tags)
-            else:
-                stack_tag_object.StackTagList.delete(self.context, self.id)
-            self._tags_stored = True
 
     def _backup_name(self):
         return '%s*' % self.name
@@ -848,7 +788,7 @@ class Stack(collections.abc.Mapping):
     def __str__(self):
         """Return a human-readable string representation of the stack."""
         text = 'Stack "%s" [%s]' % (self.name, self.id)
-        return str(text)
+        return six.text_type(text)
 
     def resource_by_refid(self, refid):
         """Return the resource in this stack with the specified refid.
@@ -856,7 +796,7 @@ class Stack(collections.abc.Mapping):
         :returns: resource in this stack with the specified refid, or None if
                   not found.
         """
-        for r in self.values():
+        for r in six.itervalues(self):
             if r.state not in ((r.INIT, r.COMPLETE),
                                (r.CREATE, r.IN_PROGRESS),
                                (r.CREATE, r.COMPLETE),
@@ -953,7 +893,7 @@ class Stack(collections.abc.Mapping):
         else:
             iter_rsc = self._explicit_dependencies()
 
-        unique_defns = set(res.t for res in resources.values())
+        unique_defns = set(res.t for res in six.itervalues(resources))
         unique_defn_names = set(defn.name for defn in unique_defns)
 
         for res in iter_rsc:
@@ -986,7 +926,7 @@ class Stack(collections.abc.Mapping):
                 raise exception.StackValidationFailed(message=result)
             eventlet.sleep(0)
 
-        for op_name, output in self.outputs.items():
+        for op_name, output in six.iteritems(self.outputs):
             try:
                 output.validate()
             except exception.StackValidationFailed as ex:
@@ -1005,7 +945,7 @@ class Stack(collections.abc.Mapping):
         during its lifecycle using the configured deferred authentication
         method.
         """
-        return any(res.requires_deferred_auth for res in self.values())
+        return any(res.requires_deferred_auth for res in six.itervalues(self))
 
     def _add_event(self, action, status, reason):
         """Add a state change event to the database."""
@@ -1092,7 +1032,7 @@ class Stack(collections.abc.Mapping):
         if stack is not None:
             values = {'action': self.action,
                       'status': self.status,
-                      'status_reason': str(self.status_reason)}
+                      'status_reason': six.text_type(self.status_reason)}
             self._send_notification_and_add_event()
             if self.convergence:
                 # do things differently for convergence
@@ -1122,7 +1062,7 @@ class Stack(collections.abc.Mapping):
         if stack is not None:
             values = {'action': self.action,
                       'status': self.status,
-                      'status_reason': str(self.status_reason)}
+                      'status_reason': six.text_type(self.status_reason)}
             self._send_notification_and_add_event()
             stack.persist_state_and_release_lock(self.context, self.id,
                                                  engine_id, values)
@@ -1142,7 +1082,7 @@ class Stack(collections.abc.Mapping):
     def preview_resources(self):
         """Preview the stack with all of the resources."""
         return [resource.preview()
-                for resource in self.resources.values()]
+                for resource in six.itervalues(self.resources)]
 
     def get_nested_parameters(self, filter_func):
         """Return nested parameters schema, if any.
@@ -1152,7 +1092,7 @@ class Stack(collections.abc.Mapping):
         stack.
         """
         result = {}
-        for name, rsrc in self.resources.items():
+        for name, rsrc in six.iteritems(self.resources):
             nested = rsrc.get_nested_parameters_stack()
             if nested is None:
                 continue
@@ -1204,6 +1144,7 @@ class Stack(collections.abc.Mapping):
 
         return {'resource_data': data['resources'].get(resource.name)}
 
+    @scheduler.wrappertask
     def stack_task(self, action, reverse=False, post_func=None,
                    aggregate_exceptions=False, pre_completion_func=None,
                    notify=None):
@@ -1228,7 +1169,7 @@ class Stack(collections.abc.Mapping):
                                               None, action)
         except Exception as e:
             self.state_set(action, self.FAILED, e.args[0] if e.args else
-                           'Failed stack pre-ops: %s' % str(e))
+                           'Failed stack pre-ops: %s' % six.text_type(e))
             if callable(post_func):
                 post_func()
             if notify is not None:
@@ -1252,11 +1193,12 @@ class Stack(collections.abc.Mapping):
                                 lambda x: {})
 
         @functools.wraps(getattr(resource.Resource, action_method))
+        @scheduler.wrappertask
         def resource_action(r):
             # Find e.g resource.create and call it
             handle = getattr(r, action_method)
 
-            yield from handle(**handle_kwargs(r))
+            yield handle(**handle_kwargs(r))
 
             if action == self.CREATE:
                 stk_defn.update_resource_data(self.defn, r.name, r.node_data())
@@ -1272,7 +1214,7 @@ class Stack(collections.abc.Mapping):
             aggregate_exceptions=aggregate_exceptions)
 
         try:
-            yield from action_task()
+            yield action_task()
         except scheduler.Timeout:
             stack_status = self.FAILED
             reason = '%s timed out' % action.title()
@@ -1283,7 +1225,7 @@ class Stack(collections.abc.Mapping):
             # ExceptionGroup, but the raw exception.
             # see scheduler.py line 395-399
             stack_status = self.FAILED
-            reason = 'Resource %s failed: %s' % (action, str(ex))
+            reason = 'Resource %s failed: %s' % (action, six.text_type(ex))
 
         if pre_completion_func:
             pre_completion_func(self, action, stack_status, reason)
@@ -1317,7 +1259,7 @@ class Stack(collections.abc.Mapping):
                 return hasattr(res, 'handle_%s' % res.CHECK.lower())
 
         all_supported = all(is_supported(res)
-                            for res in self.resources.values())
+                            for res in six.itervalues(self.resources))
 
         if not all_supported:
             msg = ". '%s' not fully supported (see resources)" % self.CHECK
@@ -1361,7 +1303,7 @@ class Stack(collections.abc.Mapping):
             if not self.disable_rollback and self.state == (self.ADOPT,
                                                             self.FAILED):
                 # enter the same flow as abandon and just delete the stack
-                for res in self.resources.values():
+                for res in six.itervalues(self.resources):
                     res.abandon_in_progress = True
                 self.delete(action=self.ROLLBACK, abandon=True)
 
@@ -1387,11 +1329,6 @@ class Stack(collections.abc.Mapping):
         Update will fail if it exceeds the specified timeout. The default is
         60 minutes, set in the constructor
         """
-        # Populate resource data needed for calulating frozen definitions
-        # (particularly for metadata, which doesn't get stored separately).
-        self._update_all_resource_data(for_resources=True,
-                                       for_outputs=False)
-
         self.updated_time = oslo_timeutils.utcnow()
         updater = scheduler.TaskRunner(self.update_task, newstack,
                                        msg_queue=msg_queue, notify=notify)
@@ -1425,6 +1362,11 @@ class Stack(collections.abc.Mapping):
             self._set_param_stackid()
 
             self.tags = new_stack.tags
+            if new_stack.tags:
+                stack_tag_object.StackTagList.set(self.context, self.id,
+                                                  new_stack.tags)
+            else:
+                stack_tag_object.StackTagList.delete(self.context, self.id)
 
         self.action = action
         self.status = self.IN_PROGRESS
@@ -1476,7 +1418,7 @@ class Stack(collections.abc.Mapping):
             try:
                 self.delete_all_snapshots()
             except Exception as exc:
-                self.state_set(self.action, self.FAILED, str(exc))
+                self.state_set(self.action, self.FAILED, six.text_type(exc))
                 self.purge_db()
                 return
 
@@ -1629,11 +1571,11 @@ class Stack(collections.abc.Mapping):
         return set(n.rsrc_id for n in dep_nodes if not n.is_update)
 
     def reset_stack_and_resources_in_progress(self, reason):
-        for name, rsrc in self.resources.items():
+        for name, rsrc in six.iteritems(self.resources):
             if rsrc.status == rsrc.IN_PROGRESS:
                 rsrc.state_set(rsrc.action,
                                rsrc.FAILED,
-                               str(reason))
+                               six.text_type(reason))
         if self.action == self.UPDATE and not self.convergence:
             backup_stack = self._backup_stack(False)
             existing_params = environment.Environment({env_fmt.PARAMETERS:
@@ -1644,8 +1586,9 @@ class Stack(collections.abc.Mapping):
             self._merge_user_param_template(existing_params, template,
                                             bkp_stack_template)
 
-        self.state_set(self.action, self.FAILED, str(reason))
+        self.state_set(self.action, self.FAILED, six.text_type(reason))
 
+    @scheduler.wrappertask
     def update_task(self, newstack, action=UPDATE,
                     msg_queue=None, notify=None):
         if action not in (self.UPDATE, self.ROLLBACK, self.RESTORE):
@@ -1661,7 +1604,7 @@ class Stack(collections.abc.Mapping):
                                               newstack, action)
         except Exception as e:
             self.state_set(action, self.FAILED, e.args[0] if e.args else
-                           'Failed stack pre-ops: %s' % str(e))
+                           'Failed stack pre-ops: %s' % six.text_type(e))
             if notify is not None:
                 notify.signal()
             return
@@ -1721,15 +1664,17 @@ class Stack(collections.abc.Mapping):
             self._set_param_stackid()
 
             self.tags = newstack.tags
-            # Stack is already store()d in IN_PROGRESS state, so write tags now
-            # otherwise new set won't appear until COMPLETE/FAILED.
-            self._store_tags()
+            if newstack.tags:
+                stack_tag_object.StackTagList.set(self.context, self.id,
+                                                  newstack.tags)
+            else:
+                stack_tag_object.StackTagList.delete(self.context, self.id)
 
             check_message = functools.partial(self._check_for_message,
                                               msg_queue)
             try:
-                yield from updater.as_task(timeout=self.timeout_secs(),
-                                           progress_callback=check_message)
+                yield updater.as_task(timeout=self.timeout_secs(),
+                                      progress_callback=check_message)
             finally:
                 self.reset_dependencies()
 
@@ -1745,7 +1690,7 @@ class Stack(collections.abc.Mapping):
             # so we roll back to the original state
             should_rollback = self._update_exception_handler(e, action)
             if should_rollback:
-                yield from self.update_task(oldstack, action=self.ROLLBACK)
+                yield self.update_task(oldstack, action=self.ROLLBACK)
         except BaseException as e:
             with excutils.save_and_reraise_exception():
                 self._update_exception_handler(e, action)
@@ -1808,7 +1753,7 @@ class Stack(collections.abc.Mapping):
 
         :returns: a boolean for require rollback flag.
         """
-        self.status_reason = str(exc)
+        self.status_reason = six.text_type(exc)
         self.status = self.FAILED
         if action != self.UPDATE:
             return False
@@ -1852,7 +1797,7 @@ class Stack(collections.abc.Mapping):
 
         def copy_data(source_res, destination_res):
             if source_res.data():
-                for key, val in source_res.data().items():
+                for key, val in six.iteritems(source_res.data()):
                     destination_res.data_set(key, val)
 
         for key, backup_res in stack.resources.items():
@@ -1899,10 +1844,11 @@ class Stack(collections.abc.Mapping):
             LOG.exception("Failed to retrieve user_creds")
             return None
 
-    def _delete_user_cred(self, stack_status=None, reason=None,
-                          raise_keystone_exception=False):
+    def _delete_credentials(self, stack_status, reason, abandon):
         # Cleanup stored user_creds so they aren't accessible via
         # the soft-deleted stack which remains in the DB
+        # The stack_status and reason passed in are current values, which
+        # may get rewritten and returned from this method
         if self.user_creds_id:
             user_creds = self._try_get_user_creds()
             # If we created a trust, delete it
@@ -1925,15 +1871,13 @@ class Stack(collections.abc.Mapping):
                         else:
                             self.clients.client('keystone').delete_trust(
                                 trust_id)
-                    except Exception:
+                    except Exception as ex:
                         # We want the admin to be able to delete the stack
                         # Do not FAIL a delete when we cannot delete a trust.
                         # We already carry through and delete the credentials
                         # Without this, they would need to issue
                         # an additional stack-delete
                         LOG.exception("Error deleting trust")
-                        if raise_keystone_exception:
-                            raise
 
             # Delete the stored credentials
             try:
@@ -1943,18 +1887,13 @@ class Stack(collections.abc.Mapping):
                 LOG.info("Tried to delete user_creds that do not exist "
                          "(stack=%(stack)s user_creds_id=%(uc)s)",
                          {'stack': self.id, 'uc': self.user_creds_id})
-            self.user_creds_id = None
-        return stack_status, reason
 
-    def _delete_credentials(self, stack_status, reason, abandon):
-        # The stack_status and reason passed in are current values, which
-        # may get rewritten and returned from this method
-        stack_status, reason = self._delete_user_cred(stack_status, reason)
-        try:
-            self.store()
-        except exception.NotFound:
-            LOG.info("Tried to store a stack that does not exist %s",
-                     self.id)
+            try:
+                self.user_creds_id = None
+                self.store()
+            except exception.NotFound:
+                LOG.info("Tried to store a stack that does not exist %s",
+                         self.id)
 
         # If the stack has a domain project, delete it
         if self.stack_user_project_id and not abandon:
@@ -1965,7 +1904,7 @@ class Stack(collections.abc.Mapping):
             except Exception as ex:
                 LOG.exception("Error deleting project")
                 stack_status = self.FAILED
-                reason = "Error deleting project: %s" % str(ex)
+                reason = "Error deleting project: %s" % six.text_type(ex)
 
         return stack_status, reason
 
@@ -1993,8 +1932,8 @@ class Stack(collections.abc.Mapping):
 
         stack_status = self.COMPLETE
         reason = 'Stack %s completed successfully' % action
-        self.state_set(action, self.IN_PROGRESS, 'Stack %s started at %s' %
-                       (action, oslo_timeutils.utcnow().isoformat()))
+        self.state_set(action, self.IN_PROGRESS, 'Stack %s started' %
+                       action)
         if notify is not None:
             notify.signal()
 
@@ -2017,7 +1956,7 @@ class Stack(collections.abc.Mapping):
             except Exception as e:
                 self.state_set(action, self.FAILED,
                                e.args[0] if e.args else
-                               'Failed stack pre-ops: %s' % str(e))
+                               'Failed stack pre-ops: %s' % six.text_type(e))
                 return
 
         action_task = scheduler.DependencyTaskGroup(self.dependencies,
@@ -2027,7 +1966,7 @@ class Stack(collections.abc.Mapping):
             scheduler.TaskRunner(action_task)(timeout=self.timeout_secs())
         except exception.ResourceFailure as ex:
             stack_status = self.FAILED
-            reason = 'Resource %s failed: %s' % (action, str(ex))
+            reason = 'Resource %s failed: %s' % (action, six.text_type(ex))
         except scheduler.Timeout:
             stack_status = self.FAILED
             reason = '%s timed out' % action.title()
@@ -2152,7 +2091,7 @@ class Stack(collections.abc.Mapping):
             ss_defn = self.defn.clone_with_new_template(template,
                                                         self.identifier())
             resources = self._resources_for_defn(ss_defn)
-            for name, rsrc in resources.items():
+            for name, rsrc in six.iteritems(resources):
                 data = snapshot.data['resources'].get(name)
                 if data:
                     scheduler.TaskRunner(rsrc.delete_snapshot, data)()
@@ -2219,7 +2158,7 @@ class Stack(collections.abc.Mapping):
             'status': self.status,
             'template': self.t.t,
             'resources': dict((res.name, res.prepare_abandon())
-                              for res in self.resources.values()),
+                              for res in six.itervalues(self.resources)),
             'project_id': self.tenant_id,
             'stack_user_project_id': self.stack_user_project_id,
             'tags': self.tags,
@@ -2339,9 +2278,9 @@ class Stack(collections.abc.Mapping):
                 requires = set(res_id_dep.requires(db_res.id))
                 r = self.resources.get(db_res.name)
                 if r is None:
-                    # delete DB resources not in current_template_id
+                    # delete db resources not in current_template_id
                     LOG.warning("Resource %(res)s not found in template "
-                                "for stack %(st)s, deleting from DB.",
+                                "for stack %(st)s, deleting from db.",
                                 {'res': db_res.name, 'st': self.id})
                     resource_objects.Resource.delete(self.context, db_res.id)
                 else:

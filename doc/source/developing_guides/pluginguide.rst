@@ -248,7 +248,7 @@ the end user.
 
 *AllowedValues(allowed, description)*:
   Lists the allowed values.  ``allowed`` must be a
-  ``collections.abc.Sequence`` or ``string``.  Applicable to all types
+  ``collections.Sequence`` or ``basestring``.  Applicable to all types
   of value except MAP.
 
 *Length(min, max, description)*:
@@ -347,19 +347,16 @@ overridden:
            """Default implementation; should be overridden by resources.
 
            :returns: the map of resource information or None
-            """
+           """
            if self.entity:
                try:
                    obj = getattr(self.client(), self.entity)
                    resource = obj.get(self.resource_id)
-                   if isinstance(resource, dict):
-                       return resource
-                   else:
-                       return resource.to_dict()
-               except AttributeError as ex:
-                   LOG.warning("Resolving 'show' attribute has failed : %s",
-                               ex)
-                   return None
+                   return resource.to_dict()
+                except AttributeError as ex:
+                    LOG.warning(_LW("Resolving 'show' attribute has "
+                                    "failed : %s"), ex)
+                    return None
 
 Property and Attribute Example
 ******************************
@@ -480,16 +477,16 @@ that updates require the engine to delete and re-create the resource
   Update the physical resources using updated information.
 
   :param json_snippet: the resource definition from the updated template
-  :type json_snippet: collections.abc.Mapping
+  :type json_snippet: collections.Mapping
   :param tmpl_diff: values in the updated definition that have changed
                     with respect to the original template definition.
-  :type tmpl_diff: collections.abc.Mapping
+  :type tmpl_diff: collections.Mapping
   :param prop_diff: property values that are different between the original
                     definition and the updated definition; keys are
                     property names and values are the new values. Deleted or
                     properties that were originally present but now absent
                     have values of ``None``
-  :type prop_diff: collections.abc.Mapping
+  :type prop_diff: collections.Mapping
 
   *Note* Before calling ``handle_update`` we check whether need to replace
   the resource, especially for resource in ``*_FAILED`` state, there is a
@@ -645,7 +642,7 @@ your resource plugin! This has previously caused `problems
 <https://bugs.launchpad.net/heat/+bug/1554625>`_ for multiple operations,
 usually due to uncaught exceptions, If you feel you need to override
 `add_dependencies()`, please reach out to Heat developers on the `#heat` IRC
-channel on OFTC or on the `openstack-discuss
+channel on FreeNode or on the `openstack-discuss
 <mailto:openstack-discuss@lists.openstack.org>`_ mailing list to discuss the
 possibility of a better solution.
 

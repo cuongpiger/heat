@@ -13,8 +13,10 @@
 import json
 
 from heatclient import exc as heat_exceptions
+import six
 import yaml
 
+from heat_integrationtests.common import test
 from heat_integrationtests.functional import functional_base
 
 
@@ -516,13 +518,14 @@ class TemplateResourceUpdateFailedTest(functional_base.FunctionalTestsBase):
     main_template = '''
 HeatTemplateFormatVersion: '2012-12-12'
 Resources:
-  test:
-    Type: OS::Heat::TestResource
+  keypair:
+    Type: OS::Nova::KeyPair
     Properties:
-      fail: replace-this
+      name: replace-this
+      save_private_key: false
   server:
     Type: server_fail.yaml
-    DependsOn: test
+    DependsOn: keypair
 '''
     nested_templ = '''
 HeatTemplateFormatVersion: '2012-12-12'
@@ -533,18 +536,21 @@ Resources:
 
     def setUp(self):
         super(TemplateResourceUpdateFailedTest, self).setUp()
+        self.assign_keypair()
 
     def test_update_on_failed_create(self):
-        # create a stack with "server" dependent on "test", but
-        # "test" fails, so "server" is not created properly.
+        # create a stack with "server" dependent on "keypair", but
+        # keypair fails, so "server" is not created properly.
         # We then fix the template and it should succeed.
-        broken_templ = self.main_template.replace('replace-this', 'true')
+        broken_templ = self.main_template.replace('replace-this',
+                                                  self.keypair_name)
         stack_identifier = self.stack_create(
             template=broken_templ,
             files={'server_fail.yaml': self.nested_templ},
             expected_status='CREATE_FAILED')
 
-        fixed_templ = self.main_template.replace('replace-this', 'false')
+        fixed_templ = self.main_template.replace('replace-this',
+                                                 test.rand_name())
         self.update_stack(stack_identifier,
                           fixed_templ,
                           files={'server_fail.yaml': self.nested_templ})
@@ -798,7 +804,7 @@ outputs:
         except heat_exceptions.HTTPBadRequest as exc:
             exp = ('ERROR: Required property two for facade '
                    'OS::Thingy missing in provider')
-            self.assertEqual(exp, str(exc))
+            self.assertEqual(exp, six.text_type(exc))
 
     def test_missing_output(self):
         templ_missing_output = '''
@@ -822,7 +828,7 @@ resources:
         except heat_exceptions.HTTPBadRequest as exc:
             exp = ('ERROR: Attribute here-it-is for facade '
                    'OS::Thingy missing in provider')
-            self.assertEqual(exp, str(exc))
+            self.assertEqual(exp, six.text_type(exc))
 
 
 class TemplateResourceNewParamTest(functional_base.FunctionalTestsBase):

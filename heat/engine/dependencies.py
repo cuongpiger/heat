@@ -14,9 +14,19 @@
 import collections
 import itertools
 
+import six
+
 from heat.common import exception
+from heat.common.i18n import _
+from heat.common.i18n import repr_wrapper
 
 
+class CircularDependencyException(exception.HeatException):
+    msg_fmt = _("Circular Dependency Found: %(cycle)s")
+
+
+@repr_wrapper
+@six.python_2_unicode_compatible
 class Node(object):
     """A node in a dependency graph."""
 
@@ -84,14 +94,15 @@ class Node(object):
 
     def __str__(self):
         """Return a human-readable string representation of the node."""
-        text = '{%s}' % ', '.join(str(n) for n in self)
-        return str(text)
+        text = '{%s}' % ', '.join(six.text_type(n) for n in self)
+        return six.text_type(text)
 
     def __repr__(self):
         """Return a string representation of the node."""
         return repr(self.require)
 
 
+@six.python_2_unicode_compatible
 class Graph(collections.defaultdict):
     """A mutable mapping of objects to nodes in a dependency graph."""
 
@@ -123,7 +134,7 @@ class Graph(collections.defaultdict):
                 for rqd in node:
                     yield (rqr, rqd)
         return itertools.chain.from_iterable(outgoing_edges(*i)
-                                             for i in self.items())
+                                             for i in six.iteritems(self))
 
     def __delitem__(self, key):
         """Delete the node given by the specified key from the graph."""
@@ -138,10 +149,10 @@ class Graph(collections.defaultdict):
 
     def __str__(self):
         """Convert the graph to a human-readable string."""
-        pairs = ('%s: %s' % (str(k), str(v))
-                 for k, v in self.items())
+        pairs = ('%s: %s' % (six.text_type(k), six.text_type(v))
+                 for k, v in six.iteritems(self))
         text = '{%s}' % ', '.join(pairs)
-        return str(text)
+        return six.text_type(text)
 
     @staticmethod
     def toposort(graph):
@@ -149,8 +160,8 @@ class Graph(collections.defaultdict):
 
         This is a destructive operation for the graph.
         """
-        for iteration in range(len(graph)):
-            for key, node in graph.items():
+        for iteration in six.moves.xrange(len(graph)):
+            for key, node in six.iteritems(graph):
                 if not node:
                     yield key
                     del graph[key]
@@ -158,9 +169,11 @@ class Graph(collections.defaultdict):
             else:
                 # There are nodes remaining, but none without
                 # dependencies: a cycle
-                raise exception.CircularDependencyException(cycle=str(graph))
+                raise CircularDependencyException(cycle=six.text_type(graph))
 
 
+@repr_wrapper
+@six.python_2_unicode_compatible
 class Dependencies(object):
     """Helper class for calculating a dependency graph."""
 
@@ -217,8 +230,8 @@ class Dependencies(object):
                 return itertools.chain([(rqr, key)], get_edges(rqr))
 
             # Get the edge list for each node that requires the current node
-            edge_lists = map(requirer_edges,
-                             self._graph[key].required_by())
+            edge_lists = six.moves.map(requirer_edges,
+                                       self._graph[key].required_by())
             # Combine the lists into one long list
             return itertools.chain.from_iterable(edge_lists)
 
@@ -253,7 +266,7 @@ class Dependencies(object):
 
     def __str__(self):
         """Return a human-readable string repr of the dependency graph."""
-        return str(self._graph)
+        return six.text_type(self._graph)
 
     def __repr__(self):
         """Return a consistent string representation of the object."""

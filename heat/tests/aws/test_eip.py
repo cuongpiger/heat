@@ -12,10 +12,11 @@
 #    under the License.
 
 import copy
-from unittest import mock
 
+import mock
 from neutronclient.common import exceptions as q_exceptions
 from neutronclient.v2_0 import client as neutronclient
+import six
 
 from heat.common import exception
 from heat.common import short_id
@@ -453,7 +454,7 @@ class AllocTest(common.HeatTestCase):
 
         exc = self.assertRaises(exception.StackValidationFailed,
                                 rsrc.validate)
-        self.assertIn(expected, str(exc))
+        self.assertIn(expected, six.text_type(exc))
 
     def mock_show_network(self):
         vpc_name = utils.PhysName('test_stack', 'the_vpc')
@@ -671,7 +672,7 @@ class AllocTest(common.HeatTestCase):
                                 rsrc.validate)
         self.assertIn('At least one of the following properties '
                       'must be specified: InstanceId, NetworkInterfaceId',
-                      str(exc))
+                      six.text_type(exc))
 
     def test_delete_association_successful_if_create_failed(self):
         server = self.fc.servers.list()[0]
@@ -805,7 +806,8 @@ class AllocTest(common.HeatTestCase):
         before = self.create_association(t, stack, 'IPAssoc')
         after = rsrc_defn.ResourceDefinition(before.name, before.type(),
                                              after_props)
-        self.assertTrue(before._needs_update(after, before, after_props,
+        self.assertTrue(resource.UpdateReplace,
+                        before._needs_update(after, before, after_props,
                                              before_props, None))
 
     def test_update_association_needs_update_InstanceId_EIP(self):

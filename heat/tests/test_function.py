@@ -14,6 +14,7 @@
 import copy
 import uuid
 
+import six
 
 from heat.common import exception
 from heat.common.i18n import _
@@ -39,11 +40,6 @@ class TestFunction(function.Function):
 
     def result(self):
         return 'wibble'
-
-
-class NullFunction(function.Function):
-    def result(self):
-        return Ellipsis
 
 
 class TestFunctionKeyError(function.Function):
@@ -81,7 +77,7 @@ class FunctionTest(common.HeatTestCase):
         func1 = TestFunction(None, 'foo', ['bar', 'baz'])
         expected = '%s %s' % ("<heat.tests.test_function.TestFunction",
                               "{foo: ['bar', 'baz']} -> 'wibble'>")
-        self.assertEqual(expected, str(func1))
+        self.assertEqual(expected, six.text_type(func1))
 
     def test_function_stack_reference_none(self):
         func1 = TestFunction(None, 'foo', ['bar', 'baz'])
@@ -91,7 +87,7 @@ class FunctionTest(common.HeatTestCase):
         func1 = TestFunctionKeyError(None, 'foo', ['bar', 'baz'])
         expected = '%s %s' % ("<heat.tests.test_function.TestFunctionKeyError",
                               "{foo: ['bar', 'baz']} -> ???>")
-        self.assertEqual(expected, str(func1))
+        self.assertEqual(expected, six.text_type(func1))
 
     def test_function_eq_exception_key_error(self):
         func1 = TestFunctionKeyError(None, 'foo', ['bar', 'baz'])
@@ -110,7 +106,7 @@ class FunctionTest(common.HeatTestCase):
         expected = '%s %s' % (
             "<heat.tests.test_function.TestFunctionValueError",
             "{foo: ['bar', 'baz']} -> ???>")
-        self.assertEqual(expected, str(func1))
+        self.assertEqual(expected, six.text_type(func1))
 
     def test_function_eq_exception_value_error(self):
         func1 = TestFunctionValueError(None, 'foo', ['bar', 'baz'])
@@ -130,7 +126,7 @@ class FunctionTest(common.HeatTestCase):
             "<heat.tests.test_function.TestFunctionResult",
             "{foo: ['bar', 'baz']}",
             "{'foo': ['bar', 'baz']}>")
-        self.assertEqual(expected, str(func1))
+        self.assertEqual(expected, six.text_type(func1))
 
     def test_copy(self):
         func = TestFunction(None, 'foo', ['bar', 'baz'])
@@ -173,28 +169,6 @@ class ResolveTest(common.HeatTestCase):
         self.assertEqual(['foo', {'bar': ['baz', {'blarg': 'wibble'}]}],
                          result)
         self.assertIsNot(result, snippet)
-
-    def test_resolve_func_with_null(self):
-        func = NullFunction(None, 'foo', ['bar', 'baz'])
-
-        self.assertIsNone(function.resolve(func))
-        self.assertIs(Ellipsis, function.resolve(func, nullable=True))
-
-    def test_resolve_dict_with_null(self):
-        func = NullFunction(None, 'foo', ['bar', 'baz'])
-        snippet = {'foo': 'bar', 'baz': func, 'blarg': 'wibble'}
-
-        result = function.resolve(snippet)
-
-        self.assertEqual({'foo': 'bar', 'blarg': 'wibble'}, result)
-
-    def test_resolve_list_with_null(self):
-        func = NullFunction(None, 'foo', ['bar', 'baz'])
-        snippet = ['foo', func, 'bar']
-
-        result = function.resolve(snippet)
-
-        self.assertEqual(['foo', 'bar'], result)
 
 
 class ValidateTest(common.HeatTestCase):
@@ -304,7 +278,7 @@ class ValidateGetAttTest(common.HeatTestCase):
         ex = self.assertRaises(exception.InvalidTemplateReference,
                                func.validate)
         self.assertEqual('The specified reference "test_rsrc" (in unknown) '
-                         'is incorrect.', str(ex))
+                         'is incorrect.', six.text_type(ex))
 
     def test_resource_no_attribute_with_default_fn_get_att(self):
         res_defn = rsrc_defn.ResourceDefinition('test_rsrc',
@@ -320,7 +294,7 @@ class ValidateGetAttTest(common.HeatTestCase):
         ex = self.assertRaises(exception.InvalidTemplateAttribute,
                                func.validate)
         self.assertEqual('The Referenced Attribute (test_rsrc Bar) '
-                         'is incorrect.', str(ex))
+                         'is incorrect.', six.text_type(ex))
 
     def test_resource_no_attribute_with_overwritten_fn_get_att(self):
         res_defn = rsrc_defn.ResourceDefinition('test_rsrc',
@@ -341,4 +315,4 @@ class ValidateGetAttTest(common.HeatTestCase):
                                self.stack.defn, 'Fn::GetAtt', [self.rsrc.name])
         self.assertEqual('Arguments to "Fn::GetAtt" must be '
                          'of the form [resource_name, attribute]',
-                         str(ex))
+                         six.text_type(ex))

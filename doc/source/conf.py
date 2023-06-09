@@ -73,7 +73,7 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.viewcode',
               'sphinx.ext.todo',
               'sphinx.ext.coverage',
-              'sphinx.ext.intersphinx',
+              'sphinx.ext.viewcode',
               'sphinx.ext.doctest',
               'sphinxcontrib.apidoc',
               'openstackdocstheme',
@@ -85,10 +85,6 @@ extensions = ['sphinx.ext.autodoc',
               'ext.tablefromtext',
               'stevedore.sphinxext']
 
-intersphinx_mapping = {
-    'types_typedecorator': ('https://docs.sqlalchemy.org', None),
-}
-
 # policy sample file generation
 policy_generator_config_file = '../../etc/heat/heat-policy-generator.conf'
 sample_policy_basename = '_static/heat'
@@ -98,14 +94,14 @@ config_generator_config_file = '../../config-generator.conf'
 sample_config_basename = '_static/heat'
 
 # openstackdocstheme options
-openstackdocs_repo_name = 'openstack/heat'
-openstackdocs_pdf_link = True
-openstackdocs_use_storyboard = True
+repository_name = 'openstack/heat'
+bug_project = '989'
+bug_tag = 'docs'
 
 todo_include_todos = True
 
 # openstackdocstheme external link helper projects
-openstackdocs_projects = [
+openstack_projects = [
     'devstack',
     'diskimage-builder',
     'keystone',
@@ -162,7 +158,7 @@ exclude_patterns = ['**/#*', '**~', '**/#*#']
 # show_authors = False
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = 'native'
+pygments_style = 'sphinx'
 
 # A list of ignored prefixes for module index sorting.
 modindex_common_prefix = ['heat.']
@@ -178,7 +174,7 @@ apidoc_separate_modules = True
 apidoc_excluded_paths = [
     'cmd',
     'cloudinit',
-    'db/sqlalchemy/migrations/versions',
+    'db/sqlalchemy/migrate_repo/versions',
     'engine/resources/aws',
     'engine/resources/openstack',
     'hacking',
@@ -276,7 +272,7 @@ htmlhelp_basename = 'Heatdoc'
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual])
 latex_documents = [
-    ('index', 'doc-heat.tex', u'Heat Documentation',
+    ('index', 'Heat.tex', u'Heat Documentation',
      u'Heat Developers', 'manual'),
 ]
 
@@ -298,16 +294,8 @@ latex_documents = [
 # latex_appendices = []
 
 # If false, no module index is generated.
-latex_domain_indices = False
+# latex_domain_indices = True
 
-# Disable usage of xindy https://bugzilla.redhat.com/show_bug.cgi?id=1643664
-latex_use_xindy = False
-
-latex_elements = {
-    'makeindex': '',
-    'printindex': '',
-    'preamble': r'\setcounter{tocdepth}{3}',
-}
 
 # -- Options for manual page output -------------------------------------------
 

@@ -14,11 +14,12 @@
 import copy
 import datetime
 import json
-from unittest import mock
 import uuid
 
+import mock
 from oslo_utils import timeutils
-from urllib import parse
+import six
+from six.moves.urllib import parse
 
 from heat.common import exception
 from heat.common import identifier
@@ -216,7 +217,7 @@ class WaitConditionTest(common.HeatTestCase):
         self.assertEqual((rsrc.CREATE, rsrc.COMPLETE), rsrc.state)
 
         wc_att = rsrc.FnGetAtt('Data')
-        self.assertEqual(str({}), wc_att)
+        self.assertEqual(six.text_type({}), wc_att)
 
         handle = self.stack['WaitHandle']
         self.assertEqual((rsrc.CREATE, rsrc.COMPLETE), handle.state)
@@ -232,7 +233,7 @@ class WaitConditionTest(common.HeatTestCase):
                          'Status': 'SUCCESS', 'UniqueId': '456'}
         ret = handle.handle_signal(test_metadata)
         wc_att = rsrc.FnGetAtt('Data')
-        self.assertIsInstance(wc_att, str)
+        self.assertIsInstance(wc_att, six.string_types)
         self.assertEqual({"123": "foo", "456": "dog"}, json.loads(wc_att))
         self.assertEqual('status:SUCCESS reason:cat', ret)
         self.assertEqual(1, self.m_gs.call_count)
@@ -621,6 +622,6 @@ class WaitConditionUpdateTest(common.HeatTestCase):
         ex = self.assertRaises(exception.ResourceFailure,
                                updater)
         self.assertEqual("WaitConditionTimeout: resources.WaitForTheHandle: "
-                         "0 of 5 received", str(ex))
+                         "0 of 5 received", six.text_type(ex))
         self.assertEqual(5, rsrc.properties['Count'])
         self.assertEqual(2, m_gs.call_count)

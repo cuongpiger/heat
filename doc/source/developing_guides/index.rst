@@ -1,26 +1,29 @@
-Heat Developer Guidelines
-=========================
+..
+      Licensed under the Apache License, Version 2.0 (the "License"); you may
+      not use this file except in compliance with the License. You may obtain
+      a copy of the License at
 
-In the developer guide, you will find documented policies for
-developing heat. This includes the processes we use for
-stories (for bugs and features), contributor onboarding, core reviewer
-memberships, and other procedural items.
+          http://www.apache.org/licenses/LICENSE-2.0
 
-.. note:: This guideline also includes documentation for developers.
+      Unless required by applicable law or agreed to in writing, software
+      distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+      WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+      License for the specific language governing permissions and limitations
+      under the License.
+
+:orphan:
+
+Developing Guides
+=================
 
 .. toctree::
-   :maxdepth: 3
+    :maxdepth: 1
 
-   ../getting_started/on_devstack
-   blueprints
-   architecture
-   pluginguide
-   schedulerhints
-   gmr
-   supportstatus
-   rally_on_gates
-.. bugs
-   contributor-onboarding
-   core-reviewers
-   gate-failure-triage
-   code-reviews
+    ../contributing/index
+    ../getting_started/on_devstack
+    architecture
+    pluginguide
+    schedulerhints
+    gmr
+    supportstatus
+    rally_on_gates

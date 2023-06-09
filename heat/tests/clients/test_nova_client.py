@@ -13,14 +13,15 @@
 """Tests for :module:'heat.engine.clients.os.nova'."""
 
 import collections
-from unittest import mock
 import uuid
 
+import mock
 from novaclient import client as nc
 from novaclient import exceptions as nova_exceptions
 from oslo_config import cfg
 from oslo_serialization import jsonutils as json
 import requests
+import six
 
 from heat.common import exception
 from heat.engine.clients.os import nova
@@ -44,21 +45,27 @@ class NovaClientPluginTest(NovaClientPluginTestCase):
 
     def test_create(self):
         context = utils.dummy_context()
+        ext_mock = self.patchobject(nc, 'discover_extensions')
         plugin = context.clients.client_plugin('nova')
         plugin.max_microversion = '2.53'
         client = plugin.client()
+        ext_mock.assert_called_once_with('2.53')
         self.assertIsNotNone(client.servers)
 
     def test_v2_26_create(self):
         ctxt = utils.dummy_context()
+        ext_mock = self.patchobject(nc, 'discover_extensions')
         self.patchobject(nc, 'Client', return_value=mock.Mock())
 
         plugin = ctxt.clients.client_plugin('nova')
         plugin.max_microversion = '2.53'
         plugin.client(version='2.26')
 
+        ext_mock.assert_called_once_with('2.26')
+
     def test_v2_26_create_failed(self):
         ctxt = utils.dummy_context()
+        self.patchobject(nc, 'discover_extensions')
         plugin = ctxt.clients.client_plugin('nova')
         plugin.max_microversion = '2.23'
         client_stub = mock.Mock()
@@ -118,21 +125,28 @@ class NovaClientPluginTest(NovaClientPluginTestCase):
 
     def test_get_host(self):
         """Tests the get_host function."""
-        my_hypervisor_hostname = 'myhost'
+        my_host_name = 'myhost'
         my_host = mock.MagicMock()
-        my_host.hypervisor_hostname = my_hypervisor_hostname
+        my_host.host_name = my_host_name
+        my_host.service = 'compute'
 
-        self.nova_client.hypervisors.search.side_effect = [
-            my_host, nova_exceptions.NotFound(404)
+        wrong_host = mock.MagicMock()
+        wrong_host.host_name = 'wrong_host'
+        wrong_host.service = 'compute'
+        self.nova_client.hosts.list.side_effect = [
+            [my_host],
+            [wrong_host],
+            exception.EntityNotFound(entity='Host', name='nohost')
         ]
-        self.assertEqual(my_host,
-                         self.nova_plugin.get_host(my_hypervisor_hostname))
-        self.assertRaises(nova_exceptions.NotFound,
+        self.assertEqual(my_host, self.nova_plugin.get_host(my_host_name))
+        self.assertRaises(exception.EntityNotFound,
+                          self.nova_plugin.get_host, my_host_name)
+        self.assertRaises(exception.EntityNotFound,
                           self.nova_plugin.get_host, 'nohost')
-        self.assertEqual(2, self.nova_client.hypervisors.search.call_count)
-        calls = [mock.call('myhost'), mock.call('nohost')]
+        self.assertEqual(3, self.nova_client.hosts.list.call_count)
+        calls = [mock.call(), mock.call(), mock.call()]
         self.assertEqual(calls,
-                         self.nova_client.hypervisors.search.call_args_list)
+                         self.nova_client.hosts.list.call_args_list)
 
     def test_get_keypair(self):
         """Tests the get_keypair function."""
@@ -466,7 +480,7 @@ class NovaClientPluginMetadataTest(NovaClientPluginTestCase):
         """Prove that the user can only pass in a dict to nova metadata."""
         excp = self.assertRaises(exception.StackValidationFailed,
                                  self.nova_plugin.meta_serialize, "foo")
-        self.assertIn('metadata needs to be a Map', str(excp))
+        self.assertIn('metadata needs to be a Map', six.text_type(excp))
 
     def test_serialize_combined(self):
         original = {
@@ -551,9 +565,7 @@ class HostConstraintTest(common.HeatTestCase):
     def test_validation_error(self):
         self.mock_get_host.side_effect = exception.EntityNotFound(
             entity='Host', name='bar')
-        self.assertRaises(
-            exception.EntityNotFound,
-            self.constraint.validate, "bar", self.ctx)
+        self.assertFalse(self.constraint.validate("bar", self.ctx))
 
 
 class KeypairConstraintTest(common.HeatTestCase):
@@ -662,3 +674,30 @@ class ConsoleUrlsTest(common.HeatTestCase):
         self.console_method.side_effect = exc("spam")
 
         self._test_get_console_url_tolerate_exception('spam')
+
+
+class NovaClientPluginExtensionsTest(NovaClientPluginTestCase):
+    """Tests for extensions in novaclient."""
+
+    def test_has_no_extensions(self):
+        self.nova_client.list_extensions.show_all.return_value = []
+        self.assertFalse(self.nova_plugin.has_extension(
+            "os-virtual-interfaces"))
+
+    def test_has_no_interface_extensions(self):
+        mock_extension = mock.Mock()
+        p = mock.PropertyMock(return_value='os-xxxx')
+        type(mock_extension).alias = p
+        self.nova_client.list_extensions.show_all.return_value = [
+            mock_extension]
+        self.assertFalse(self.nova_plugin.has_extension(
+            "os-virtual-interfaces"))
+
+    def test_has_os_interface_extension(self):
+        mock_extension = mock.Mock()
+        p = mock.PropertyMock(return_value='os-virtual-interfaces')
+        type(mock_extension).alias = p
+        self.nova_client.list_extensions.show_all.return_value = [
+            mock_extension]
+        self.assertTrue(self.nova_plugin.has_extension(
+            "os-virtual-interfaces"))

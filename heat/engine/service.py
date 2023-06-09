@@ -12,7 +12,6 @@
 #    under the License.
 
 import collections
-import copy
 import datetime
 import functools
 import itertools
@@ -33,6 +32,7 @@ from oslo_service import threadgroup
 from oslo_utils import timeutils
 from oslo_utils import uuidutils
 from osprofiler import profiler
+import six
 import webob
 
 from heat.common import context
@@ -251,7 +251,7 @@ class ThreadGroupManager(object):
 
             for th in threads:
                 th.link(mark_done, th)
-            while not all(links_done.values()):
+            while not all(six.itervalues(links_done)):
                 eventlet.sleep()
 
     def send(self, stack_id, message):
@@ -674,17 +674,13 @@ class EngineService(service.ServiceBase):
             raise exception.MissingCredentialError(required='X-Auth-Key')
 
     def _validate_new_stack(self, cnxt, stack_name, parsed_template):
-        # We'll check that the stack name is unique in the tenant while
-        # storing it in the database to avoid races, but also check it here
-        # before validating so we can fail early.
         if stack_object.Stack.get_by_name(cnxt, stack_name):
             raise exception.StackExists(stack_name=stack_name)
 
         # Do not stack limit check for admin since admin can see all stacks.
         if not cnxt.is_admin:
             tenant_limit = cfg.CONF.max_stacks_per_tenant
-            if (tenant_limit >= 0 and
-                    stack_object.Stack.count_all(cnxt) >= tenant_limit):
+            if stack_object.Stack.count_all(cnxt) >= tenant_limit:
                 message = _("You have reached the maximum stacks per tenant, "
                             "%d. Please delete some stacks.") % tenant_limit
                 raise exception.RequestLimitExceeded(message=message)
@@ -696,7 +692,7 @@ class EngineService(service.ServiceBase):
         except AssertionError:
             raise
         except Exception as ex:
-            raise exception.StackValidationFailed(message=str(ex))
+            raise exception.StackValidationFailed(message=six.text_type(ex))
 
         max_resources = cfg.CONF.max_resources_per_stack
         if max_resources == -1:
@@ -835,11 +831,7 @@ class EngineService(service.ServiceBase):
                     stack.create_stack_user_project_id()
                 except exception.AuthorizationFailure as ex:
                     stack.state_set(stack.action, stack.FAILED,
-                                    str(ex))
-                except Exception:
-                    LOG.exception('Failed to create stack user project')
-                    stack.state_set(stack.action, stack.FAILED,
-                                    'Failed to create stack user project')
+                                    six.text_type(ex))
 
         def _stack_create(stack, msg_queue=None):
             # Create/Adopt a stack, and create the periodic task if successful
@@ -901,7 +893,7 @@ class EngineService(service.ServiceBase):
         # stack definition. If PARAM_EXISTING is specified, we merge
         # any environment provided into the existing one and attempt
         # to use the existing stack template, if one is not provided.
-        if args.get(rpc_api.PARAM_EXISTING, False):
+        if args.get(rpc_api.PARAM_EXISTING):
             assert template_id is None, \
                 "Cannot specify template_id with PARAM_EXISTING"
 
@@ -981,9 +973,9 @@ class EngineService(service.ServiceBase):
         common_params.setdefault(rpc_api.PARAM_CONVERGE,
                                  current_stack.converge)
 
-        if args.get(rpc_api.PARAM_EXISTING, False):
-            if rpc_api.STACK_TAGS not in common_params:
-                common_params[rpc_api.STACK_TAGS] = current_stack.tags
+        if args.get(rpc_api.PARAM_EXISTING):
+            common_params.setdefault(rpc_api.STACK_TAGS,
+                                     current_stack.tags)
         current_kwargs.update(common_params)
         updated_stack = parser.Stack(cnxt, stack_name, tmpl,
                                      **current_kwargs)
@@ -1028,11 +1020,9 @@ class EngineService(service.ServiceBase):
         LOG.info('Updating stack %s', db_stack.name)
         if cfg.CONF.reauthentication_auth_method == 'trusts':
             current_stack = parser.Stack.load(
-                cnxt, stack=db_stack, use_stored_context=True,
-                check_refresh_cred=True)
+                cnxt, stack=db_stack, use_stored_context=True)
         else:
-            current_stack = parser.Stack.load(cnxt, stack=db_stack,
-                                              check_refresh_cred=True)
+            current_stack = parser.Stack.load(cnxt, stack=db_stack)
         self.resource_enforcer.enforce_stack(current_stack,
                                              is_registered_policy=True)
 
@@ -1295,7 +1285,7 @@ class EngineService(service.ServiceBase):
         try:
             self._validate_template(cnxt, tmpl)
         except Exception as ex:
-            return {'Error': str(ex)}
+            return {'Error': six.text_type(ex)}
 
         stack_name = 'dummy'
         stack = parser.Stack(cnxt, stack_name, tmpl,
@@ -1304,7 +1294,7 @@ class EngineService(service.ServiceBase):
             stack.validate(ignorable_errors=ignorable_errors,
                            validate_res_tmpl_only=True)
         except exception.StackValidationFailed as ex:
-            return {'Error': str(ex)}
+            return {'Error': six.text_type(ex)}
 
         def filter_parameter(p):
             return p.name not in stack.parameters.PSEUDO_PARAMETERS
@@ -1355,16 +1345,7 @@ class EngineService(service.ServiceBase):
         :rtype: dict
         """
         s = self._get_stack(cnxt, stack_identity, show_deleted=True)
-        tmpl = templatem.Template.load(cnxt, s.raw_template_id, s.raw_template)
-        param_schemata = tmpl.all_param_schemata(tmpl.files)
-        env = copy.deepcopy(s.raw_template.environment)
-        for section in [env_fmt.PARAMETERS, env_fmt.PARAMETER_DEFAULTS]:
-            for param_name in env.get(section, {}).keys():
-                if (param_name not in param_schemata
-                        or not param_schemata[param_name].hidden):
-                    continue
-                env[section][param_name] = str('******')
-        return env
+        return s.raw_template.environment
 
     @context.request_context
     def get_files(self, cnxt, stack_identity):
@@ -1658,7 +1639,7 @@ class EngineService(service.ServiceBase):
             supported_funcs.update(tmpl_class.plugin.condition_functions)
 
         functions = []
-        for func_name, func in supported_funcs.items():
+        for func_name, func in six.iteritems(supported_funcs):
             if func is not hot_functions.Removed:
                 desc = pydoc.splitdoc(pydoc.getdoc(func))[0]
                 functions.append(
@@ -1695,7 +1676,7 @@ class EngineService(service.ServiceBase):
             raise exception.ResourceTypeUnavailable(
                 service_name=resource_class.default_client_name,
                 resource_type=type_name,
-                reason=str(exc))
+                reason=six.text_type(exc))
         else:
             if not svc_available:
                 raise exception.ResourceTypeUnavailable(
@@ -2037,7 +2018,7 @@ class EngineService(service.ServiceBase):
         stack = parser.Stack.load(cnxt, stack=s)
 
         return [api.format_stack_resource(resource)
-                for name, resource in stack.items()
+                for name, resource in six.iteritems(stack)
                 if resource_name is None or name == resource_name]
 
     @context.request_context
@@ -2119,7 +2100,7 @@ class EngineService(service.ServiceBase):
         if stack.status == stack.IN_PROGRESS:
             LOG.info('%(stack)s is in state %(action)s_IN_PROGRESS, '
                      'snapshot is not permitted.', {
-                         'stack': str(stack),
+                         'stack': six.text_type(stack),
                          'action': stack.action})
             raise exception.ActionInProgress(stack_name=stack.name,
                                              action=stack.action)
@@ -2336,12 +2317,18 @@ class EngineService(service.ServiceBase):
         try:
             for st in stacks:
                 lock = stack_lock.StackLock(ctxt, st.id, self.engine_id)
-                locks.append(lock)
                 lock.acquire()
-            with ctxt.session.begin():
+                locks.append(lock)
+            sess = ctxt.session
+            sess.begin(subtransactions=True)
+            try:
                 for st in stacks:
                     if not st.convergence:
                         st.migrate_to_convergence()
+                sess.commit()
+            except Exception:
+                sess.rollback()
+                raise
         finally:
             for lock in locks:
                 lock.release()

@@ -19,7 +19,7 @@ from oslo_versionedobjects import base
 from oslo_versionedobjects import fields
 
 from heat.common import identifier
-from heat.db import api as db_api
+from heat.db.sqlalchemy import api as db_api
 from heat.objects import base as heat_base
 from heat.objects import resource_properties_data as rpd
 
@@ -51,7 +51,7 @@ class Event(
         event._resource_properties = None
         for field in event.fields:
             if field == 'resource_status_reason':
-                # this works whether db_event is a dict or DB ref
+                # this works whether db_event is a dict or db ref
                 event[field] = db_event['_resource_status_reason']
             else:
                 event[field] = db_event[field]

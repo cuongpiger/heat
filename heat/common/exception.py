@@ -21,6 +21,8 @@ import sys
 from oslo_log import log as logging
 from oslo_utils import excutils
 
+import six
+
 from heat.common.i18n import _
 
 _FATAL_EXCEPTION_FORMAT_ERRORS = False
@@ -36,6 +38,7 @@ ERROR_CODE_MAP = {
 }
 
 
+@six.python_2_unicode_compatible
 class HeatException(Exception):
     """Base Heat Exception.
 
@@ -68,7 +71,7 @@ class HeatException(Exception):
                 # kwargs doesn't match a variable in the message
                 # log the issue and the kwargs
                 LOG.exception('Exception in string format operation')
-                for name, value in kwargs.items():
+                for name, value in six.iteritems(kwargs):
                     LOG.error("%(name)s: %(value)s",
                               {'name': name, 'value': value})  # noqa
 
@@ -219,7 +222,7 @@ class HeatExceptionWithPath(HeatException):
         if path is not None:
             if isinstance(path, list):
                 self.path = path
-            elif isinstance(path, str):
+            elif isinstance(path, six.string_types):
                 self.path = [path]
 
         result_path = ''
@@ -244,7 +247,7 @@ class StackValidationFailed(HeatExceptionWithPath):
                  resource=None):
         if path is None:
             path = []
-        elif isinstance(path, str):
+        elif isinstance(path, six.string_types):
             path = [path]
 
         if resource is not None and not path:
@@ -260,8 +263,8 @@ class StackValidationFailed(HeatExceptionWithPath):
                 # oslo.messaging.
                 self.args = error.args
             else:
-                str_error = str(type(error).__name__)
-                message = str(error)
+                str_error = six.text_type(type(error).__name__)
+                message = six.text_type(error)
         else:
             str_error = error
 
@@ -328,8 +331,8 @@ class ResourceFailure(HeatExceptionWithPath):
                 path = exception_or_error.path
             else:
                 self.exc = exception_or_error
-                error = str(type(self.exc).__name__)
-                message = str(self.exc)
+                error = six.text_type(type(self.exc).__name__)
+                message = six.text_type(self.exc)
                 path = res_path
         else:
             self.exc = None
@@ -415,7 +418,7 @@ class UpdateReplace(Exception):
     """Raised when resource update requires replacement."""
     def __init__(self, resource_name='Unknown'):
         msg = _("The Resource %s requires replacement.") % resource_name
-        super(Exception, self).__init__(str(msg))
+        super(Exception, self).__init__(six.text_type(msg))
 
 
 class ResourceUnknownStatus(HeatException):
@@ -440,7 +443,7 @@ class ResourceInError(HeatException):
 class UpdateInProgress(Exception):
     def __init__(self, resource_name='Unknown'):
         msg = _("The resource %s is already being updated.") % resource_name
-        super(Exception, self).__init__(str(msg))
+        super(Exception, self).__init__(six.text_type(msg))
 
 
 class HTTPExceptionDisguise(Exception):
@@ -568,7 +571,3 @@ class InvalidTemplateVersions(HeatException):
 
 class UnableToAutoAllocateNetwork(HeatException):
     msg_fmt = _('Unable to automatically allocate a network: %(message)s')
-
-
-class CircularDependencyException(HeatException):
-    msg_fmt = _("Circular Dependency Found: %(cycle)s")

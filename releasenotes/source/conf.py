@@ -43,8 +43,9 @@ extensions = [
 ]
 
 # openstackdocstheme options
-openstackdocs_repo_name = 'openstack/heat'
-openstackdocs_use_storyboard = True
+repository_name = 'openstack/heat'
+bug_project = 'heat'
+bug_tag = ''
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -95,7 +96,7 @@ exclude_patterns = []
 # show_authors = False
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = 'native'
+pygments_style = 'sphinx'
 
 # A list of ignored prefixes for module index sorting.
 # modindex_common_prefix = []

@@ -12,7 +12,8 @@
 #    under the License.
 
 import copy
-from unittest import mock
+import mock
+import six
 
 from oslo_config import cfg
 from zunclient import exceptions as zc_exc
@@ -47,7 +48,6 @@ resources:
       image_pull_policy: always
       restart_policy: on-failure:2
       interactive: false
-      tty: false
       image_driver: docker
       hints:
         hintkey: hintval
@@ -108,7 +108,6 @@ class ZunContainerTest(common.HeatTestCase):
         self.fake_restart_policy = {'MaximumRetryCount': '2',
                                     'Name': 'on-failure'}
         self.fake_interactive = False
-        self.fake_tty = False
         self.fake_image_driver = 'docker'
         self.fake_hints = {'hintkey': 'hintval'}
         self.fake_hostname = 'myhost'
@@ -195,7 +194,6 @@ class ZunContainerTest(common.HeatTestCase):
         value.image_pull_policy = self.fake_image_policy
         value.restart_policy = self.fake_restart_policy
         value.interactive = self.fake_interactive
-        value.tty = self.fake_tty
         value.image_driver = self.fake_image_driver
         value.hints = self.fake_hints
         value.hostname = self.fake_hostname
@@ -251,9 +249,6 @@ class ZunContainerTest(common.HeatTestCase):
             self.fake_interactive,
             c.properties.get(container.Container.INTERACTIVE))
         self.assertEqual(
-            self.fake_tty,
-            c.properties.get(container.Container.TTY))
-        self.assertEqual(
             self.fake_image_driver,
             c.properties.get(container.Container.IMAGE_DRIVER))
         self.assertEqual(
@@ -288,7 +283,6 @@ class ZunContainerTest(common.HeatTestCase):
             image_pull_policy=self.fake_image_policy,
             restart_policy=self.fake_restart_policy,
             interactive=self.fake_interactive,
-            tty=self.fake_tty,
             image_driver=self.fake_image_driver,
             hints=self.fake_hints,
             hostname=self.fake_hostname,
@@ -305,7 +299,7 @@ class ZunContainerTest(common.HeatTestCase):
             exception.ResourceFailure,
             scheduler.TaskRunner(c.create))
         self.assertEqual((c.CREATE, c.FAILED), c.state)
-        self.assertIn("Error in creating container ", str(exc))
+        self.assertIn("Error in creating container ", six.text_type(exc))
 
     def test_container_create_unknown_status(self):
         c = self._create_resource('container', self.rsrc_defn, self.stack,
@@ -314,7 +308,7 @@ class ZunContainerTest(common.HeatTestCase):
             exception.ResourceFailure,
             scheduler.TaskRunner(c.create))
         self.assertEqual((c.CREATE, c.FAILED), c.state)
-        self.assertIn("Unknown status Container", str(exc))
+        self.assertIn("Unknown status Container", six.text_type(exc))
 
     def test_container_update(self):
         c = self._create_resource('container', self.rsrc_defn, self.stack)

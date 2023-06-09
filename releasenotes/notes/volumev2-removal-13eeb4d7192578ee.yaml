@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    Support for Block Storage API v2 has been removed.

@@ -82,30 +82,23 @@ Using the Heat Service
 - `OpenStack Orchestration API v1 Reference`_
 - :python-heatclient-doc:`Python and CLI client <>`
 
-.. _`OpenStack Orchestration API v1 Reference`: https://developer.openstack.org/api-ref/orchestration/v1/
+.. _`OpenStack Orchestration API v1 Reference`: https://docs.openstack.org/api-ref/orchestration/v1/
 
 Developing Heat
 ===============
 
 .. toctree::
-    :maxdepth: 2
-
-    developing_guides/index
-
-.. toctree::
     :maxdepth: 1
 
+    contributing/index
+    getting_started/on_devstack
+    developing_guides/architecture
+    developing_guides/pluginguide
+    developing_guides/schedulerhints
+    developing_guides/gmr
+    developing_guides/supportstatus
+    developing_guides/rally_on_gates
     api/index
-
-For Contributors
-================
-
-* If you are a new contributor to Heat please refer: :doc:`contributor/contributing`
-
-  .. toctree::
-    :maxdepth: 2
-
-    contributor/index
 
 Indices and tables
 ==================

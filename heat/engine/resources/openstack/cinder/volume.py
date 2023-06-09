@@ -13,6 +13,7 @@
 
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
+import six
 
 from heat.common import exception
 from heat.common.i18n import _
@@ -205,8 +206,7 @@ class CinderVolume(vb.BaseVolume, sh.SchedulerHintsMixin):
         ),
         STATUS: attributes.Schema(
             _('The current status of the volume.'),
-            type=attributes.Schema.STRING,
-            cache_mode=attributes.Schema.CACHE_NONE
+            type=attributes.Schema.STRING
         ),
         CREATED_AT: attributes.Schema(
             _('The timestamp indicating volume creation.'),
@@ -309,7 +309,7 @@ class CinderVolume(vb.BaseVolume, sh.SchedulerHintsMixin):
         cinder = self.client()
         vol = cinder.volumes.get(self.resource_id)
         if name == self.METADATA_ATTR:
-            return str(jsonutils.dumps(vol.metadata))
+            return six.text_type(jsonutils.dumps(vol.metadata))
         elif name == self.METADATA_VALUES_ATTR:
             return vol.metadata
         if name == self.DISPLAY_NAME_ATTR:
@@ -318,7 +318,7 @@ class CinderVolume(vb.BaseVolume, sh.SchedulerHintsMixin):
             return vol.description
         elif name == self.ATTACHMENTS_LIST:
             return vol.attachments
-        return str(getattr(vol, name))
+        return six.text_type(getattr(vol, name))
 
     def check_create_complete(self, vol_id):
         complete = super(CinderVolume, self).check_create_complete(vol_id)
@@ -354,7 +354,7 @@ class CinderVolume(vb.BaseVolume, sh.SchedulerHintsMixin):
             if self.client_plugin().is_client_exception(ex):
                 raise exception.Error(_(
                     "Failed to extend volume %(vol)s - %(err)s") % {
-                        'vol': self.resource_id, 'err': str(ex)})
+                        'vol': self.resource_id, 'err': six.text_type(ex)})
             else:
                 raise
         return True
@@ -365,16 +365,6 @@ class CinderVolume(vb.BaseVolume, sh.SchedulerHintsMixin):
                                                        read_only_flag)
 
         return True
-
-    def _ready_to_extend_volume(self):
-        vol = self.client().volumes.get(self.resource_id)
-        expected_status = (
-            'available', 'in-use') if vol.multiattach else ('available',)
-
-        if vol.status in expected_status:
-            LOG.debug("Volume %s is ready to extend.", vol.id)
-            return True
-        return False
 
     def _check_extend_volume_complete(self):
         vol = self.client().volumes.get(self.resource_id)
@@ -561,13 +551,6 @@ class CinderVolume(vb.BaseVolume, sh.SchedulerHintsMixin):
                 return prg_restore.complete and not prg_resize
         # resize volume
         if prg_resize:
-            # Make sure volume status ready for resize.
-            if not prg_resize.pre_check:
-                prg_resize.pre_check = self._ready_to_extend_volume()
-                # allow directly extend volume if it's ready
-                if not prg_resize.pre_check:
-                    return False
-
             if not prg_resize.called:
                 prg_resize.called = self._extend_volume(prg_resize.size)
                 return False

@@ -12,8 +12,9 @@
 #    under the License.
 
 import json
-from unittest import mock
 
+import mock
+import six
 import webob.exc
 
 import heat.api.middleware.fault as fault
@@ -44,7 +45,7 @@ class ActionControllerTest(tools.ControllerTest, common.HeatTestCase):
         self.controller = actions.ActionController(options=cfgopts)
 
     def test_action_suspend(self, mock_enforce):
-        self._mock_enforce_setup(mock_enforce, 'suspend', True)
+        self._mock_enforce_setup(mock_enforce, 'action', True)
         stack_identity = identifier.HeatIdentifier(self.tenant,
                                                    'wordpress', '1')
         body = {'suspend': None}
@@ -66,7 +67,7 @@ class ActionControllerTest(tools.ControllerTest, common.HeatTestCase):
         )
 
     def test_action_resume(self, mock_enforce):
-        self._mock_enforce_setup(mock_enforce, 'resume', True)
+        self._mock_enforce_setup(mock_enforce, 'action', True)
         stack_identity = identifier.HeatIdentifier(self.tenant,
                                                    'wordpress', '1')
         body = {'resume': None}
@@ -87,34 +88,14 @@ class ActionControllerTest(tools.ControllerTest, common.HeatTestCase):
             ('stack_resume', {'stack_identity': stack_identity})
         )
 
-    def test_action_check(self, mock_enforce):
-        self._mock_enforce_setup(mock_enforce, 'check', True)
-        stack_identity = identifier.HeatIdentifier(self.tenant,
-                                                   'wordpress', '1')
-        body = {'check': None}
-        req = self._post(stack_identity._tenant_path() + '/actions',
-                         data=json.dumps(body))
-
-        mock_call = self.patchobject(rpc_client.EngineClient, 'call',
-                                     return_value=None)
-
-        result = self.controller.action(req, tenant_id=self.tenant,
-                                        stack_name=stack_identity.stack_name,
-                                        stack_id=stack_identity.stack_id,
-                                        body=body)
-        self.assertIsNone(result)
-
-        mock_call.assert_called_once_with(
-            req.context,
-            ('stack_check', {'stack_identity': stack_identity})
-        )
-
     def _test_action_cancel_update(self, mock_enforce, with_rollback=True):
-        act = 'cancel_update' if with_rollback else 'cancel_without_rollback'
-        self._mock_enforce_setup(mock_enforce, act, True)
+        self._mock_enforce_setup(mock_enforce, 'action', True)
         stack_identity = identifier.HeatIdentifier(self.tenant,
                                                    'wordpress', '1')
-        body = {act: None}
+        if with_rollback:
+            body = {'cancel_update': None}
+        else:
+            body = {'cancel_without_rollback': None}
         req = self._post(stack_identity._tenant_path() + '/actions',
                          data=json.dumps(body))
 
@@ -138,6 +119,7 @@ class ActionControllerTest(tools.ControllerTest, common.HeatTestCase):
         self._test_action_cancel_update(mock_enforce, False)
 
     def test_action_badaction(self, mock_enforce):
+        self._mock_enforce_setup(mock_enforce, 'action', True)
         stack_identity = identifier.HeatIdentifier(self.tenant,
                                                    'wordpress', '1')
         body = {'notallowed': None}
@@ -151,6 +133,7 @@ class ActionControllerTest(tools.ControllerTest, common.HeatTestCase):
                           body=body)
 
     def test_action_badaction_empty(self, mock_enforce):
+        self._mock_enforce_setup(mock_enforce, 'action', True)
         stack_identity = identifier.HeatIdentifier(self.tenant,
                                                    'wordpress', '1')
         body = {}
@@ -164,6 +147,7 @@ class ActionControllerTest(tools.ControllerTest, common.HeatTestCase):
                           body=body)
 
     def test_action_badaction_multiple(self, mock_enforce):
+        self._mock_enforce_setup(mock_enforce, 'action', True)
         stack_identity = identifier.HeatIdentifier(self.tenant,
                                                    'wordpress', '1')
         body = {'one': None, 'two': None}
@@ -177,7 +161,7 @@ class ActionControllerTest(tools.ControllerTest, common.HeatTestCase):
                           body=body)
 
     def test_action_rmt_aterr(self, mock_enforce):
-        self._mock_enforce_setup(mock_enforce, 'suspend', True)
+        self._mock_enforce_setup(mock_enforce, 'action', True)
         stack_identity = identifier.HeatIdentifier(self.tenant,
                                                    'wordpress', '1')
         body = {'suspend': None}
@@ -205,7 +189,7 @@ class ActionControllerTest(tools.ControllerTest, common.HeatTestCase):
         )
 
     def test_action_err_denied_policy(self, mock_enforce):
-        self._mock_enforce_setup(mock_enforce, 'suspend', False)
+        self._mock_enforce_setup(mock_enforce, 'action', False)
         stack_identity = identifier.HeatIdentifier(self.tenant,
                                                    'wordpress', '1')
         body = {'suspend': None}
@@ -220,9 +204,10 @@ class ActionControllerTest(tools.ControllerTest, common.HeatTestCase):
             stack_id=stack_identity.stack_id,
             body=body)
         self.assertEqual(403, resp.status_int)
-        self.assertIn('403 Forbidden', str(resp))
+        self.assertIn('403 Forbidden', six.text_type(resp))
 
     def test_action_badaction_ise(self, mock_enforce):
+        self._mock_enforce_setup(mock_enforce, 'action', True)
         stack_identity = identifier.HeatIdentifier(self.tenant,
                                                    'wordpress', '1')
         body = {'oops': None}

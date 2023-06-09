@@ -15,6 +15,7 @@ import collections
 
 from oslo_config import cfg
 from oslo_serialization import jsonutils
+import six
 import yaml
 
 from heat.common import exception
@@ -72,7 +73,7 @@ def simple_parse(tmpl_str, tmpl_url=None):
             except yaml.YAMLError as yea:
                 if tmpl_url is None:
                     tmpl_url = '[root stack]'
-                yea = str(yea)
+                yea = six.text_type(yea)
                 msg = _('Error parsing template %(tmpl)s '
                         '%(yea)s') % {'tmpl': tmpl_url, 'yea': yea}
                 raise ValueError(msg)
@@ -110,7 +111,7 @@ def parse(tmpl_str, tmpl_url=None):
 
     # TODO(ricolin): Move this validation to api side.
     # Validate nested stack template.
-    validate_template_limit(str(tmpl_str))
+    validate_template_limit(six.text_type(tmpl_str))
 
     tpl = simple_parse(tmpl_str, tmpl_url)
     # Looking for supported version keys in the loaded template
@@ -135,7 +136,7 @@ def convert_json_to_yaml(json_str):
     def top_level_items(tpl):
         yield ("HeatTemplateFormatVersion", '2012-12-12')
 
-        for k, v in tpl.items():
+        for k, v in six.iteritems(tpl):
             if k != 'AWSTemplateFormatVersion':
                 yield k, v
 

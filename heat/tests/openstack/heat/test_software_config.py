@@ -12,7 +12,7 @@
 #    under the License.
 
 import contextlib
-from unittest import mock
+import mock
 
 from heat.common import exception as exc
 from heat.engine import stack

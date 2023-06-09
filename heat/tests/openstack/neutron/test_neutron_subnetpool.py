@@ -14,6 +14,7 @@
 from neutronclient.common import exceptions as qe
 from neutronclient.neutron import v2_0 as neutronV20
 from neutronclient.v2_0 import client as neutronclient
+import six
 
 from heat.common import exception
 from heat.common import template_format
@@ -53,7 +54,7 @@ class NeutronSubnetPoolTest(common.HeatTestCase):
             self.assertEqual(
                 'NeutronClientException: resources.sub_pool: '
                 'An unknown exception occurred.',
-                str(error))
+                six.text_type(error))
         else:
             self.patchobject(neutronclient.Client, 'create_subnetpool',
                              return_value={'subnetpool': {
@@ -79,7 +80,7 @@ class NeutronSubnetPoolTest(common.HeatTestCase):
                       'min_prefixlen=28.')
         error = self.assertRaises(exception.StackValidationFailed,
                                   rsrc.validate)
-        self.assertEqual(errMessage, str(error))
+        self.assertEqual(errMessage, six.text_type(error))
 
     def test_validate_prefixlen_default_gt_max(self):
         self.t = template_format.parse(inline_templates.SPOOL_TEMPLATE)
@@ -92,7 +93,7 @@ class NeutronSubnetPoolTest(common.HeatTestCase):
                       'default_prefixlen=28.')
         error = self.assertRaises(exception.StackValidationFailed,
                                   rsrc.validate)
-        self.assertEqual(errMessage, str(error))
+        self.assertEqual(errMessage, six.text_type(error))
 
     def test_validate_prefixlen_min_gt_default(self):
         self.t = template_format.parse(inline_templates.SPOOL_TEMPLATE)
@@ -105,7 +106,7 @@ class NeutronSubnetPoolTest(common.HeatTestCase):
                       'default_prefixlen=24.')
         error = self.assertRaises(exception.StackValidationFailed,
                                   rsrc.validate)
-        self.assertEqual(errMessage, str(error))
+        self.assertEqual(errMessage, six.text_type(error))
 
     def test_validate_minimal(self):
         self.t = template_format.parse(inline_templates.SPOOL_MINIMAL_TEMPLATE)
@@ -234,7 +235,7 @@ class NeutronSubnetPoolTest(common.HeatTestCase):
                                   rsrc.handle_update,
                                   update_snippet, {}, props)
 
-        self.assertEqual(errMessage, str(error))
+        self.assertEqual(errMessage, six.text_type(error))
         update_subnetpool.assert_not_called()
 
         props = {

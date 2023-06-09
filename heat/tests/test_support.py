@@ -11,6 +11,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import six
 
 from heat.engine import support
 from heat.tests import common
@@ -87,4 +88,4 @@ class SupportStatusTest(common.HeatTestCase):
         ex = self.assertRaises(ValueError,
                                support.SupportStatus, previous_status='YARRR')
         self.assertEqual('previous_status must be SupportStatus '
-                         'instead of %s' % str, str(ex))
+                         'instead of %s' % str, six.text_type(ex))

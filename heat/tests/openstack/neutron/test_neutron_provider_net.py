@@ -12,7 +12,7 @@
 #    under the License.
 
 import copy
-from unittest import mock
+import mock
 
 from neutronclient.common import exceptions as qe
 from neutronclient.v2_0 import client as neutronclient
@@ -40,8 +40,6 @@ resources:
       segmentation_id: 101
       router_external: False
       shared: true
-      availability_zone_hints:
-        - az1
       tags:
         - tag1
         - tag2
@@ -130,8 +128,7 @@ class NeutronProviderNetTest(common.HeatTestCase):
                 'provider:physical_network': 'physnet_1',
                 'provider:segmentation_id': '101',
                 'router:external': False,
-                'shared': True,
-                'availability_zone_hints': ['az1'],
+                'shared': True
             }
         })
         self.mockclient.replace_tag.assert_called_with(
@@ -183,8 +180,7 @@ class NeutronProviderNetTest(common.HeatTestCase):
                 'provider:physical_network': 'physnet_1',
                 'provider:segmentation_id': '101',
                 'router:external': False,
-                'shared': True,
-                'availability_zone_hints': ['az1']}
+                'shared': True}
         })
         self.mockclient.replace_tag.assert_called_with(
             resource_type,
@@ -247,7 +243,6 @@ class NeutronProviderNetTest(common.HeatTestCase):
             'port_security_enabled': True,
             'segmentation_id': None,
             'router_external': False,
-            'availability_zone_hints': [],
             'tags': ['tag1', 'tag2'],
         }
 

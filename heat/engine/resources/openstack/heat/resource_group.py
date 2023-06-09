@@ -15,7 +15,7 @@ import collections
 import copy
 import functools
 import itertools
-import math
+import six
 
 from oslo_log import log as logging
 
@@ -306,7 +306,7 @@ class ResourceGroup(stack_resource.StackResource):
         first_name = next(self._resource_names())
         test_tmpl = self._assemble_nested([first_name],
                                           include_all=True)
-        res_def = next(iter(test_tmpl.resource_definitions(None).values()))
+        res_def = next(six.itervalues(test_tmpl.resource_definitions(None)))
         # make sure we can resolve the nested resource type
         self.stack.env.get_class_to_instantiate(res_def.resource_type)
 
@@ -323,28 +323,28 @@ class ResourceGroup(stack_resource.StackResource):
             raise exception.StackValidationFailed(
                 ex, path=[self.stack.t.RESOURCES, path])
 
-    def _current_skiplist(self):
+    def _current_blacklist(self):
         db_rsrc_names = self.data().get('name_blacklist')
         if db_rsrc_names:
             return db_rsrc_names.split(',')
         else:
             return []
 
-    def _get_new_skiplist_entries(self, properties, current_skiplist):
+    def _get_new_blacklist_entries(self, properties, current_blacklist):
         insp = grouputils.GroupInspector.from_parent_resource(self)
 
-        # Now we iterate over the removal policies, and update the skiplist
+        # Now we iterate over the removal policies, and update the blacklist
         # with any additional names
         for r in properties.get(self.REMOVAL_POLICIES, []):
             if self.REMOVAL_RSRC_LIST in r:
                 # Tolerate string or int list values
                 for n in r[self.REMOVAL_RSRC_LIST]:
-                    str_n = str(n)
-                    if (str_n in current_skiplist or
+                    str_n = six.text_type(n)
+                    if (str_n in current_blacklist or
                             self.resource_id is None or
                             str_n in insp.member_names(include_failed=True)):
                         yield str_n
-                    elif isinstance(n, str):
+                    elif isinstance(n, six.string_types):
                         try:
                             refids = self.get_output(self.REFS_MAP)
                         except (exception.NotFound,
@@ -365,52 +365,52 @@ class ResourceGroup(stack_resource.StackResource):
         # outdated values after stack update.
         self._outputs = None
 
-    def _update_name_skiplist(self, properties):
+    def _update_name_blacklist(self, properties):
         """Resolve the remove_policies to names for removal."""
         # To avoid reusing names after removal, we store a comma-separated
-        # skiplist in the resource data - in cases where you want to
+        # blacklist in the resource data - in cases where you want to
         # overwrite the stored data, removal_policies_mode: update can be used
-        curr_sl = set(self._current_skiplist())
+        curr_bl = set(self._current_blacklist())
         p_mode = properties.get(self.REMOVAL_POLICIES_MODE,
                                 self.REMOVAL_POLICY_APPEND)
         if p_mode == self.REMOVAL_POLICY_UPDATE:
-            init_sl = set()
+            init_bl = set()
         else:
-            init_sl = curr_sl
-        updated_sl = init_sl | set(self._get_new_skiplist_entries(properties,
-                                                                  curr_sl))
+            init_bl = curr_bl
+        updated_bl = init_bl | set(self._get_new_blacklist_entries(properties,
+                                                                   curr_bl))
 
-        # If the skiplist has changed, update the resource data
-        if updated_sl != curr_sl:
-            self.data_set('name_blacklist', ','.join(sorted(updated_sl)))
+        # If the blacklist has changed, update the resource data
+        if updated_bl != curr_bl:
+            self.data_set('name_blacklist', ','.join(sorted(updated_bl)))
 
-    def _name_skiplist(self):
-        """Get the list of resource names to skiplist."""
-        sl = set(self._current_skiplist())
+    def _name_blacklist(self):
+        """Get the list of resource names to blacklist."""
+        bl = set(self._current_blacklist())
         if self.resource_id is None:
-            sl |= set(self._get_new_skiplist_entries(self.properties, sl))
-        return sl
+            bl |= set(self._get_new_blacklist_entries(self.properties, bl))
+        return bl
 
     def _resource_names(self, size=None):
-        name_skiplist = self._name_skiplist()
+        name_blacklist = self._name_blacklist()
         if size is None:
             size = self.get_size()
 
-        def is_skipped(name):
-            return name in name_skiplist
+        def is_blacklisted(name):
+            return name in name_blacklist
 
-        candidates = map(str, itertools.count())
+        candidates = six.moves.map(six.text_type, itertools.count())
 
-        return itertools.islice(itertools.filterfalse(is_skipped,
+        return itertools.islice(six.moves.filterfalse(is_blacklisted,
                                                       candidates),
                                 size)
 
-    def _count_skipped(self, existing_members):
-        """Return the number of current resource names that are skipped."""
-        return len(self._name_skiplist() & set(existing_members))
+    def _count_black_listed(self, existing_members):
+        """Return the number of current resource names that are blacklisted."""
+        return len(self._name_blacklist() & set(existing_members))
 
     def handle_create(self):
-        self._update_name_skiplist(self.properties)
+        self._update_name_blacklist(self.properties)
         if self.update_policy.get(self.BATCH_CREATE) and self.get_size():
             batch_create = self.update_policy[self.BATCH_CREATE]
             max_batch_size = batch_create[self.MAX_BATCH_SIZE]
@@ -434,18 +434,18 @@ class ResourceGroup(stack_resource.StackResource):
                 return False
         return True
 
-    def _run_to_completion(self, template, timeout_mins):
+    def _run_to_completion(self, template, timeout):
         updater = self.update_with_template(template, {},
-                                            timeout_mins)
+                                            timeout)
 
         while not super(ResourceGroup,
                         self).check_update_complete(updater):
             yield
 
-    def _run_update(self, total_capacity, max_updates, timeout_mins):
+    def _run_update(self, total_capacity, max_updates, timeout):
         template = self._assemble_for_rolling_update(total_capacity,
                                                      max_updates)
-        return self._run_to_completion(template, timeout_mins)
+        return self._run_to_completion(template, timeout)
 
     def check_update_complete(self, checkers):
         for checker in checkers:
@@ -469,7 +469,7 @@ class ResourceGroup(stack_resource.StackResource):
         checkers = []
         self.properties = json_snippet.properties(self.properties_schema,
                                                   self.context)
-        self._update_name_skiplist(self.properties)
+        self._update_name_blacklist(self.properties)
         if prop_diff and self.res_def_changed(prop_diff):
             updaters = self._try_rolling_update()
             if updaters:
@@ -488,11 +488,11 @@ class ResourceGroup(stack_resource.StackResource):
     def _attribute_output_name(self, *attr_path):
         if attr_path[0] == self.REFS:
             return self.REFS
-        return ', '.join(str(a) for a in attr_path)
+        return ', '.join(six.text_type(a) for a in attr_path)
 
     def get_attribute(self, key, *path):
         if key == self.REMOVED_RSRC_LIST:
-            return self._current_skiplist()
+            return self._current_blacklist()
         if key == self.ATTR_ATTRIBUTES and not path:
             raise exception.InvalidTemplateAttribute(resource=self.name,
                                                      key=key)
@@ -546,7 +546,7 @@ class ResourceGroup(stack_resource.StackResource):
 
     def _nested_output_defns(self, resource_names, get_attr_fn, get_res_fn):
         for attr in self.referenced_attrs():
-            if isinstance(attr, str):
+            if isinstance(attr, six.string_types):
                 key, path = attr, []
             else:
                 key, path = attr[0], list(attr[1:])
@@ -601,25 +601,19 @@ class ResourceGroup(stack_resource.StackResource):
         # At this stage, we don't mind if all of the parameters have values
         # assigned. Pass in a custom resolver to the properties to not
         # error when a parameter does not have a user entered value.
-        def ignore_param_resolve(snippet, nullable=False):
+        def ignore_param_resolve(snippet):
             if isinstance(snippet, function.Function):
                 try:
-                    result = snippet.result()
+                    return snippet.result()
                 except exception.UserParameterMissing:
                     return None
-                if not (nullable or function._non_null_value(result)):
-                    result = None
-                return result
 
-            if isinstance(snippet, collections.abc.Mapping):
-                return dict(filter(function._non_null_item,
-                                   ((k, ignore_param_resolve(v, nullable=True))
-                                    for k, v in snippet.items())))
-            elif (not isinstance(snippet, str) and
-                  isinstance(snippet, collections.abc.Iterable)):
-                return list(filter(function._non_null_value,
-                                   (ignore_param_resolve(v, nullable=True)
-                                    for v in snippet)))
+            if isinstance(snippet, collections.Mapping):
+                return dict((k, ignore_param_resolve(v))
+                            for k, v in snippet.items())
+            elif (not isinstance(snippet, six.string_types) and
+                  isinstance(snippet, collections.Iterable)):
+                return [ignore_param_resolve(v) for v in snippet]
 
             return snippet
 
@@ -645,11 +639,11 @@ class ResourceGroup(stack_resource.StackResource):
         def recurse(x):
             return self._handle_repl_val(res_name, x)
 
-        if isinstance(val, str):
+        if isinstance(val, six.string_types):
             return val.replace(repl_var, res_name)
-        elif isinstance(val, collections.abc.Mapping):
+        elif isinstance(val, collections.Mapping):
             return {k: recurse(v) for k, v in val.items()}
-        elif isinstance(val, collections.abc.Sequence):
+        elif isinstance(val, collections.Sequence):
             return [recurse(v) for v in val]
         return val
 
@@ -687,11 +681,11 @@ class ResourceGroup(stack_resource.StackResource):
                                      template_version=('heat_template_version',
                                                        '2015-04-30')):
         names = list(self._resource_names(total_capacity))
-        name_skiplist = self._name_skiplist()
+        name_blacklist = self._name_blacklist()
 
         valid_resources = [(n, d) for n, d in
                            grouputils.get_member_definitions(self)
-                           if n not in name_skiplist]
+                           if n not in name_blacklist]
 
         targ_cap = self.get_size()
 
@@ -712,7 +706,7 @@ class ResourceGroup(stack_resource.StackResource):
 
         old_resources = sorted(valid_resources, key=replace_priority)
         existing_names = set(n for n, d in valid_resources)
-        new_names = itertools.filterfalse(lambda n: n in existing_names,
+        new_names = six.moves.filterfalse(lambda n: n in existing_names,
                                           names)
         res_def = self.get_resource_def(include_all)
         definitions = scl_template.member_definitions(
@@ -735,7 +729,7 @@ class ResourceGroup(stack_resource.StackResource):
 
     def _resolve_attribute(self, name):
         if name == self.REMOVED_RSRC_LIST:
-            return self._current_skiplist()
+            return self._current_blacklist()
 
     def _update_timeout(self, batch_cnt, pause_sec):
         total_pause_time = pause_sec * max(batch_cnt - 1, 0)
@@ -768,27 +762,22 @@ class ResourceGroup(stack_resource.StackResource):
             while not duration.expired():
                 yield
 
-        # current capacity not including existing skiplisted
+        # current capacity not including existing blacklisted
         inspector = grouputils.GroupInspector.from_parent_resource(self)
-        num_skiplist = self._count_skipped(
+        num_blacklist = self._count_black_listed(
             inspector.member_names(include_failed=False))
         num_resources = inspector.size(include_failed=True)
-        curr_cap = num_resources - num_skiplist
+        curr_cap = num_resources - num_blacklist
 
         batches = list(self._get_batches(self.get_size(), curr_cap, batch_size,
                                          min_in_service))
-        update_timeout_secs = self._update_timeout(len(batches), pause_sec)
-
-        # NOTE(gibi) update_timeout is in seconds but the _run_update
-        # eventually calls StackResource.update_with_template that takes
-        # timeout in minutes so we need to convert here.
-        update_timeout_mins = math.ceil(update_timeout_secs / 60)
+        update_timeout = self._update_timeout(len(batches), pause_sec)
 
         def tasks():
             for index, (curr_cap, max_upd) in enumerate(batches):
                 yield scheduler.TaskRunner(self._run_update,
                                            curr_cap, max_upd,
-                                           update_timeout_mins)
+                                           update_timeout)
 
                 if index < (len(batches) - 1) and pause_sec > 0:
                     yield scheduler.TaskRunner(pause_between_batch, pause_sec)

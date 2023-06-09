@@ -12,6 +12,7 @@
 #    under the License.
 
 from oslo_log import log as logging
+import six
 
 from heat.common import exception
 from heat.common.i18n import _
@@ -186,9 +187,9 @@ class AutoScalingPolicy(signal_responder.SignalResponder):
         if self.resource_id is None:
             return
         if name == self.ALARM_URL:
-            return str(self._get_ec2_signed_url(never_expire=True))
+            return six.text_type(self._get_ec2_signed_url(never_expire=True))
         elif name == self.SIGNAL_URL:
-            return str(self._get_heat_signal_url())
+            return six.text_type(self._get_heat_signal_url())
 
 
 def resource_mapping():

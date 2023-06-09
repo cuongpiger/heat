@@ -12,7 +12,6 @@
 #    under the License.
 
 import collections
-import fnmatch
 import glob
 import itertools
 import os.path
@@ -21,6 +20,8 @@ import weakref
 
 from oslo_config import cfg
 from oslo_log import log
+from oslo_utils import fnmatch
+import six
 
 from heat.common import environment_format as env_fmt
 from heat.common import exception
@@ -53,9 +54,9 @@ def valid_restricted_actions(action):
 def is_hook_definition(key, value):
     is_valid_hook = False
     if key == 'hooks':
-        if isinstance(value, str):
+        if isinstance(value, six.string_types):
             is_valid_hook = valid_hook_type(value)
-        elif isinstance(value, collections.abc.Sequence):
+        elif isinstance(value, collections.Sequence):
             is_valid_hook = all(valid_hook_type(hook) for hook in value)
 
         if not is_valid_hook:
@@ -70,9 +71,9 @@ def is_hook_definition(key, value):
 def is_valid_restricted_action(key, value):
     valid_action = False
     if key == 'restricted_actions':
-        if isinstance(value, str):
+        if isinstance(value, six.string_types):
             valid_action = valid_restricted_actions(value)
-        elif isinstance(value, collections.abc.Sequence):
+        elif isinstance(value, collections.Sequence):
             valid_action = all(valid_restricted_actions(
                 action) for action in value)
 
@@ -100,7 +101,7 @@ class ResourceInfo(object):
         if name.endswith(('.yaml', '.template')):
             # a template url for the resource "Type"
             klass = TemplateResourceInfo
-        elif not isinstance(value, str):
+        elif not isinstance(value, six.string_types):
             klass = ClassResourceInfo
         elif value.endswith(('.yaml', '.template')):
             # a registered template
@@ -343,8 +344,10 @@ class ResourceRegistry(object):
                 if info.value.support_status.message is not None:
                     details = {
                         'name': info.name,
-                        'status': str(info.value.support_status.status),
-                        'message': str(info.value.support_status.message)
+                        'status': six.text_type(
+                            info.value.support_status.status),
+                        'message': six.text_type(
+                            info.value.support_status.message)
                         }
                     LOG.warning('%(name)s is %(status)s. %(message)s',
                                 details)
@@ -361,7 +364,7 @@ class ResourceRegistry(object):
             if show_all or isinstance(registry[name], TemplateResourceInfo):
                 msg = ('%(p)sRegistered: %(t)s' %
                        {'p': prefix,
-                        't': str(registry[name])})
+                        't': six.text_type(registry[name])})
                 LOG.info(msg)
 
     def remove_item(self, info):
@@ -391,13 +394,13 @@ class ResourceRegistry(object):
         """
         ress = self._registry['resources']
         restricted_actions = set()
-        for name_pattern, resource in ress.items():
+        for name_pattern, resource in six.iteritems(ress):
             if fnmatch.fnmatchcase(resource_name, name_pattern):
                 if 'restricted_actions' in resource:
                     actions = resource['restricted_actions']
-                    if isinstance(actions, str):
+                    if isinstance(actions, six.string_types):
                         restricted_actions.add(actions)
-                    elif isinstance(actions, collections.abc.Sequence):
+                    elif isinstance(actions, collections.Sequence):
                         restricted_actions |= set(actions)
         return restricted_actions
 
@@ -426,14 +429,14 @@ class ResourceRegistry(object):
         everything.
         """
         ress = self._registry['resources']
-        for name_pattern, resource in ress.items():
+        for name_pattern, resource in six.iteritems(ress):
             if fnmatch.fnmatchcase(resource_name, name_pattern):
                 if 'hooks' in resource:
                     hooks = resource['hooks']
-                    if isinstance(hooks, str):
+                    if isinstance(hooks, six.string_types):
                         if hook == hooks:
                             return True
-                    elif isinstance(hooks, collections.abc.Sequence):
+                    elif isinstance(hooks, collections.Sequence):
                         if hook in hooks:
                             return True
         return False
@@ -441,7 +444,7 @@ class ResourceRegistry(object):
     def remove_resources_except(self, resource_name):
         ress = self._registry['resources']
         new_resources = {}
-        for name, res in ress.items():
+        for name, res in six.iteritems(ress):
             if fnmatch.fnmatchcase(resource_name, name):
                 new_resources.update(res)
         if resource_name in ress:
@@ -474,7 +477,7 @@ class ResourceRegistry(object):
         # handle: "OS::*" -> "Dreamhost::*"
         def is_a_glob(resource_type):
             return resource_type.endswith('*')
-        globs = filter(is_a_glob, iter(self._registry))
+        globs = six.moves.filter(is_a_glob, iter(self._registry))
         for pattern in globs:
             if self._registry[pattern].matches(resource_type):
                 yield self._registry[pattern]
@@ -547,7 +550,7 @@ class ResourceRegistry(object):
             msg = _('Non-empty resource type is required '
                     'for resource "%s"') % resource_name
             raise exception.StackValidationFailed(message=msg)
-        elif not isinstance(resource_type, str):
+        elif not isinstance(resource_type, six.string_types):
             msg = _('Resource "%s" type is not a string') % resource_name
             raise exception.StackValidationFailed(message=msg)
 
@@ -555,7 +558,7 @@ class ResourceRegistry(object):
             info = self.get_resource_info(resource_type,
                                           resource_name=resource_name)
         except exception.EntityNotFound as exc:
-            raise exception.StackValidationFailed(message=str(exc))
+            raise exception.StackValidationFailed(message=six.text_type(exc))
 
         return info.get_class_to_instantiate()
 
@@ -587,63 +590,55 @@ class ResourceRegistry(object):
         if support_status is not None and not support.is_valid_status(
                 support_status):
             msg = (_('Invalid support status and should be one of %s') %
-                   str(support.SUPPORT_STATUSES))
+                   six.text_type(support.SUPPORT_STATUSES))
             raise exception.Invalid(reason=msg)
 
-        enforcer = policy.ResourceEnforcer()
-        if type_name is not None:
+        def is_resource(key):
+            return isinstance(self._registry[key], (ClassResourceInfo,
+                                                    TemplateResourceInfo))
+
+        def status_matches(cls):
+            return (support_status is None or
+                    cls.get_class().support_status.status ==
+                    support_status)
+
+        def is_available(cls):
+            if cnxt is None:
+                return True
+
             try:
-                name_exp = re.compile(type_name)
+                return cls.get_class().is_service_available(cnxt)[0]
             except Exception:
-                return []
-        else:
-            name_exp = None
-
-        def matches(name, info):
-            # Only return actual plugins or template resources, not aliases
-            if not isinstance(info, (ClassResourceInfo, TemplateResourceInfo)):
                 return False
 
-            # If filtering by name, check for match
-            if name_exp is not None and not name_exp.match(name):
+        def not_hidden_matches(cls):
+            return cls.get_class().support_status.status != support.HIDDEN
+
+        def is_allowed(enforcer, name):
+            if cnxt is None:
+                return True
+            try:
+                enforcer.enforce(cnxt, name, is_registered_policy=True)
+            except enforcer.exc:
+                return False
+            else:
+                return True
+
+        enforcer = policy.ResourceEnforcer()
+
+        def name_matches(name):
+            try:
+                return type_name is None or re.match(type_name, name)
+            except:  # noqa
                 return False
 
-            rsrc_cls = info.get_class_to_instantiate()
-
-            # Never match hidden resource types
-            if rsrc_cls.support_status.status == support.HIDDEN:
-                return False
-
-            # If filtering by version, check for match
-            if (version is not None and
-                    rsrc_cls.support_status.version != version):
-                return False
-
-            # If filtering by support status, check for match
-            if (support_status is not None and
-                    rsrc_cls.support_status.status != support_status):
-                return False
-
-            if cnxt is not None:
-                # Check for resource policy
-                try:
-                    enforcer.enforce(cnxt, name, is_registered_policy=True)
-                except enforcer.exc:
-                    return False
-
-                # Check for service availability
-                try:
-                    avail, err = rsrc_cls.is_service_available(cnxt)
-                except Exception:
-                    avail = False
-                if not avail:
-                    return False
-
-            return True
+        def version_matches(cls):
+            return (version is None or
+                    cls.get_class().support_status.version == version)
 
         import heat.engine.resource
 
-        def resource_description(name, info):
+        def resource_description(name, info, with_description):
             if not with_description:
                 return name
             rsrc_cls = info.get_class()
@@ -654,9 +649,15 @@ class ResourceRegistry(object):
                 'description': rsrc_cls.getdoc(),
             }
 
-        return [resource_description(name, info)
-                for name, info in self._registry.items()
-                if matches(name, info)]
+        return [resource_description(name, cls, with_description)
+                for name, cls in six.iteritems(self._registry)
+                if (is_resource(name) and
+                    name_matches(name) and
+                    status_matches(cls) and
+                    is_available(cls) and
+                    is_allowed(enforcer, name) and
+                    not_hidden_matches(cls) and
+                    version_matches(cls))]
 
 
 class Environment(object):
@@ -692,7 +693,7 @@ class Environment(object):
         if env_fmt.PARAMETERS in env:
             self.params = env[env_fmt.PARAMETERS]
         else:
-            self.params = dict((k, v) for (k, v) in env.items()
+            self.params = dict((k, v) for (k, v) in six.iteritems(env)
                                if k not in (env_fmt.PARAMETER_DEFAULTS,
                                             env_fmt.ENCRYPTED_PARAM_NAMES,
                                             env_fmt.EVENT_SINKS,

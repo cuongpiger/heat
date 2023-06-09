@@ -61,15 +61,14 @@ class BaseServer(stack_user.StackUser):
 
         return container_name, object_name
 
-    def _get_region_name(self):
-        return self.client_plugin()._get_region_name()
-
     def _populate_deployments_metadata(self, meta, props):
         meta['deployments'] = meta.get('deployments', [])
         meta['os-collect-config'] = meta.get('os-collect-config', {})
         occ = meta['os-collect-config']
         collectors = list(self.default_collectors)
         occ['collectors'] = collectors
+        region_name = (self.context.region_name or
+                       cfg.CONF.region_name_for_services)
 
         # set existing values to None to override any boot-time config
         occ_keys = ('heat', 'zaqar', 'cfn', 'request')
@@ -90,7 +89,7 @@ class BaseServer(stack_user.StackUser):
                 'project_id': self.stack.stack_user_project_id,
                 'stack_id': self.stack.identifier().stack_path(),
                 'resource_name': self.name,
-                'region_name': self._get_region_name()}})
+                'region_name': region_name}})
             collectors.append('heat')
 
         elif self.transport_zaqar_message(props):
@@ -98,11 +97,11 @@ class BaseServer(stack_user.StackUser):
             occ.update({'zaqar': {
                 'user_id': self._get_user_id(),
                 'password': self.password,
-                'auth_url': self.keystone().server_keystone_endpoint_url(
+                'auth_url':  self.keystone().server_keystone_endpoint_url(
                     fallback_endpoint=self.context.auth_url),
                 'project_id': self.stack.stack_user_project_id,
                 'queue_id': queue_id,
-                'region_name': self._get_region_name()}})
+                'region_name': region_name}})
             collectors.append('zaqar')
 
         elif self.transport_poll_server_cfn(props):
@@ -240,8 +239,11 @@ class BaseServer(stack_user.StackUser):
     def _update_software_config_transport(self, prop_diff):
         if not self.user_data_software_config():
             return
-        self._delete_queue()
-        self._delete_temp_url()
+        try:
+            self._delete_queue()
+            self._delete_temp_url()
+        except Exception:
+            pass
 
         metadata = self.metadata_get(True) or {}
         self._create_transport_credentials(prop_diff)
@@ -273,18 +275,15 @@ class BaseServer(stack_user.StackUser):
         object_name = self.data().get('metadata_object_name')
         if not object_name:
             return
-        endpoint_exists = self.client_plugin().does_endpoint_exist(
-            'swift', 'object-store')
-        if endpoint_exists:
-            with self.client_plugin('swift').ignore_not_found:
-                container = self.properties[self.DEPLOYMENT_SWIFT_DATA].get(
-                    'container')
-                container = container or self.physical_resource_name()
-                swift = self.client('swift')
-                swift.delete_object(container, object_name)
-                headers = swift.head_container(container)
-                if int(headers['x-container-object-count']) == 0:
-                    swift.delete_container(container)
+        with self.client_plugin('swift').ignore_not_found:
+            container = self.properties[self.DEPLOYMENT_SWIFT_DATA].get(
+                'container')
+            container = container or self.physical_resource_name()
+            swift = self.client('swift')
+            swift.delete_object(container, object_name)
+            headers = swift.head_container(container)
+            if int(headers['x-container-object-count']) == 0:
+                swift.delete_container(container)
         self.data_delete('metadata_object_name')
         self.data_delete('metadata_put_url')
 
@@ -292,14 +291,11 @@ class BaseServer(stack_user.StackUser):
         queue_id = self.data().get('metadata_queue_id')
         if not queue_id:
             return
-        endpoint_exists = self.client_plugin().does_endpoint_exist(
-            'zaqar', 'messaging')
-        if endpoint_exists:
-            client_plugin = self.client_plugin('zaqar')
-            zaqar = client_plugin.create_for_tenant(
-                self.stack.stack_user_project_id, self._user_token())
-            with client_plugin.ignore_not_found:
-                zaqar.queue(queue_id).delete()
+        client_plugin = self.client_plugin('zaqar')
+        zaqar = client_plugin.create_for_tenant(
+            self.stack.stack_user_project_id, self._user_token())
+        with client_plugin.ignore_not_found:
+            zaqar.queue(queue_id).delete()
         self.data_delete('metadata_queue_id')
 
     def handle_snapshot_delete(self, state):

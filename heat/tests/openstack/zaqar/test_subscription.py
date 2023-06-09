@@ -11,7 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
+import six
 
 from heat.common import exception
 from heat.common import template_format
@@ -83,7 +84,7 @@ class FakeSubscription(object):
 
     def update(self, prop_diff):
         allowed_keys = {'subscriber', 'ttl', 'options'}
-        for key in prop_diff.keys():
+        for key in six.iterkeys(prop_diff):
             if key not in allowed_keys:
                 raise KeyError(key)
 
@@ -117,7 +118,7 @@ class ZaqarSubscriptionTest(common.HeatTestCase):
                                 self.stack.validate)
         self.assertEqual('The subscriber type of must be one of: http, https, '
                          'mailto, trust+http, trust+https.',
-                         str(exc))
+                         six.text_type(exc))
 
     def test_create(self):
         t = template_format.parse(subscr_template)
@@ -232,7 +233,7 @@ class ZaqarSubscriptionTest(common.HeatTestCase):
                                 scheduler.TaskRunner(subscr.update,
                                                      new_subscr))
         msg = 'The Resource MySubscription requires replacement.'
-        self.assertEqual(msg, str(err))
+        self.assertEqual(msg, six.text_type(err))
 
     def test_show_resource(self):
         t = template_format.parse(subscr_template)
@@ -419,7 +420,7 @@ class ZaqarMistralTriggerTest(common.HeatTestCase):
                                 scheduler.TaskRunner(subscr.update,
                                                      new_subscr))
         msg = 'The Resource subscription requires replacement.'
-        self.assertEqual(msg, str(err))
+        self.assertEqual(msg, six.text_type(err))
         self.fc.subscription.assert_called_with(
             subscr.properties['queue_name'],
             options=self.options,

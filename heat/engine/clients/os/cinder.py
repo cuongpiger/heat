@@ -29,12 +29,11 @@ LOG = logging.getLogger(__name__)
 CLIENT_NAME = 'cinder'
 
 
-class CinderClientPlugin(os_client.ExtensionMixin,
-                         client_plugin.ClientPlugin):
+class CinderClientPlugin(client_plugin.ClientPlugin):
 
     exceptions_module = exceptions
 
-    service_types = [VOLUME_V3] = ['volumev3']
+    service_types = [VOLUME_V2, VOLUME_V3] = ['volumev2', 'volumev3']
 
     def get_volume_api_version(self):
         '''Returns the most recent API version.'''
@@ -46,7 +45,14 @@ class CinderClientPlugin(os_client.ExtensionMixin,
             self.service_type = self.VOLUME_V3
             self.client_version = '3'
         except ks_exceptions.EndpointNotFound:
-            raise exception.Error(_('No volume service available.'))
+            try:
+                self.context.keystone_session.get_endpoint(
+                    service_type=self.VOLUME_V2,
+                    interface=self.interface)
+                self.service_type = self.VOLUME_V2
+                self.client_version = '2'
+            except ks_exceptions.EndpointNotFound:
+                raise exception.Error(_('No volume service available.'))
 
     def _create(self):
         self.get_volume_api_version()
@@ -69,6 +75,10 @@ class CinderClientPlugin(os_client.ExtensionMixin,
     def _list_extensions(self):
         extensions = self.client().list_extensions.show_all()
         return set(extension.alias for extension in extensions)
+
+    def has_extension(self, alias):
+        """Check if specific extension is present."""
+        return alias in self._list_extensions()
 
     def get_volume(self, volume):
         try:

@@ -91,7 +91,7 @@ function _config_tempest_plugin
     # Skip VolumeBackupRestoreIntegrationTest skipped until failure rate can be reduced ref bug #1382300
     # Skip AutoscalingLoadBalancerTest and AutoscalingLoadBalancerv2Test as deprecated neutron-lbaas service is not enabled
     iniset $conf_file heat_plugin skip_scenario_test_list 'AutoscalingLoadBalancerTest, AutoscalingLoadBalancerv2Test, \
-        SoftwareConfigIntegrationTest'
+        SoftwareConfigIntegrationTest, CfnInitIntegrationTest'
 
     # Skip LoadBalancerv2Test as deprecated neutron-lbaas service is not enabled
     iniset $conf_file heat_plugin skip_functional_test_list 'LoadBalancerv2Test'
@@ -110,5 +110,5 @@ _config_tempest_plugin
 openstack flavor show m1.heat_int && openstack flavor delete m1.heat_int
 openstack flavor show m1.heat_micro && openstack flavor delete m1.heat_micro
 
-openstack flavor show m1.heat_int || openstack flavor create m1.heat_int --ram 512 --disk 4
+openstack flavor show m1.heat_int || openstack flavor create m1.heat_int --ram 512 --disk 10
 openstack flavor show m1.heat_micro || openstack flavor create m1.heat_micro --ram 128 --disk 1

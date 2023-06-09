@@ -12,6 +12,8 @@
 
 import functools
 
+import six
+
 from heat.common import exception
 from heat.common.i18n import _
 from heat.engine.cfn import functions as cfn_funcs
@@ -157,7 +159,7 @@ class HOTemplate20130523(template_common.CommonTemplate):
             if not attrs:
                 raise exception.StackValidationFailed(message=message)
             try:
-                for attr, attr_value in attrs.items():
+                for attr, attr_value in six.iteritems(attrs):
                     if attr not in allowed_keys:
                         raise KeyError(err_msg % attr)
                 if sub_section not in attrs:
@@ -181,7 +183,7 @@ class HOTemplate20130523(template_common.CommonTemplate):
         for name, attrs in sorted(data.items()):
             cfn_object = {}
 
-            for attr, attr_value in attrs.items():
+            for attr, attr_value in six.iteritems(attrs):
                 cfn_attr = mapping[attr]
                 if cfn_attr is not None:
                     cfn_object[cfn_attr] = attr_value
@@ -199,18 +201,18 @@ class HOTemplate20130523(template_common.CommonTemplate):
 
     def get_section_name(self, section):
         cfn_to_hot_attrs = dict(
-            zip(self._HOT_TO_CFN_ATTRS.values(),
-                self._HOT_TO_CFN_ATTRS.keys()))
+            zip(six.itervalues(self._HOT_TO_CFN_ATTRS),
+                six.iterkeys(self._HOT_TO_CFN_ATTRS)))
         return cfn_to_hot_attrs.get(section, section)
 
     def param_schemata(self, param_defaults=None):
         parameter_section = self.t.get(self.PARAMETERS) or {}
         pdefaults = param_defaults or {}
-        for name, schema in parameter_section.items():
+        for name, schema in six.iteritems(parameter_section):
             if name in pdefaults:
                 parameter_section[name]['default'] = pdefaults[name]
 
-        params = parameter_section.items()
+        params = six.iteritems(parameter_section)
         return dict((name, self.param_schema_class.from_dict(name, schema))
                     for name, schema in params)
 
@@ -226,7 +228,7 @@ class HOTemplate20130523(template_common.CommonTemplate):
         valid_keys = frozenset(self._RESOURCE_KEYS)
 
         def defns():
-            for name, snippet in resources.items():
+            for name, snippet in six.iteritems(resources):
                 try:
                     invalid_keys = set(snippet) - valid_keys
                     if invalid_keys:
@@ -237,7 +239,7 @@ class HOTemplate20130523(template_common.CommonTemplate):
                     defn_data = dict(self._rsrc_defn_args(stack, name,
                                                           snippet))
                 except (TypeError, ValueError, KeyError) as ex:
-                    msg = str(ex)
+                    msg = six.text_type(ex)
                     raise exception.StackValidationFailed(message=msg)
 
                 defn = rsrc_defn.ResourceDefinition(name, **defn_data)
@@ -248,7 +250,7 @@ class HOTemplate20130523(template_common.CommonTemplate):
                         enabled = conditions.is_enabled(cond_name)
                     except ValueError as exc:
                         path = [self.RESOURCES, name, self.RES_CONDITION]
-                        message = str(exc)
+                        message = six.text_type(exc)
                         raise exception.StackValidationFailed(path=path,
                                                               message=message)
                     if not enabled:
@@ -488,7 +490,7 @@ class HOTemplate20161014(HOTemplate20160408):
             tmpl, template_id, files, env)
 
         self._parser_condition_functions = {}
-        for n, f in self.functions.items():
+        for n, f in six.iteritems(self.functions):
             if not f == hot_funcs.Removed:
                 self._parser_condition_functions[n] = function.Invalid
             else:
@@ -510,14 +512,14 @@ class HOTemplate20161014(HOTemplate20160408):
 
         yield ('external_id',
                self._parse_resource_field(self.RES_EXTERNAL_ID,
-                                          (str,
+                                          (six.string_types,
                                            function.Function),
                                           'string',
                                           name, data, parse))
 
         yield ('condition',
                self._parse_resource_field(self.RES_CONDITION,
-                                          (str, bool,
+                                          (six.string_types, bool,
                                            function.Function),
                                           'string_or_boolean',
                                           name, data, parse_cond))
@@ -757,56 +759,4 @@ class HOTemplate20180831(HOTemplate20180302):
         # functions added in 2017-09-01
         'yaql': hot_funcs.Yaql,
         'contains': hot_funcs.Contains
-    }
-
-
-class HOTemplate20210416(HOTemplate20180831):
-    functions = {
-        'get_attr': hot_funcs.GetAttAllAttributes,
-        'get_file': hot_funcs.GetFile,
-        'get_param': hot_funcs.GetParam,
-        'get_resource': hot_funcs.GetResource,
-        'list_join': hot_funcs.JoinMultiple,
-        'repeat': hot_funcs.RepeatWithNestedLoop,
-        'resource_facade': hot_funcs.ResourceFacade,
-        'str_replace': hot_funcs.ReplaceJson,
-
-        # functions added in 2015-04-30
-        'digest': hot_funcs.Digest,
-
-        # functions added in 2015-10-15
-        'str_split': hot_funcs.StrSplit,
-
-        # functions added in 2016-04-08
-        'map_merge': hot_funcs.MapMerge,
-
-        # functions added in 2016-10-14
-        'yaql': hot_funcs.Yaql,
-        'map_replace': hot_funcs.MapReplace,
-        # Modified in 2021-04-16
-        'if': hot_funcs.IfNullable,
-
-        # functions added in 2017-02-24
-        'filter': hot_funcs.Filter,
-        'str_replace_strict': hot_funcs.ReplaceJsonStrict,
-
-        # functions added in 2017-09-01
-        'make_url': hot_funcs.MakeURL,
-        'list_concat': hot_funcs.ListConcat,
-        'str_replace_vstrict': hot_funcs.ReplaceJsonVeryStrict,
-        'list_concat_unique': hot_funcs.ListConcatUnique,
-        'contains': hot_funcs.Contains,
-
-        # functions removed from 2015-10-15
-        'Fn::Select': hot_funcs.Removed,
-
-        # functions removed from 2014-10-16
-        'Fn::GetAZs': hot_funcs.Removed,
-        'Fn::Join': hot_funcs.Removed,
-        'Fn::Split': hot_funcs.Removed,
-        'Fn::Replace': hot_funcs.Removed,
-        'Fn::Base64': hot_funcs.Removed,
-        'Fn::MemberListToMap': hot_funcs.Removed,
-        'Fn::ResourceFacade': hot_funcs.Removed,
-        'Ref': hot_funcs.Removed,
     }

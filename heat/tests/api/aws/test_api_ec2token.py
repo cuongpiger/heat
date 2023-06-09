@@ -13,11 +13,12 @@
 
 
 import json
-from unittest import mock
+import mock
 
 from oslo_config import cfg
 from oslo_utils import importutils
 import requests
+import six
 
 from heat.api.aws import ec2token
 from heat.api.aws import exception
@@ -519,7 +520,7 @@ class Ec2TokenTest(common.HeatTestCase):
 
         ex = self.assertRaises(exception.HeatInternalFailureError,
                                ec2.__call__, dummy_req)
-        self.assertEqual('Service misconfigured', str(ex))
+        self.assertEqual('Service misconfigured', six.text_type(ex))
 
     def test_call_ok_auth_uri_ec2authtoken(self):
         dummy_url = 'http://123:5000/v2.0'

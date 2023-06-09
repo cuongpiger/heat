@@ -21,6 +21,7 @@ from oslo_config import cfg
 from oslo_log import log
 from oslo_utils import reflection
 from oslo_utils import strutils
+import six
 
 from heat.common import cache
 from heat.common import exception
@@ -36,7 +37,7 @@ MEMOIZE = core.get_memoization_decorator(conf=cfg.CONF,
 LOG = log.getLogger(__name__)
 
 
-class Schema(collections.abc.Mapping):
+class Schema(collections.Mapping):
     """Schema base class for validating properties or parameters.
 
     Schema objects are serializable to dictionaries following a superset of
@@ -148,7 +149,7 @@ class Schema(collections.abc.Mapping):
             if isinstance(self.schema, AnyIndexDict):
                 self.schema.value.validate(context)
             else:
-                for nested_schema in self.schema.values():
+                for nested_schema in six.itervalues(self.schema):
                     nested_schema.validate(context)
 
     def _validate_default(self, context):
@@ -194,9 +195,9 @@ class Schema(collections.abc.Mapping):
             elif self.type == self.NUMBER:
                 return Schema.str_to_num(value)
             elif self.type == self.STRING:
-                return str(value)
+                return six.text_type(value)
             elif self.type == self.BOOLEAN:
-                return strutils.bool_from_string(str(value),
+                return strutils.bool_from_string(six.text_type(value),
                                                  strict=True)
         except ValueError:
             raise ValueError(_('Value "%(val)s" is invalid for data type '
@@ -214,7 +215,7 @@ class Schema(collections.abc.Mapping):
                 if type(constraint) not in skipped:
                     constraint.validate(value, self, context)
         except ValueError as ex:
-            raise exception.StackValidationFailed(message=str(ex))
+            raise exception.StackValidationFailed(message=six.text_type(ex))
 
     def __getitem__(self, key):
         if key == self.TYPE:
@@ -251,7 +252,7 @@ class Schema(collections.abc.Mapping):
         return self._len
 
 
-class AnyIndexDict(collections.abc.Mapping):
+class AnyIndexDict(collections.Mapping):
     """A Mapping that returns the same value for any integer index.
 
     Used for storing the schema for a list. When converted to a dictionary,
@@ -264,7 +265,7 @@ class AnyIndexDict(collections.abc.Mapping):
         self.value = value
 
     def __getitem__(self, key):
-        if key != self.ANYTHING and not isinstance(key, int):
+        if key != self.ANYTHING and not isinstance(key, six.integer_types):
             raise KeyError(_('Invalid key %s') % key)
 
         return self.value
@@ -276,7 +277,8 @@ class AnyIndexDict(collections.abc.Mapping):
         return 1
 
 
-class Constraint(collections.abc.Mapping):
+@six.python_2_unicode_compatible
+class Constraint(collections.Mapping):
     """Parent class for constraints on allowable values for a Property.
 
     Constraints are serializable to dictionaries following the HOT input
@@ -351,7 +353,7 @@ class Range(Constraint):
         self.max = max
 
         for param in (min, max):
-            if not isinstance(param, (float, int, type(None))):
+            if not isinstance(param, (float, six.integer_types, type(None))):
                 raise exception.InvalidSchemaError(
                     message=_('min/max must be numeric'))
 
@@ -420,7 +422,7 @@ class Length(Range):
         super(Length, self).__init__(min, max, description)
 
         for param in (min, max):
-            if not isinstance(param, (int, type(None))):
+            if not isinstance(param, (six.integer_types, type(None))):
                 msg = _('min/max length must be integral')
                 raise exception.InvalidSchemaError(message=msg)
 
@@ -469,7 +471,7 @@ class Modulo(Constraint):
                           'an offset value specified.'))
 
         for param in (step, offset):
-            if not isinstance(param, (float, int, type(None))):
+            if not isinstance(param, (float, six.integer_types, type(None))):
                 raise exception.InvalidSchemaError(
                     message=_('step/offset must be numeric'))
 
@@ -540,8 +542,8 @@ class AllowedValues(Constraint):
 
     def __init__(self, allowed, description=None):
         super(AllowedValues, self).__init__(description)
-        if (not isinstance(allowed, collections.abc.Sequence) or
-                isinstance(allowed, str)):
+        if (not isinstance(allowed, collections.Sequence) or
+                isinstance(allowed, six.string_types)):
             raise exception.InvalidSchemaError(
                 message=_('AllowedValues must be a list'))
         self.allowed = tuple(allowed)
@@ -587,7 +589,7 @@ class AllowedPattern(Constraint):
 
     def __init__(self, pattern, description=None):
         super(AllowedPattern, self).__init__(description)
-        if not isinstance(pattern, str):
+        if not isinstance(pattern, six.string_types):
             raise exception.InvalidSchemaError(
                 message=_('AllowedPattern must be a string'))
         self.pattern = pattern
@@ -699,13 +701,13 @@ class BaseCustomConstraint(object):
             try:
                 self.validate_with_client(context.clients, value_to_validate)
             except self.expected_exceptions as e:
-                self._error_message = str(e)
+                self._error_message = six.text_type(e)
                 return False
             else:
                 return True
         class_name = reflection.get_class_name(self, fully_qualified=False)
         cache_value_prefix = "{0}:{1}".format(class_name,
-                                              str(context.tenant_id))
+                                              six.text_type(context.tenant_id))
         validation_result = check_cache_or_validate_value(
             cache_value_prefix, value)
         # if validation failed we should not store it in cache

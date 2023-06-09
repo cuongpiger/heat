@@ -12,6 +12,7 @@
 #    under the License.
 
 import itertools
+import six
 
 from heat.common import exception
 from heat.engine import attributes
@@ -101,13 +102,6 @@ class StackDefinition(object):
                                           self._resource_defns or []))
         else:
             return self.enabled_rsrc_names()
-
-    def all_resource_types(self):
-        """Return the set of types of all resources in the template."""
-        if self._resource_defns is None:
-            self._load_rsrc_defns()
-        return set(self._resource_defns[res].resource_type
-                   for res in self._resource_defns)
 
     def get_availability_zones(self):
         """Return the list of Nova availability zones."""
@@ -238,7 +232,7 @@ class ResourceProxy(status.ResourceStatus):
                   the "show" attribute.
         """
         all_attrs = self._res_data().attributes()
-        return dict((k, v) for k, v in all_attrs.items()
+        return dict((k, v) for k, v in six.iteritems(all_attrs)
                     if k != attributes.SHOW_ATTR)
 
 
@@ -259,8 +253,8 @@ def update_resource_data(stack_definition, resource_name, resource_data):
     res_defns = stack_definition._resource_defns or {}
     op_defns = stack_definition._output_defns or {}
 
-    all_defns = itertools.chain(res_defns.values(),
-                                op_defns.values())
+    all_defns = itertools.chain(six.itervalues(res_defns),
+                                six.itervalues(op_defns))
     for defn in all_defns:
         if resource_name in defn.required_resource_names():
             defn._all_dep_attrs = None

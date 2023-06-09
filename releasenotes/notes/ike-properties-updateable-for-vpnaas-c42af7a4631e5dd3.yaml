@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Properties of the VPNaaS ``OS::Neutron::IKEPolicy`` resource can now be
-    updated in place.

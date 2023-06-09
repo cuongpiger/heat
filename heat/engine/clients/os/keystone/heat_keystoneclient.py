@@ -26,13 +26,12 @@ from oslo_log import log as logging
 from oslo_serialization import jsonutils
 from oslo_utils import importutils
 
-from heat.common import config
 from heat.common import context
 from heat.common import exception
 from heat.common.i18n import _
 from heat.common import password_gen
 
-LOG = logging.getLogger(__name__)
+LOG = logging.getLogger('heat.engine.clients.keystoneclient')
 
 AccessKey = collections.namedtuple('AccessKey', ['id', 'access', 'secret'])
 
@@ -59,7 +58,7 @@ class KsClientWrapper(object):
     directly instantiate instances of this class inside resources themselves.
     """
 
-    def __init__(self, context, region_name):
+    def __init__(self, context):
         # If a trust_id is specified in the context, we immediately
         # authenticate so we can populate the context with a trust token
         # otherwise, we delay client authentication until needed to avoid
@@ -76,9 +75,6 @@ class KsClientWrapper(object):
         self._admin_auth = None
         self._domain_admin_auth = None
         self._domain_admin_client = None
-        self._region_name = region_name
-        self._interface = config.get_client_option('keystone',
-                                                   'endpoint_type')
 
         self.session = self.context.keystone_session
         self.v3_endpoint = self.context.keystone_v3_endpoint
@@ -127,7 +123,8 @@ class KsClientWrapper(object):
         importutils.import_module('keystonemiddleware.auth_token')
         auth_region = cfg.CONF.keystone_authtoken.region_name
         if not auth_region:
-            auth_region = self._region_name
+            auth_region = (self.context.region_name or
+                           cfg.CONF.region_name_for_services)
         return auth_region
 
     @property
@@ -161,7 +158,6 @@ class KsClientWrapper(object):
                 session=self.session,
                 auth=self.domain_admin_auth,
                 connect_retries=cfg.CONF.client_retry_limit,
-                interface=self._interface,
                 region_name=self.auth_region_name)
 
         return self._domain_admin_client
@@ -169,7 +165,6 @@ class KsClientWrapper(object):
     def _v3_client_init(self):
         client = kc_v3.Client(session=self.session,
                               connect_retries=cfg.CONF.client_retry_limit,
-                              interface=self._interface,
                               region_name=self.auth_region_name)
 
         if hasattr(self.context.auth_plugin, 'get_access'):
@@ -193,7 +188,19 @@ class KsClientWrapper(object):
 
         return client
 
-    def _create_trust_context(self, trustor_user_id, trustor_proj_id):
+    def create_trust_context(self):
+        """Create a trust using the trustor identity in the current context.
+
+        The trust is created with the trustee as the heat service user.
+
+        If the current context already contains a trust_id, we do nothing
+        and return the current context.
+
+        Returns a context containing the new trust_id.
+        """
+        if self.context.trust_id:
+            return self.context
+
         # We need the service admin user ID (not name), as the trustor user
         # can't lookup the ID in keystoneclient unless they're admin
         # workaround this by getting the user_id from admin_client
@@ -203,6 +210,9 @@ class KsClientWrapper(object):
         except ks_exception.Unauthorized:
             LOG.error("Domain admin client authentication failed")
             raise exception.AuthorizationFailure()
+
+        trustor_user_id = self.context.auth_plugin.get_user_id(self.session)
+        trustor_proj_id = self.context.auth_plugin.get_project_id(self.session)
 
         role_kw = {}
         # inherit the roles of the trustor, unless set trusts_delegated_roles
@@ -235,46 +245,12 @@ class KsClientWrapper(object):
         trust_context.trustor_user_id = trustor_user_id
         return trust_context
 
-    def create_trust_context(self):
-        """Create a trust using the trustor identity in the current context.
-
-        The trust is created with the trustee as the heat service user.
-
-        If the current context already contains a trust_id, we do nothing
-        and return the current context.
-
-        Returns a context containing the new trust_id.
-        """
-        if self.context.trust_id:
-            return self.context
-
-        trustor_user_id = self.context.auth_plugin.get_user_id(self.session)
-        trustor_proj_id = self.context.auth_plugin.get_project_id(self.session)
-        return self._create_trust_context(trustor_user_id, trustor_proj_id)
-
     def delete_trust(self, trust_id):
         """Delete the specified trust."""
         try:
             self.client.trusts.delete(trust_id)
         except (ks_exception.NotFound, ks_exception.Unauthorized):
             pass
-
-    def regenerate_trust_context(self):
-        """Regenerate a trust using the trustor identity of current user_id.
-
-        The trust is created with the trustee as the heat service user.
-
-        Returns a context containing the new trust_id.
-        """
-        old_trust_id = self.context.trust_id
-        trustor_user_id = self.context.auth_plugin.get_user_id(self.session)
-        trustor_proj_id = self.context.auth_plugin.get_project_id(self.session)
-        trust_context = self._create_trust_context(trustor_user_id,
-                                                   trustor_proj_id)
-
-        if old_trust_id:
-            self.delete_trust(old_trust_id)
-        return trust_context
 
     def _get_username(self, username):
         if(len(username) > 255):
@@ -620,9 +596,9 @@ class KeystoneClient(object):
     needs to be initialized.
     """
 
-    def __new__(cls, context, region_name=None):
+    def __new__(cls, context):
         if cfg.CONF.keystone_backend == _default_keystone_backend:
-            return KsClientWrapper(context, region_name)
+            return KsClientWrapper(context)
         else:
             return importutils.import_object(
                 cfg.CONF.keystone_backend,

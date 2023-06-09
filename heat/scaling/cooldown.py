@@ -18,6 +18,7 @@ from heat.common.i18n import _
 from heat.engine import resource
 from oslo_log import log as logging
 from oslo_utils import timeutils
+import six
 
 LOG = logging.getLogger(__name__)
 
@@ -47,19 +48,19 @@ class CooldownMixin(object):
             # Note: this is for supporting old version cooldown checking
             metadata.pop('scaling_in_progress', None)
             if metadata and cooldown != 0:
-                last_adjust = next(iter(metadata.keys()))
+                last_adjust = next(six.iterkeys(metadata))
                 if not timeutils.is_older_than(last_adjust, cooldown):
                     self._log_and_raise_no_action(cooldown)
 
         elif 'cooldown_end' in metadata:
-            cooldown_end = next(iter(metadata['cooldown_end'].keys()))
+            cooldown_end = next(six.iterkeys(metadata['cooldown_end']))
             now = timeutils.utcnow().isoformat()
             if now < cooldown_end:
                 self._log_and_raise_no_action(cooldown)
 
         elif cooldown != 0:
             # Note: this is also for supporting old version cooldown checking
-            last_adjust = next(iter(metadata['cooldown'].keys()))
+            last_adjust = next(six.iterkeys(metadata['cooldown']))
             if not timeutils.is_older_than(last_adjust, cooldown):
                 self._log_and_raise_no_action(cooldown)
 
@@ -90,7 +91,7 @@ class CooldownMixin(object):
                 seconds=cooldown)).isoformat()
             if 'cooldown_end' in metadata:
                 cooldown_end = max(
-                    next(iter(metadata['cooldown_end'].keys())),
+                    next(six.iterkeys(metadata['cooldown_end'])),
                     cooldown_end)
             metadata['cooldown_end'] = {cooldown_end: cooldown_reason}
         metadata['scaling_in_progress'] = False

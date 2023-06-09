@@ -11,6 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import six
+
 from heat.common import exception
 from heat.common.i18n import _
 from heat.engine import constraints
@@ -97,7 +99,7 @@ class DesignateRecordSet(resource.Resource):
     entity = 'recordsets'
 
     def handle_create(self):
-        args = dict((k, v) for k, v in self.properties.items() if v)
+        args = dict((k, v) for k, v in six.iteritems(self.properties) if v)
         args['type_'] = args.pop(self.TYPE)
         if not args.get(self.NAME):
             args[self.NAME] = self.physical_resource_name()
@@ -148,10 +150,9 @@ class DesignateRecordSet(resource.Resource):
                     recordset=self.resource_id,
                     zone=self.properties[self.ZONE]
                 )
-                return self.resource_id
 
     def check_delete_complete(self, handler_data=None):
-        if handler_data:
+        if self.resource_id is not None:
             with self.client_plugin().ignore_not_found:
                 return self._check_status_complete()
 

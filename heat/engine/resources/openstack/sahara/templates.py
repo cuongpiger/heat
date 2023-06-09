@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import re
+import six
 
 from oslo_log import log as logging
 from oslo_utils import encodeutils
@@ -283,7 +284,7 @@ class SaharaNodeGroupTemplate(resource.Resource):
         return props
 
     def handle_create(self):
-        props = dict((k, v) for k, v in self.properties.items())
+        props = dict((k, v) for k, v in six.iteritems(self.properties))
         args = self._prepare_properties(props)
         node_group_template = self.client().node_group_templates.create(**args)
         LOG.info("Node Group Template '%s' has been created",
@@ -334,7 +335,7 @@ class SaharaNodeGroupTemplate(resource.Resource):
             self.properties[self.PLUGIN_NAME],
             self.properties[self.HADOOP_VERSION])
         allowed_processes = [item for sublist in
-                             list(plugin.node_processes.values())
+                             list(six.itervalues(plugin.node_processes))
                              for item in sublist]
         unsupported_processes = []
         for process in self.properties[self.NODE_PROCESSES]:
@@ -563,7 +564,7 @@ class SaharaClusterTemplate(resource.Resource):
         return props
 
     def handle_create(self):
-        props = dict((k, v) for k, v in self.properties.items())
+        props = dict((k, v) for k, v in six.iteritems(self.properties))
         args = self._prepare_properties(props)
         cluster_template = self.client().cluster_templates.create(**args)
         LOG.info("Cluster Template '%s' has been created",

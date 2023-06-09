@@ -18,7 +18,6 @@ from email.mime import text
 import os
 import pkgutil
 import string
-from urllib import parse as urlparse
 
 from neutronclient.common import exceptions as q_exceptions
 from novaclient import api_versions
@@ -28,6 +27,8 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
 from oslo_utils import netutils
+import six
+from six.moves.urllib import parse as urlparse
 import tenacity
 
 from heat.common import exception
@@ -47,7 +48,7 @@ CLIENT_NAME = 'nova'
 class NovaClientPlugin(microversion_mixin.MicroversionMixin,
                        client_plugin.ClientPlugin):
 
-    deferred_server_statuses = {'BUILD',
+    deferred_server_statuses = ['BUILD',
                                 'HARD_REBOOT',
                                 'PASSWORD',
                                 'REBOOT',
@@ -56,7 +57,7 @@ class NovaClientPlugin(microversion_mixin.MicroversionMixin,
                                 'REVERT_RESIZE',
                                 'SHUTOFF',
                                 'SUSPENDED',
-                                'VERIFY_RESIZE'}
+                                'VERIFY_RESIZE']
 
     exceptions_module = exceptions
 
@@ -81,9 +82,11 @@ class NovaClientPlugin(microversion_mixin.MicroversionMixin,
 
     def _get_args(self, version):
         endpoint_type = self._get_client_option(CLIENT_NAME, 'endpoint_type')
+        extensions = nc.discover_extensions(version)
 
         return {
             'session': self.context.keystone_session,
+            'extensions': extensions,
             'endpoint_type': endpoint_type,
             'service_type': self.COMPUTE,
             'region_name': self._get_region_name(),
@@ -224,7 +227,7 @@ class NovaClientPlugin(microversion_mixin.MicroversionMixin,
 
         """
         # not checking with is_uuid_like as most tests use strings e.g. '1234'
-        if isinstance(server, str):
+        if isinstance(server, six.string_types):
             server = self.fetch_server(server)
             if server is None:
                 return False
@@ -281,15 +284,20 @@ class NovaClientPlugin(microversion_mixin.MicroversionMixin,
 
         return flavor
 
-    def get_host(self, hypervisor_hostname):
-        """Gets list of matching hypervisors by specified name.
+    def get_host(self, host_name):
+        """Get the host id specified by name.
 
-        :param hypervisor_hostname: the name of host to find
-        :returns: list of matching hypervisor hosts
-        :raises nova client exceptions.NotFound:
+        :param host_name: the name of host to find
+        :returns: the list of match hosts
+        :raises exception.EntityNotFound:
         """
 
-        return self.client().hypervisors.search(hypervisor_hostname)
+        host_list = self.client().hosts.list()
+        for host in host_list:
+            if host.host_name == host_name and host.service == self.COMPUTE:
+                return host
+
+        raise exception.EntityNotFound(entity='Host', name=host_name)
 
     def get_keypair(self, key_name):
         """Get the public key specified by :key_name:
@@ -596,12 +604,12 @@ echo -e '%s\tALL=(ALL)\tNOPASSWD: ALL' >> /etc/sudoers
 
     def meta_serialize(self, metadata):
         """Serialize non-string metadata values before sending them to Nova."""
-        if not isinstance(metadata, collections.abc.Mapping):
+        if not isinstance(metadata, collections.Mapping):
             raise exception.StackValidationFailed(message=_(
                 "nova server metadata needs to be a Map."))
 
         return dict((key, (value if isinstance(value,
-                                               str)
+                                               six.string_types)
                            else jsonutils.dumps(value))
                      ) for (key, value) in metadata.items())
 
@@ -647,7 +655,7 @@ echo -e '%s\tALL=(ALL)\tNOPASSWD: ALL' >> /etc/sudoers
         """
         nc = self.client
 
-        class ConsoleUrls(collections.abc.Mapping):
+        class ConsoleUrls(collections.Mapping):
             def __init__(self, server):
                 self.console_method = server.get_console_url
                 self.support_console_types = ['novnc', 'xvpvnc',
@@ -669,7 +677,7 @@ echo -e '%s\tALL=(ALL)\tNOPASSWD: ALL' >> /etc/sudoers
                 except exceptions.UnsupportedConsoleType as ex:
                     url = ex.message
                 except Exception as e:
-                    url = _('Cannot get console url: %s') % str(e)
+                    url = _('Cannot get console url: %s') % six.text_type(e)
 
                 return url
 
@@ -788,7 +796,7 @@ echo -e '%s\tALL=(ALL)\tNOPASSWD: ALL' >> /etc/sudoers
             server = self.fetch_server(server_id)
             if server:
                 server.interface_detach(port_id)
-        return True
+                return True
 
     def interface_attach(self, server_id, port_id=None, net_id=None, fip=None,
                          security_groups=None):
@@ -835,6 +843,15 @@ echo -e '%s\tALL=(ALL)\tNOPASSWD: ALL' >> /etc/sudoers
                     return True
         return False
 
+    @os_client.MEMOIZE_EXTENSIONS
+    def _list_extensions(self):
+        extensions = self.client().list_extensions.show_all()
+        return set(extension.alias for extension in extensions)
+
+    def has_extension(self, alias):
+        """Check if specific extension is present."""
+        return alias in self._list_extensions()
+
 
 class NovaBaseConstraint(constraints.BaseCustomConstraint):
 
@@ -866,7 +883,5 @@ class FlavorConstraint(NovaBaseConstraint):
 
 
 class HostConstraint(NovaBaseConstraint):
-
-    expected_exceptions = (exceptions.NotFound,)
 
     resource_getter_name = 'get_host'

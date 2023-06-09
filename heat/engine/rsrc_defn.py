@@ -12,11 +12,13 @@
 
 import collections
 import copy
-import functools
 import itertools
 import operator
 
+import six
+
 from heat.common import exception
+from heat.common.i18n import repr_wrapper
 from heat.engine import function
 from heat.engine import properties
 
@@ -35,6 +37,7 @@ FIELDS = (
 )
 
 
+@repr_wrapper
 class ResourceDefinition(object):
     """A definition of a resource, independent of any template format."""
 
@@ -110,22 +113,22 @@ class ResourceDefinition(object):
         self._dep_names = None
         self._all_dep_attrs = None
 
-        assert isinstance(self.description, str)
+        assert isinstance(self.description, six.string_types)
 
         if properties is not None:
-            assert isinstance(properties, (collections.abc.Mapping,
+            assert isinstance(properties, (collections.Mapping,
                                            function.Function))
             self._hash ^= _hash_data(properties)
 
         if metadata is not None:
-            assert isinstance(metadata, (collections.abc.Mapping,
+            assert isinstance(metadata, (collections.Mapping,
                                          function.Function))
             self._hash ^= _hash_data(metadata)
 
         if depends is not None:
-            assert isinstance(depends, (collections.abc.Sequence,
+            assert isinstance(depends, (collections.Sequence,
                                         function.Function))
-            assert not isinstance(depends, str)
+            assert not isinstance(depends, six.string_types)
             self._hash ^= _hash_data(depends)
 
         if deletion_policy is not None:
@@ -133,18 +136,18 @@ class ResourceDefinition(object):
             self._hash ^= _hash_data(deletion_policy)
 
         if update_policy is not None:
-            assert isinstance(update_policy, (collections.abc.Mapping,
+            assert isinstance(update_policy, (collections.Mapping,
                                               function.Function))
             self._hash ^= _hash_data(update_policy)
 
         if external_id is not None:
-            assert isinstance(external_id, (str,
+            assert isinstance(external_id, (six.string_types,
                                             function.Function))
             self._hash ^= _hash_data(external_id)
             self._deletion_policy = self.RETAIN
 
         if condition is not None:
-            assert isinstance(condition, (str, bool,
+            assert isinstance(condition, (six.string_types, bool,
                                           function.Function))
             self._hash ^= _hash_data(condition)
 
@@ -254,9 +257,9 @@ class ResourceDefinition(object):
                                               path(PROPERTIES))
             metadata_deps = function.dependencies(self._metadata,
                                                   path(METADATA))
-            implicit_depends = map(lambda rp: rp.name,
-                                   itertools.chain(prop_deps,
-                                                   metadata_deps))
+            implicit_depends = six.moves.map(lambda rp: rp.name,
+                                             itertools.chain(prop_deps,
+                                                             metadata_deps))
 
             # (ricolin) External resource should not depend on any other
             # resources. This operation is not allowed for now.
@@ -286,7 +289,9 @@ class ResourceDefinition(object):
             if getattr(res, 'strict_dependency', True):
                 return res
 
-        return filter(None, map(get_resource, self.required_resource_names()))
+        return six.moves.filter(None,
+                                six.moves.map(get_resource,
+                                              self.required_resource_names()))
 
     def set_translation_rules(self, rules=None, client_resolve=True):
         """Helper method to update properties with translation rules."""
@@ -301,8 +306,7 @@ class ResourceDefinition(object):
         """
         props = properties.Properties(schema, self._properties or {},
                                       function.resolve, context=context,
-                                      section=PROPERTIES,
-                                      rsrc_description=self.description)
+                                      section=PROPERTIES)
         props.update_translation(self._rules, self._client_resolve)
         return props
 
@@ -431,12 +435,12 @@ def _hash_data(data):
     if isinstance(data, function.Function):
         data = copy.deepcopy(data)
 
-    if not isinstance(data, str):
-        if isinstance(data, collections.abc.Sequence):
+    if not isinstance(data, six.string_types):
+        if isinstance(data, collections.Sequence):
             return hash(tuple(_hash_data(d) for d in data))
 
-        if isinstance(data, collections.abc.Mapping):
+        if isinstance(data, collections.Mapping):
             item_hashes = (hash(k) ^ _hash_data(v) for k, v in data.items())
-            return functools.reduce(operator.xor, item_hashes, 0)
+            return six.moves.reduce(operator.xor, item_hashes, 0)
 
     return hash(data)

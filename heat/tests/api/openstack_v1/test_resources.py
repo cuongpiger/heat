@@ -11,8 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
-
+import mock
+import six
 import webob.exc
 
 import heat.api.middleware.fault as fault
@@ -147,8 +147,8 @@ class ResourceControllerTest(tools.ControllerTest, common.HeatTestCase):
                                stack_id=stack_identity.stack_id)
 
         self.assertIn("Invalid filter parameters %s" %
-                      [str('invalid_key')],
-                      str(ex))
+                      [six.text_type('invalid_key')],
+                      six.text_type(ex))
         self.assertFalse(mock_call.called)
 
     def test_index_nested_depth(self, mock_enforce):
@@ -192,7 +192,7 @@ class ResourceControllerTest(tools.ControllerTest, common.HeatTestCase):
                                stack_id=stack_identity.stack_id)
 
         self.assertEqual("Only integer is acceptable by 'nested_depth'.",
-                         str(ex))
+                         six.text_type(ex))
         self.assertFalse(mock_call.called)
 
     def test_index_denied_policy(self, mock_enforce):
@@ -213,7 +213,7 @@ class ResourceControllerTest(tools.ControllerTest, common.HeatTestCase):
             stack_id=stack_identity.stack_id)
 
         self.assertEqual(403, resp.status_int)
-        self.assertIn('403 Forbidden', str(resp))
+        self.assertIn('403 Forbidden', six.text_type(resp))
 
     def test_index_detail(self, mock_enforce):
         self._mock_enforce_setup(mock_enforce, 'index', True)
@@ -562,7 +562,7 @@ class ResourceControllerTest(tools.ControllerTest, common.HeatTestCase):
             resource_name=res_name)
 
         self.assertEqual(403, resp.status_int)
-        self.assertIn('403 Forbidden', str(resp))
+        self.assertIn('403 Forbidden', six.text_type(resp))
 
     def test_metadata_show(self, mock_enforce):
         self._mock_enforce_setup(mock_enforce, 'metadata', True)
@@ -693,7 +693,7 @@ class ResourceControllerTest(tools.ControllerTest, common.HeatTestCase):
             resource_name=res_name)
 
         self.assertEqual(403, resp.status_int)
-        self.assertIn('403 Forbidden', str(resp))
+        self.assertIn('403 Forbidden', six.text_type(resp))
 
     def test_signal(self, mock_enforce):
         self._mock_enforce_setup(mock_enforce, 'signal', True)
@@ -808,9 +808,9 @@ class ResourceControllerTest(tools.ControllerTest, common.HeatTestCase):
                                    resource_name=res_name,
                                    body=body)
 
-        self.assertIn(expected, str(actual))
-        self.assertIn('invalid_key1', str(actual))
-        self.assertIn('invalid_key2', str(actual))
+        self.assertIn(expected, six.text_type(actual))
+        self.assertIn('invalid_key1', six.text_type(actual))
+        self.assertIn('invalid_key2', six.text_type(actual))
         mock_call.assert_not_called()
 
     def test_mark_unhealthy_with_invalid_value(self, mock_enforce):
@@ -837,7 +837,7 @@ class ResourceControllerTest(tools.ControllerTest, common.HeatTestCase):
                                    resource_name=res_name,
                                    body=body)
 
-        self.assertIn(expected, str(actual))
+        self.assertIn(expected, six.text_type(actual))
         mock_call.assert_not_called()
 
     def test_mark_unhealthy_without_mark_unhealthy_key(self, mock_enforce):
@@ -863,5 +863,5 @@ class ResourceControllerTest(tools.ControllerTest, common.HeatTestCase):
                                    resource_name=res_name,
                                    body=body)
 
-        self.assertIn(expected, str(actual))
+        self.assertIn(expected, six.text_type(actual))
         mock_call.assert_not_called()

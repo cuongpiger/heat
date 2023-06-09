@@ -14,11 +14,12 @@
 import collections
 import copy
 import json
-from unittest import mock
 
 from cinderclient import exceptions as cinder_exp
+import mock
 from novaclient import exceptions as nova_exp
 from oslo_config import cfg
+import six
 
 from heat.common import exception
 from heat.common import template_format
@@ -93,13 +94,9 @@ class CinderVolumeTest(vt_base.VolumeTestCase):
         self.t = template_format.parse(cinder_volume_template)
         self.use_cinder = True
 
-    def create_volume(self, t, stack, resource_name,
-                      mock_check_extend_ready=True):
-        rsrc = super(CinderVolumeTest, self).create_volume(
+    def create_volume(self, t, stack, resource_name):
+        return super(CinderVolumeTest, self).create_volume(
             t, stack, resource_name, validate=False)
-        if mock_check_extend_ready:
-            rsrc._ready_to_extend_volume = mock.Mock(return_value=True)
-        return rsrc
 
     def _mock_create_volume(self, fv, stack_name, size=1,
                             final_status='available', extra_get_mocks=[],
@@ -123,7 +120,7 @@ class CinderVolumeTest(vt_base.VolumeTestCase):
                                   self.t, stack, 'volume')
         self.assertEqual(
             "Property error: resources.volume.properties.size: "
-            "0 is out of range (min: 1, max: None)", str(error))
+            "0 is out of range (min: 1, max: None)", six.text_type(error))
 
     def test_cinder_create(self):
         fv = vt_base.FakeVolume('creating')
@@ -276,7 +273,7 @@ class CinderVolumeTest(vt_base.VolumeTestCase):
                                   rsrc.FnGetAtt, 'unknown')
         self.assertEqual(
             'The Referenced Attribute (volume unknown) is incorrect.',
-            str(error))
+            six.text_type(error))
 
         self.cinder_fc.volumes.get.assert_called_with('vol-123')
 
@@ -362,7 +359,7 @@ class CinderVolumeTest(vt_base.VolumeTestCase):
         ex = self.assertRaises(exception.ResourceFailure, update_task)
         self.assertEqual('NotSupported: resources.volume: '
                          'Shrinking volume is not supported.',
-                         str(ex))
+                         six.text_type(ex))
 
         self.assertEqual((rsrc.UPDATE, rsrc.FAILED), rsrc.state)
 
@@ -412,7 +409,7 @@ class CinderVolumeTest(vt_base.VolumeTestCase):
 
         update_task = scheduler.TaskRunner(rsrc.update, after)
         ex = self.assertRaises(exception.ResourceFailure, update_task)
-        self.assertIn('Over limit', str(ex))
+        self.assertIn('Over limit', six.text_type(ex))
 
         self.assertEqual((rsrc.UPDATE, rsrc.FAILED), rsrc.state)
         self.cinder_fc.volumes.extend.assert_called_once_with(fv.id, 2)
@@ -440,7 +437,7 @@ class CinderVolumeTest(vt_base.VolumeTestCase):
         update_task = scheduler.TaskRunner(rsrc.update, after)
         ex = self.assertRaises(exception.ResourceFailure, update_task)
         self.assertIn("Volume resize failed - Unknown status error_extending",
-                      str(ex))
+                      six.text_type(ex))
 
         self.assertEqual((rsrc.UPDATE, rsrc.FAILED), rsrc.state)
         self.cinder_fc.volumes.extend.assert_called_once_with(fv.id, 2)
@@ -602,7 +599,7 @@ class CinderVolumeTest(vt_base.VolumeTestCase):
         ex = self.assertRaises(exception.ResourceFailure, update_task)
         self.assertEqual((rsrc.UPDATE, rsrc.FAILED), rsrc.state)
         self.assertIn("NotSupported: resources.volume2: Shrinking volume is "
-                      "not supported", str(ex))
+                      "not supported", six.text_type(ex))
 
         props = copy.deepcopy(rsrc.properties.data)
         props['size'] = 3
@@ -1011,7 +1008,7 @@ class CinderVolumeTest(vt_base.VolumeTestCase):
         vp.update(combinations)
         rsrc = stack['volume2']
         ex = self.assertRaises(exc, rsrc.validate)
-        self.assertEqual(err_msg, str(ex))
+        self.assertEqual(err_msg, six.text_type(ex))
 
     def test_cinder_create_with_image_and_imageRef(self):
         self.stack_name = 'test_create_with_image_and_imageRef'
@@ -1025,7 +1022,7 @@ class CinderVolumeTest(vt_base.VolumeTestCase):
         vp.update(combinations)
         rsrc = stack.get('volume2')
         ex = self.assertRaises(exception.StackValidationFailed, rsrc.validate)
-        self.assertIn(err_msg, str(ex))
+        self.assertIn(err_msg, six.text_type(ex))
 
     def test_cinder_create_with_image_and_size(self):
         self.stack_name = 'test_create_with_image_and_size'
@@ -1271,6 +1268,29 @@ class CinderVolumeTest(vt_base.VolumeTestCase):
 
         self.assertEqual(expected, reality)
 
+    def test_empty_string_az(self):
+        fv = vt_base.FakeVolume('creating')
+        self.stack_name = 'test_cvolume_default_stack'
+
+        vol_name = utils.PhysName(self.stack_name, 'volume')
+        self.cinder_fc.volumes.create.return_value = fv
+        fv_ready = vt_base.FakeVolume('available', id=fv.id)
+        self.cinder_fc.volumes.get.side_effect = [fv, fv_ready]
+
+        self.t['resources']['volume']['properties'] = {
+            'size': '1',
+            'availability_zone': "",
+        }
+        stack = utils.parse_stack(self.t, stack_name=self.stack_name)
+        self.create_volume(self.t, stack, 'volume')
+
+        self.cinder_fc.volumes.create.assert_called_once_with(
+            size=1, availability_zone=None,
+            description=None,
+            name=vol_name,
+            metadata={}
+        )
+
     def test_detach_volume_to_complete_with_resize_task_state(self):
         fv = vt_base.FakeVolume('creating')
         self.stack_name = 'test_cvolume_detach_with_resize_task_state_stack'
@@ -1356,74 +1376,3 @@ class CinderVolumeTest(vt_base.VolumeTestCase):
         prg_attach = mock.MagicMock(called=False, srv_id='InstanceInActive')
         self.assertEqual(False, rsrc._attach_volume_to_complete(prg_attach))
         self.assertEqual('vol-123', prg_attach.called)
-
-    def test_empty_string_az(self):
-        fv = vt_base.FakeVolume('creating')
-        self.stack_name = 'test_cvolume_default_stack'
-
-        vol_name = utils.PhysName(self.stack_name, 'volume')
-        self.cinder_fc.volumes.create.return_value = fv
-        fv_ready = vt_base.FakeVolume('available', id=fv.id)
-        self.cinder_fc.volumes.get.side_effect = [fv, fv_ready]
-
-        self.t['resources']['volume']['properties'] = {
-            'size': '1',
-            'availability_zone': "",
-        }
-        stack = utils.parse_stack(self.t, stack_name=self.stack_name)
-        self.create_volume(self.t, stack, 'volume')
-
-        self.cinder_fc.volumes.create.assert_called_once_with(
-            size=1, availability_zone=None,
-            description=None,
-            name=vol_name,
-            metadata={}
-        )
-
-    def test_ready_to_extend_volume(self):
-        self.stack_name = 'test_ready_to_extend_volume'
-
-        self._mock_create_volume(vt_base.FakeVolume('creating'),
-                                 self.stack_name,
-                                 extra_get_mocks=[
-                                     vt_base.FakeVolume('extending'),
-                                     vt_base.FakeVolume('reserved'),
-                                     vt_base.FakeVolume('in-use',
-                                                        multiattach=True),
-                                     vt_base.FakeVolume('in-use',
-                                                        multiattach=False),
-                                     vt_base.FakeVolume('available')])
-
-        stack = utils.parse_stack(self.t, stack_name=self.stack_name)
-
-        rsrc = self.create_volume(self.t, stack, 'volume',
-                                  mock_check_extend_ready=False)
-
-        self.assertEqual(False, rsrc._ready_to_extend_volume())
-        self.assertEqual(False, rsrc._ready_to_extend_volume())
-        self.assertEqual(True, rsrc._ready_to_extend_volume())
-        self.assertEqual(False, rsrc._ready_to_extend_volume())
-        self.assertEqual(True, rsrc._ready_to_extend_volume())
-
-    def test_try_detach_volume_if_server_was_temporarily_in_error(self):
-        self.stack_name = 'test_cvolume_detach_server_in_error_stack'
-        fva = vt_base.FakeVolume('in-use')
-        m_v = self._mock_create_server_volume_script(
-            vt_base.FakeVolume('attaching'))
-        self._mock_create_volume(vt_base.FakeVolume('creating'),
-                                 self.stack_name,
-                                 extra_get_mocks=[
-                                     m_v, fva,
-                                     vt_base.FakeVolume('available')])
-        self.stub_VolumeConstraint_validate()
-        # delete script
-        self.fc.volumes.get_server_volume.side_effect = [
-            fva, fva, fakes_nova.fake_exception()]
-        nova_responses = [nova_exp.Conflict('409'), None]
-        self.fc.volumes.delete_server_volume.side_effect = nova_responses
-        stack = utils.parse_stack(self.t, stack_name=self.stack_name)
-        self.create_volume(self.t, stack, 'volume')
-        rsrc = self.create_attachment(self.t, stack, 'attachment')
-        scheduler.TaskRunner(rsrc.delete)()
-        self.assertEqual(self.fc.volumes.delete_server_volume.call_count,
-                         len(nova_responses))

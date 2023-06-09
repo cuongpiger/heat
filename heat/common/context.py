@@ -11,9 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import functools
-
 from keystoneauth1 import access
+from keystoneauth1 import exceptions as ksa_exceptions
 from keystoneauth1.identity import access as access_plugin
 from keystoneauth1.identity import generic
 from keystoneauth1 import loading as ks_loading
@@ -25,18 +24,19 @@ from oslo_log import log as logging
 import oslo_messaging
 from oslo_middleware import request_id as oslo_request_id
 from oslo_utils import importutils
+import six
+import tenacity
 
 from heat.common import config
 from heat.common import endpoint_utils
 from heat.common import exception
 from heat.common import policy
 from heat.common import wsgi
-from heat.db import api as db_api
+from heat.db.sqlalchemy import api as db_api
 from heat.engine import clients
 
 LOG = logging.getLogger(__name__)
 
-cfg.CONF.import_opt('client_retry_limit', 'heat.common.config')
 
 # Note, we yield the options via list_opts to enable generation of the
 # sample heat.conf, but we don't register these options directly via
@@ -51,6 +51,15 @@ cfg.CONF.import_opt('client_retry_limit', 'heat.common.config')
 PASSWORD_PLUGIN = 'password'  # nosec Bandit B105
 TRUSTEE_CONF_GROUP = 'trustee'
 ks_loading.register_auth_conf_options(cfg.CONF, TRUSTEE_CONF_GROUP)
+
+
+retry_on_connection_timeout = tenacity.retry(
+    stop=tenacity.stop_after_attempt(cfg.CONF.client_retry_limit+1),
+    wait=tenacity.wait_random(max=2),
+    retry=tenacity.retry_if_exception_type(
+        (ksa_exceptions.ConnectFailure,
+         ksa_exceptions.DiscoveryFailure)),
+    reraise=True)
 
 
 def list_opts():
@@ -90,17 +99,21 @@ class RequestContext(context.RequestContext):
         :param overwrite: Set to False to ensure that the greenthread local
             copy of the index is not overwritten.
         """
-        super(RequestContext, self).__init__(
-            is_admin=is_admin, read_only=read_only,
-            show_deleted=show_deleted, request_id=request_id,
-            roles=roles, user_domain_id=user_domain_id,
-            project_domain_id=project_domain_id,
-            overwrite=overwrite, **kwargs)
+        if user_domain_id:
+            kwargs['user_domain'] = user_domain_id
+        if project_domain_id:
+            kwargs['project_domain'] = project_domain_id
+
+        super(RequestContext, self).__init__(is_admin=is_admin,
+                                             read_only=read_only,
+                                             show_deleted=show_deleted,
+                                             request_id=request_id,
+                                             roles=roles,
+                                             overwrite=overwrite,
+                                             **kwargs)
 
         self.username = username
         self.password = password
-        if username is None and password is None:
-            self.username = self.user_name
         self.region_name = region_name
         self.aws_creds = aws_creds
         self.project_name = project_name
@@ -109,7 +122,6 @@ class RequestContext(context.RequestContext):
         self._session = None
         self._clients = None
         self._keystone_session = session.Session(
-            connect_retries=cfg.CONF.client_retry_limit,
             **config.get_ssl_options('keystone'))
         self.trust_id = trust_id
         self.trustor_user_id = trustor_user_id
@@ -154,8 +166,8 @@ class RequestContext(context.RequestContext):
         return self._clients
 
     def to_dict(self):
-        user_idt = u'{user} {project}'.format(user=self.user_id or '-',
-                                              project=self.project_id or '-')
+        user_idt = u'{user} {tenant}'.format(user=self.user_id or '-',
+                                             tenant=self.project_id or '-')
 
         return {'auth_token': self.auth_token,
                 'username': self.username,
@@ -178,8 +190,8 @@ class RequestContext(context.RequestContext):
                 'show_deleted': self.show_deleted,
                 'region_name': self.region_name,
                 'user_identity': user_idt,
-                'user_domain_id': self.user_domain_id,
-                'project_domain_id': self.project_domain_id}
+                'user_domain': self.user_domain,
+                'project_domain': self.project_domain}
 
     @classmethod
     def from_dict(cls, values):
@@ -200,8 +212,8 @@ class RequestContext(context.RequestContext):
             request_id=values.get('request_id'),
             show_deleted=values.get('show_deleted', False),
             region_name=values.get('region_name'),
-            user_domain_id=values.get('user_domain_id'),
-            project_domain_id=values.get('project_domain_id')
+            user_domain_id=values.get('user_domain'),
+            project_domain_id=values.get('project_domain')
         )
 
     def to_policy_values(self):
@@ -287,13 +299,15 @@ class RequestContext(context.RequestContext):
 
 
 class StoredContext(RequestContext):
+
+    @retry_on_connection_timeout
     def _load_keystone_data(self):
         self._keystone_loaded = True
         auth_ref = self.auth_plugin.get_access(self.keystone_session)
 
         self.roles = auth_ref.role_names
-        self.user_domain_id = auth_ref.user_domain_id
-        self.project_domain_id = auth_ref.project_domain_id
+        self.user_domain = auth_ref.user_domain_id
+        self.project_domain = auth_ref.project_domain_id
 
     @property
     def roles(self):
@@ -306,24 +320,24 @@ class StoredContext(RequestContext):
         self._roles = roles
 
     @property
-    def user_domain_id(self):
+    def user_domain(self):
         if not getattr(self, '_keystone_loaded', False):
             self._load_keystone_data()
         return self._user_domain_id
 
-    @user_domain_id.setter
-    def user_domain_id(self, user_domain_id):
-        self._user_domain_id = user_domain_id
+    @user_domain.setter
+    def user_domain(self, user_domain):
+        self._user_domain_id = user_domain
 
     @property
-    def project_domain_id(self):
+    def project_domain(self):
         if not getattr(self, '_keystone_loaded', False):
             self._load_keystone_data()
         return self._project_domain_id
 
-    @project_domain_id.setter
-    def project_domain_id(self, project_domain_id):
-        self._project_domain_id = project_domain_id
+    @project_domain.setter
+    def project_domain(self, project_domain):
+        self._project_domain_id = project_domain
 
 
 def get_admin_context(show_deleted=False):
@@ -352,8 +366,8 @@ class ContextMiddleware(wsgi.Middleware):
         username = None
         password = None
         aws_creds = None
-        user_domain_id = None
-        project_domain_id = None
+        user_domain = None
+        project_domain = None
 
         if headers.get('X-Auth-User') is not None:
             username = headers.get('X-Auth-User')
@@ -362,10 +376,10 @@ class ContextMiddleware(wsgi.Middleware):
             aws_creds = headers.get('X-Auth-EC2-Creds')
 
         if headers.get('X-User-Domain-Id') is not None:
-            user_domain_id = headers.get('X-User-Domain-Id')
+            user_domain = headers.get('X-User-Domain-Id')
 
         if headers.get('X-Project-Domain-Id') is not None:
-            project_domain_id = headers.get('X-Project-Domain-Id')
+            project_domain = headers.get('X-Project-Domain-Id')
 
         project_name = headers.get('X-Project-Name')
         region_name = headers.get('X-Region-Name')
@@ -383,8 +397,8 @@ class ContextMiddleware(wsgi.Middleware):
             password=password,
             auth_url=auth_url,
             request_id=req_id,
-            user_domain_id=user_domain_id,
-            project_domain_id=project_domain_id,
+            user_domain=user_domain,
+            project_domain=project_domain,
             auth_token_info=token_info,
             region_name=region_name,
             auth_plugin=auth_plugin,
@@ -403,7 +417,7 @@ def ContextMiddleware_filter_factory(global_conf, **local_conf):
 
 
 def request_context(func):
-    @functools.wraps(func)
+    @six.wraps(func)
     def wrapped(self, ctx, *args, **kwargs):
         try:
             return func(self, ctx, *args, **kwargs)

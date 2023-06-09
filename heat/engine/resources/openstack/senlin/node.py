@@ -130,15 +130,18 @@ class Node(res_base.BaseSenlinResource):
         if self.resource_id is not None:
             with self.client_plugin().ignore_not_found:
                 self.client().delete_node(self.resource_id)
-                return self.resource_id
+        return self.resource_id
 
     def check_delete_complete(self, res_id):
-        if res_id:
-            with self.client_plugin().ignore_not_found:
-                self.client().get_node(self.resource_id)
-                return False
+        if not res_id:
+            return True
 
-        return True
+        try:
+            self.client().get_node(self.resource_id)
+        except Exception as ex:
+            self.client_plugin().ignore_not_found(ex)
+            return True
+        return False
 
     def handle_update(self, json_snippet, tmpl_diff, prop_diff):
         actions = []
@@ -156,7 +159,7 @@ class Node(res_base.BaseSenlinResource):
                     'nodes': [self.resource_id],
                 }
                 action = {
-                    'func': 'remove_nodes_from_cluster',
+                    'func': 'cluster_del_nodes',
                     'action_id': None,
                     'params': params,
                     'done': False,
@@ -179,7 +182,7 @@ class Node(res_base.BaseSenlinResource):
                     'nodes': [self.resource_id],
                 }
                 action = {
-                    'func': 'add_nodes_to_cluster',
+                    'func': 'cluster_add_nodes',
                     'action_id': None,
                     'params': params,
                     'done': False,

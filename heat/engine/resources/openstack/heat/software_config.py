@@ -44,10 +44,6 @@ class SoftwareConfig(resource.Resource):
 
     support_status = support.SupportStatus(version='2014.1')
 
-    default_client_name = 'heat'
-
-    entity = 'software_configs'
-
     PROPERTIES = (
         GROUP, CONFIG,
         OPTIONS,

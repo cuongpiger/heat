@@ -11,7 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
+import six
 
 from heat.common import exception
 from heat.engine.cfn import functions as cfn_funcs
@@ -93,7 +94,7 @@ class MonascaNotificationTest(common.HeatTestCase):
         ex = self.assertRaises(exception.StackValidationFailed,
                                self.test_resource.validate)
         self.assertEqual('Address "abc@def.com" doesn\'t have '
-                         'required URL scheme', str(ex))
+                         'required URL scheme', six.text_type(ex))
 
     def test_validate_no_netloc_address_for_webhook(self):
         self.test_resource.properties.data['type'] = self.test_resource.WEBHOOK
@@ -101,7 +102,7 @@ class MonascaNotificationTest(common.HeatTestCase):
         ex = self.assertRaises(exception.StackValidationFailed,
                                self.test_resource.validate)
         self.assertEqual('Address "https://" doesn\'t have '
-                         'required network location', str(ex))
+                         'required network location', six.text_type(ex))
 
     def test_validate_prohibited_address_for_webhook(self):
         self.test_resource.properties.data['type'] = self.test_resource.WEBHOOK
@@ -109,7 +110,7 @@ class MonascaNotificationTest(common.HeatTestCase):
         ex = self.assertRaises(exception.StackValidationFailed,
                                self.test_resource.validate)
         self.assertEqual('Address "ftp://127.0.0.1" doesn\'t satisfies '
-                         'allowed schemes: http, https', str(ex))
+                         'allowed schemes: http, https', six.text_type(ex))
 
     def test_validate_incorrect_address_for_email(self):
         self.test_resource.properties.data['type'] = self.test_resource.EMAIL
@@ -119,7 +120,7 @@ class MonascaNotificationTest(common.HeatTestCase):
                                self.test_resource.validate)
         self.assertEqual('Address "abc#def.com" doesn\'t satisfies allowed '
                          'format for "email" type of "type" property',
-                         str(ex))
+                         six.text_type(ex))
 
     def test_validate_invalid_address_parsing(self):
         self.test_resource.properties.data['type'] = self.test_resource.WEBHOOK
@@ -128,7 +129,7 @@ class MonascaNotificationTest(common.HeatTestCase):
                                self.test_resource.validate)
         self.assertEqual('Address "https://example.com]" should have correct '
                          'format required by "webhook" type of "type" '
-                         'property', str(ex))
+                         'property', six.text_type(ex))
 
     def test_resource_handle_create(self):
         mock_notification_create = self.test_client.notifications.create

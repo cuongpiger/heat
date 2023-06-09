@@ -18,6 +18,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import excutils
 from oslo_utils import reflection
+import six
 
 from heat.common import exception
 from heat.common.i18n import _
@@ -78,7 +79,7 @@ class StackResource(resource.Resource):
         except Exception as ex:
             path = "%s<%s>" % (self.name, self.template_url)
             raise exception.StackValidationFailed(
-                error=ex, path=[self.stack.t.RESOURCES, path])
+                ex, path=[self.stack.t.RESOURCES, path])
 
     @property
     def template_url(self):
@@ -396,7 +397,7 @@ class StackResource(resource.Resource):
         if not class_name.endswith('_Remote'):
             return False
 
-        full_message = str(ex)
+        full_message = six.text_type(ex)
         if full_message.find('\n') > -1:
             message, msg_trace = full_message.split('\n', 1)
         else:
@@ -424,12 +425,27 @@ class StackResource(resource.Resource):
         if action != expected_action:
             return False
 
+        # Has the action really started?
+        #
+        # The rpc call to update does not guarantee that the stack will be
+        # placed into IN_PROGRESS by the time it returns (it runs stack.update
+        # in a thread) so you could also have a situation where we get into
+        # this method and the update hasn't even started.
+        #
+        # So we are using a mixture of state (action+status) and updated_at
+        # to see if the action has actually progressed.
+        # - very fast updates (like something with one RandomString) we will
+        #   probably miss the state change, but we should catch the updated_at.
+        # - very slow updates we won't see the updated_at for quite a while,
+        #   but should see the state change.
+        if cookie is not None:
+            prev_state = cookie['previous']['state']
+            prev_updated_at = cookie['previous']['updated_at']
+            if (prev_updated_at == updated_time and
+                    prev_state == (action, status)):
+                return False
+
         if status == self.IN_PROGRESS:
-            if cookie is not None and 'fail_count' in cookie:
-                prev_status_reason = cookie['previous']['status_reason']
-                if status_reason != prev_status_reason:
-                    # State has changed, so fail on the next failure
-                    cookie['fail_count'] = 1
             return False
         elif status == self.COMPLETE:
             # For operations where we do not take a resource lock
@@ -443,10 +459,6 @@ class StackResource(resource.Resource):
                 self._nested = None
             return done
         elif status == self.FAILED:
-            if cookie is not None and 'fail_count' in cookie:
-                cookie['fail_count'] -= 1
-                if cookie['fail_count'] > 0:
-                    raise resource.PollDelay(10)
             raise exception.ResourceFailure(status_reason, self,
                                             action=action)
         else:
@@ -522,6 +534,9 @@ class StackResource(resource.Resource):
         action, status, status_reason, updated_time = status_data
 
         kwargs = self._stack_kwargs(user_params, child_template)
+        cookie = {'previous': {
+            'updated_at': updated_time,
+            'state': (action, status)}}
 
         kwargs.update({
             'stack_identity': dict(self.nested_identifier()),
@@ -535,6 +550,7 @@ class StackResource(resource.Resource):
                 with excutils.save_and_reraise_exception():
                     raw_template.RawTemplate.delete(self.context,
                                                     kwargs['template_id'])
+        return cookie
 
     def check_update_complete(self, cookie=None):
         if cookie is not None and 'target_action' in cookie:
@@ -573,33 +589,12 @@ class StackResource(resource.Resource):
         if stack_identity is None:
             return
 
-        cookie = None
-        if not self.stack.convergence:
-            try:
-                status_data = stack_object.Stack.get_status(self.context,
-                                                            self.resource_id)
-            except exception.NotFound:
-                return
-
-            action, status, status_reason, updated_time = status_data
-            if (action, status) == (self.stack.DELETE,
-                                    self.stack.IN_PROGRESS):
-                cookie = {
-                    'previous': {
-                        'state': (action, status),
-                        'status_reason': status_reason,
-                        'updated_at': None,
-                    },
-                    'fail_count': 2,
-                }
-
         with self.rpc_client().ignore_error_by_name('EntityNotFound'):
             if self.abandon_in_progress:
                 self.rpc_client().abandon_stack(self.context, stack_identity)
             else:
                 self.rpc_client().delete_stack(self.context, stack_identity,
                                                cast=False)
-            return cookie
 
     def handle_delete(self):
         return self.delete_nested()

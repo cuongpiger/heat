@@ -11,6 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import six
+
 from heat.common import exception
 from heat.common.i18n import _
 from heat.engine import properties
@@ -100,7 +102,7 @@ class VPCGatewayAttachment(resource.Resource):
     default_client_name = 'neutron'
 
     def _vpc_route_tables(self, ignore_errors=False):
-        for res in self.stack.values():
+        for res in six.itervalues(self.stack):
             if res.has_interface('AWS::EC2::RouteTable'):
                 try:
                     vpc_id = self.properties[self.VPC_ID]

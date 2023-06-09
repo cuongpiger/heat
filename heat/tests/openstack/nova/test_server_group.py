@@ -12,12 +12,14 @@
 #    under the License.
 
 import json
-from unittest import mock
+
+import mock
 
 from novaclient import exceptions
 from oslo_utils import excutils
 
 from heat.common import template_format
+from heat.engine.clients.os import nova
 from heat.engine import scheduler
 from heat.tests import common
 from heat.tests import utils
@@ -29,9 +31,7 @@ sg_template = {
             "type": "OS::Nova::ServerGroup",
             "properties": {
                 "name": "test",
-                "policies": ["anti-affinity"],
-                "rules": {
-                    "max_server_per_host": 8}
+                "policies": ["anti-affinity"]
             }
         }
     }
@@ -47,6 +47,8 @@ class FakeGroup(object):
 class NovaServerGroupTest(common.HeatTestCase):
     def setUp(self):
         super(NovaServerGroupTest, self).setUp()
+        self.patchobject(nova.NovaClientPlugin, 'has_extension',
+                         return_value=True)
 
     def _init_template(self, sg_template):
         template = template_format.parse(json.dumps(sg_template))
@@ -62,9 +64,6 @@ class NovaServerGroupTest(common.HeatTestCase):
             def ignore_not_found(self, ex):
                 if not isinstance(ex, exceptions.NotFound):
                     raise ex
-
-            def is_version_supported(self, version):
-                return True
 
             def is_conflict(self, ex):
                 return False
@@ -90,7 +89,7 @@ class NovaServerGroupTest(common.HeatTestCase):
             name = 'test'
             n = name
 
-            def fake_create(name, policy, rules):
+            def fake_create(name, policies):
                 self.assertGreater(len(name), 1)
                 return FakeGroup(n)
             self.sg_mgr.create = fake_create
@@ -103,9 +102,7 @@ class NovaServerGroupTest(common.HeatTestCase):
         self._create_sg('test')
         expected_args = ()
         expected_kwargs = {'name': 'test',
-                           'policy': "anti-affinity",
-                           'rules': {
-                               'max_server_per_host': 8}
+                           'policies': ["anti-affinity"],
                            }
         self.sg_mgr.create.assert_called_once_with(*expected_args,
                                                    **expected_kwargs)

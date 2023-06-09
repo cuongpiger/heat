@@ -13,8 +13,9 @@
 
 import contextlib
 import email
-from unittest import mock
 import uuid
+
+import mock
 
 from heat.common import exception as exc
 from heat.engine import stack as parser
@@ -30,7 +31,7 @@ class MultipartMimeTest(common.HeatTestCase):
         self.ctx = utils.dummy_context()
         self.init_config()
 
-    def init_config(self, parts=None, group='Heat::Ungrouped'):
+    def init_config(self, parts=None):
         parts = parts or []
         stack = parser.Stack(
             self.ctx, 'software_config_test_stack',
@@ -40,15 +41,13 @@ class MultipartMimeTest(common.HeatTestCase):
                     'config_mysql': {
                         'Type': 'OS::Heat::MultipartMime',
                         'Properties': {
-                            'group': group,
                             'parts': parts
                         }}}}))
         self.config = stack['config_mysql']
         self.rpc_client = mock.MagicMock()
         self.config._rpc_client = self.rpc_client
 
-    def _test_create(self, group='Heat::Ungrouped'):
-        self.init_config(group=group)
+    def test_handle_create(self):
         config_id = 'c8a19429-7fde-47ea-a42f-40045488226c'
         sc = {'id': config_id}
         self.rpc_client.create_software_config.return_value = sc
@@ -60,14 +59,8 @@ class MultipartMimeTest(common.HeatTestCase):
         self.assertEqual({
             'name': self.config.physical_resource_name(),
             'config': self.config.message,
-            'group': group
+            'group': 'Heat::Ungrouped'
         }, kwargs)
-
-    def test_handle_create(self):
-        self._test_create()
-
-    def test_handle_create_with_group(self):
-        self._test_create(group='script')
 
     def test_get_message_not_none(self):
         self.config.message = 'Not none'

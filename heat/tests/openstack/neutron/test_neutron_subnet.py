@@ -12,11 +12,11 @@
 #    under the License.
 
 import copy
-from unittest import mock
-
+import mock
 from neutronclient.common import exceptions as qe
 from neutronclient.neutron import v2_0 as neutronV20
 from neutronclient.v2_0 import client as neutronclient
+import six
 
 from heat.common import exception
 from heat.common import template_format
@@ -553,7 +553,7 @@ class NeutronSubnetTest(common.HeatTestCase):
                "resources.sub_net.properties.host_routes[0].destination: "
                "Error validating value 'invalid_cidr': Invalid net cidr "
                "invalid IPNetwork invalid_cidr ")
-        self.assertEqual(msg, str(ex))
+        self.assertEqual(msg, six.text_type(ex))
 
     def test_ipv6_validate_ra_mode(self):
         t = template_format.parse(neutron_template)
@@ -568,7 +568,7 @@ class NeutronSubnetTest(common.HeatTestCase):
         ex = self.assertRaises(exception.StackValidationFailed,
                                rsrc.validate)
         self.assertEqual("When both ipv6_ra_mode and ipv6_address_mode are "
-                         "set, they must be equal.", str(ex))
+                         "set, they must be equal.", six.text_type(ex))
 
     def test_ipv6_validate_ip_version(self):
         t = template_format.parse(neutron_template)
@@ -583,7 +583,7 @@ class NeutronSubnetTest(common.HeatTestCase):
         ex = self.assertRaises(exception.StackValidationFailed,
                                rsrc.validate)
         self.assertEqual("ipv6_ra_mode and ipv6_address_mode are not "
-                         "supported for ipv4.", str(ex))
+                         "supported for ipv4.", six.text_type(ex))
 
     def test_validate_both_subnetpool_cidr(self):
         self.patchobject(neutronV20, 'find_resourceid_by_name_or_id',
@@ -600,7 +600,7 @@ class NeutronSubnetTest(common.HeatTestCase):
                                rsrc.validate)
         msg = ("Cannot define the following properties at the same time: "
                "subnetpool, cidr.")
-        self.assertEqual(msg, str(ex))
+        self.assertEqual(msg, six.text_type(ex))
 
     def test_validate_none_subnetpool_cidr(self):
         t = template_format.parse(neutron_template)
@@ -614,7 +614,7 @@ class NeutronSubnetTest(common.HeatTestCase):
                                rsrc.validate)
         msg = ("At least one of the following properties must be specified: "
                "subnetpool, cidr.")
-        self.assertEqual(msg, str(ex))
+        self.assertEqual(msg, six.text_type(ex))
 
     def test_validate_subnetpool_ref_with_cidr(self):
         t = template_format.parse(neutron_template)
@@ -635,7 +635,7 @@ class NeutronSubnetTest(common.HeatTestCase):
                                rsrc.validate)
         msg = ("Cannot define the following properties at the same time: "
                "subnetpool, cidr.")
-        self.assertEqual(msg, str(ex))
+        self.assertEqual(msg, six.text_type(ex))
 
     def test_validate_subnetpool_ref_no_cidr(self):
         t = template_format.parse(neutron_template)
@@ -667,7 +667,7 @@ class NeutronSubnetTest(common.HeatTestCase):
                                rsrc.validate)
         msg = ("Cannot define the following properties at the same time: "
                "prefixlen, cidr.")
-        self.assertEqual(msg, str(ex))
+        self.assertEqual(msg, six.text_type(ex))
 
     def test_deprecated_network_id(self):
         template = """

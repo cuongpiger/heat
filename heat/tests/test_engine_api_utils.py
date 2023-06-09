@@ -13,15 +13,16 @@
 
 import datetime as dt
 import json
-from unittest import mock
 import uuid
 
+import mock
 from oslo_utils import timeutils
+import six
 
 from heat.common import exception
 from heat.common import template_format
 from heat.common import timeutils as heat_timeutils
-from heat.db import models
+from heat.db.sqlalchemy import models
 from heat.engine import api
 from heat.engine.cfn import parameters as cfn_param
 from heat.engine import event
@@ -397,7 +398,7 @@ class FormatTest(common.HeatTestCase):
             'outputs': [],
             'template_description': 'No description',
             'timeout_mins': None,
-            'tags': [],
+            'tags': None,
             'parameters': {
                 'AWS::Region': 'ap-southeast-1',
                 'AWS::StackId': aws_id,
@@ -1186,7 +1187,7 @@ class TestExtractArgs(common.HeatTestCase):
     def test_timeout_extract_negative(self):
         p = {'timeout_mins': '-100'}
         error = self.assertRaises(ValueError, api.extract_args, p)
-        self.assertIn('Invalid timeout value', str(error))
+        self.assertIn('Invalid timeout value', six.text_type(error))
 
     def test_timeout_extract_not_present(self):
         args = api.extract_args({})
@@ -1200,7 +1201,7 @@ class TestExtractArgs(common.HeatTestCase):
     def test_invalid_adopt_stack_data(self):
         params = {'adopt_stack_data': json.dumps("foo")}
         exc = self.assertRaises(ValueError, api.extract_args, params)
-        self.assertIn('Invalid adopt data', str(exc))
+        self.assertIn('Invalid adopt data', six.text_type(exc))
 
     def test_adopt_stack_data_extract_not_present(self):
         args = api.extract_args({})
@@ -1248,12 +1249,12 @@ class TestExtractArgs(common.HeatTestCase):
     def test_tags_extract_not_map(self):
         p = {'tags': {"foo": "bar"}}
         exc = self.assertRaises(ValueError, api.extract_args, p)
-        self.assertIn('Invalid tags, not a list: ', str(exc))
+        self.assertIn('Invalid tags, not a list: ', six.text_type(exc))
 
     def test_tags_extract_not_string(self):
         p = {'tags': ["tag1", 2]}
         exc = self.assertRaises(ValueError, api.extract_args, p)
-        self.assertIn('Invalid tag, "2" is not a string', str(exc))
+        self.assertIn('Invalid tag, "2" is not a string', six.text_type(exc))
 
     def test_tags_extract_over_limit(self):
         p = {'tags': ["tag1", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -1261,13 +1262,13 @@ class TestExtractArgs(common.HeatTestCase):
         exc = self.assertRaises(ValueError, api.extract_args, p)
         self.assertIn('Invalid tag, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
                       'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" is longer '
-                      'than 80 characters', str(exc))
+                      'than 80 characters', six.text_type(exc))
 
     def test_tags_extract_comma(self):
         p = {'tags': ["tag1", 'tag2,']}
         exc = self.assertRaises(ValueError, api.extract_args, p)
         self.assertIn('Invalid tag, "tag2," contains a comma',
-                      str(exc))
+                      six.text_type(exc))
 
 
 class TranslateFilterTest(common.HeatTestCase):

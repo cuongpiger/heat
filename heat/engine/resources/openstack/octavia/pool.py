@@ -17,7 +17,6 @@ from heat.engine import attributes
 from heat.engine import constraints
 from heat.engine import properties
 from heat.engine.resources.openstack.octavia import octavia_base
-from heat.engine import support
 from heat.engine import translation
 
 
@@ -33,11 +32,10 @@ class Pool(octavia_base.OctaviaBase):
         ADMIN_STATE_UP, DESCRIPTION, SESSION_PERSISTENCE, NAME,
         LB_ALGORITHM, LISTENER, LOADBALANCER, PROTOCOL,
         SESSION_PERSISTENCE_TYPE, SESSION_PERSISTENCE_COOKIE_NAME,
-        TLS_ENABLED,
     ) = (
         'admin_state_up', 'description', 'session_persistence', 'name',
         'lb_algorithm', 'listener', 'loadbalancer', 'protocol',
-        'type', 'cookie_name', 'tls_enabled',
+        'type', 'cookie_name'
     )
 
     SESSION_PERSISTENCE_TYPES = (
@@ -87,7 +85,6 @@ class Pool(octavia_base.OctaviaBase):
                       'required if type is APP_COOKIE.')
                 )
             },
-            update_allowed=True,
         ),
         NAME: properties.Schema(
             properties.Schema.STRING,
@@ -126,13 +123,6 @@ class Pool(octavia_base.OctaviaBase):
             constraints=[
                 constraints.AllowedValues(SUPPORTED_PROTOCOLS),
             ]
-        ),
-        TLS_ENABLED: properties.Schema(
-            properties.Schema.BOOLEAN,
-            _('Enable backend member re-encryption.'),
-            default=False,
-            update_allowed=True,
-            support_status=support.SupportStatus(version='14.0.0'),
         ),
     }
 
@@ -178,22 +168,19 @@ class Pool(octavia_base.OctaviaBase):
             props['listener_id'] = props.pop(self.LISTENER)
         if self.LOADBALANCER in props:
             props['loadbalancer_id'] = props.pop(self.LOADBALANCER)
-        self._prepare_session_persistence(props)
-        return props
-
-    def _prepare_session_persistence(self, props):
         session_p = props.get(self.SESSION_PERSISTENCE)
         if session_p is not None:
             session_props = dict(
                 (k, v) for k, v in session_p.items() if v is not None)
             props[self.SESSION_PERSISTENCE] = session_props
+        return props
 
     def validate(self):
         super(Pool, self).validate()
         if (self.properties[self.LISTENER] is None and
                 self.properties[self.LOADBALANCER] is None):
-            raise exception.PropertyUnspecifiedError(self.LISTENER,
-                                                     self.LOADBALANCER)
+                raise exception.PropertyUnspecifiedError(self.LISTENER,
+                                                         self.LOADBALANCER)
 
         if self.properties[self.SESSION_PERSISTENCE] is not None:
             session_p = self.properties[self.SESSION_PERSISTENCE]
@@ -219,9 +206,7 @@ class Pool(octavia_base.OctaviaBase):
         return self.client().pool_create(json={'pool': properties})['pool']
 
     def _resource_update(self, prop_diff):
-        props = dict((k, v) for k, v in prop_diff.items() if v is not None)
-        self._prepare_session_persistence(props)
-        self.client().pool_set(self.resource_id, json={'pool': props})
+        self.client().pool_set(self.resource_id, json={'pool': prop_diff})
 
     def _resource_delete(self):
         self.client().pool_delete(self.resource_id)

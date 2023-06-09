@@ -18,9 +18,8 @@ wrong the tests might raise AssertionError. I've indicated in comments the
 places where actual behavior differs from the spec.
 """
 
-from unittest import mock
-
 from keystoneauth1 import plugin
+import mock
 
 
 class FakeClient(object):
@@ -40,7 +39,7 @@ class FakeClient(object):
 
         if body is not None:
             if self.client.callstack[pos][2] != body:
-                raise AssertionError('%s != %s' %
+                raise AssertionError('%s != %s',
                                      (self.client.callstack[pos][2], body))
 
     def assert_called_anytime(self, method, url, body=None):
@@ -58,7 +57,7 @@ class FakeClient(object):
                 break
 
         if not found:
-            raise AssertionError('Expected %s; got %s' %
+            raise AssertionError('Expected %s %s; got %s' %
                                  (expected, self.client.callstack))
         if body is not None:
             if entry[2] != body:

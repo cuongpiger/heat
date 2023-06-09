@@ -16,7 +16,6 @@ import contextlib
 import datetime as dt
 import itertools
 import pydoc
-import re
 import tenacity
 import weakref
 
@@ -24,6 +23,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_utils import excutils
 from oslo_utils import reflection
+import six
 
 from heat.common import exception
 from heat.common.i18n import _
@@ -80,7 +80,7 @@ class NoActionRequired(Exception):
         msg = (_("The resource %(res)s could not perform "
                  "scaling action: %(reason)s") %
                {'res': res_name, 'reason': reason})
-        super(Exception, self).__init__(str(msg))
+        super(Exception, self).__init__(six.text_type(msg))
 
 
 class PollDelay(Exception):
@@ -97,6 +97,7 @@ class PollDelay(Exception):
         self.period = period
 
 
+@six.python_2_unicode_compatible
 class Resource(status.ResourceStatus):
     BASE_ATTRIBUTES = (SHOW, ) = (attributes.SHOW_ATTR, )
 
@@ -189,7 +190,7 @@ class Resource(status.ResourceStatus):
             ex = exception.ResourceTypeUnavailable(
                 resource_type=resource_type,
                 service_name=cls.default_client_name,
-                reason=str(exc))
+                reason=six.text_type(exc))
             raise ex
         else:
             if not svc_available:
@@ -197,7 +198,7 @@ class Resource(status.ResourceStatus):
                     resource_type=resource_type,
                     service_name=cls.default_client_name,
                     reason=reason)
-                LOG.info(str(ex))
+                LOG.info(six.text_type(ex))
                 raise ex
 
     def __init__(self, name, definition, stack):
@@ -408,8 +409,8 @@ class Resource(status.ResourceStatus):
         # Retry in case a signal has updated the atomic_key
         attempts = max(cfg.CONF.client_retry_limit, 0) + 1
 
-        def prepare_attempt(retry_state):
-            if retry_state.attempt_number > 1:
+        def prepare_attempt(fn, attempt):
+            if attempt > 1:
                 res_obj = resource_objects.Resource.get_obj(
                     self.context, self.id)
                 if (res_obj.engine_id is not None or
@@ -450,7 +451,7 @@ class Resource(status.ResourceStatus):
 
     def calc_update_allowed(self, props):
         update_allowed_set = set(self.update_allowed_properties)
-        for (psk, psv) in props.props.items():
+        for (psk, psv) in six.iteritems(props.props):
             if psv.update_allowed():
                 update_allowed_set.add(psk)
         return update_allowed_set
@@ -514,7 +515,7 @@ class Resource(status.ResourceStatus):
                       "not setting metadata",
                       {'name': self.name, 'id': self.id, 'st': db_res.status})
             raise exception.ResourceNotAvailable(resource_name=self.name)
-        LOG.debug('Setting metadata for %s', str(self))
+        LOG.debug('Setting metadata for %s', six.text_type(self))
         if refresh:
             metadata = merge_metadata(metadata, db_res.rsrc_metadata)
         if db_res.update_metadata(metadata):
@@ -654,7 +655,7 @@ class Resource(status.ResourceStatus):
         """
         update_allowed_set = self.calc_update_allowed(after_props)
         immutable_set = set()
-        for (psk, psv) in after_props.props.items():
+        for (psk, psv) in six.iteritems(after_props.props):
             if psv.immutable():
                 immutable_set.add(psk)
 
@@ -669,7 +670,7 @@ class Resource(status.ResourceStatus):
                 # already been validated.
                 LOG.warning('Ignoring error in old property value '
                             '%(prop_name)s: %(msg)s',
-                            {'prop_name': key, 'msg': str(exc)})
+                            {'prop_name': key, 'msg': six.text_type(exc)})
                 return True
 
             return before != after_props.get(key)
@@ -704,13 +705,13 @@ class Resource(status.ResourceStatus):
             if self.resource_id is not None:
                 text = '%s "%s" [%s] %s' % (class_name, self.name,
                                             self.resource_id,
-                                            str(self.stack))
+                                            six.text_type(self.stack))
             else:
                 text = '%s "%s" %s' % (class_name, self.name,
-                                       str(self.stack))
+                                       six.text_type(self.stack))
         else:
             text = '%s "%s"' % (class_name, self.name)
-        return str(text)
+        return six.text_type(text)
 
     def add_explicit_dependencies(self, deps):
         """Add all dependencies explicitly specified in the template.
@@ -808,21 +809,16 @@ class Resource(status.ResourceStatus):
                 service_name=cls.default_client_name)
             if endpoint_exists:
                 req_extension = cls.required_service_extension
-                if not req_extension:
-                    return(True, None)
-                if isinstance(req_extension, str):
-                    req_extension = re.split(' |,', req_extension)
-                for ext in req_extension:
-                    is_ext_available = (
-                        client_plugin.has_extension(ext))
-                    if not is_ext_available:
-                        reason = _('Required extension {0} in {1} service '
-                                   'is not available.')
-                        reason = reason.format(ext,
-                                               cls.default_client_name)
-                        break
+                is_ext_available = (
+                    not req_extension or client_plugin.has_extension(
+                        req_extension))
                 if is_ext_available:
                     return (True, None)
+                else:
+                    reason = _('Required extension {0} in {1} service '
+                               'is not available.')
+                    reason = reason.format(req_extension,
+                                           cls.default_client_name)
             else:
                 reason = _('{0} {1} endpoint is not in service catalog.')
                 reason = reason.format(cls.default_client_name, service_type)
@@ -920,27 +916,27 @@ class Resource(status.ResourceStatus):
         try:
             set_in_progress()
             yield
-        except exception.UpdateInProgress:
+        except exception.UpdateInProgress as ex:
             with excutils.save_and_reraise_exception():
                 LOG.info('Update in progress for %s', self.name)
         except expected_exceptions as ex:
             with excutils.save_and_reraise_exception():
-                self.state_set(action, self.COMPLETE, str(ex),
+                self.state_set(action, self.COMPLETE, six.text_type(ex),
                                lock=lock_release)
-                LOG.debug('%s', str(ex))
+                LOG.debug('%s', six.text_type(ex))
         except Exception as ex:
             LOG.info('%(action)s: %(info)s',
                      {"action": action,
-                      "info": str(self)},
+                      "info": six.text_type(self)},
                      exc_info=True)
             failure = exception.ResourceFailure(ex, self, action)
-            self.state_set(action, self.FAILED, str(failure),
+            self.state_set(action, self.FAILED, six.text_type(failure),
                            lock=lock_release)
             raise failure
         except BaseException as exc:
             with excutils.save_and_reraise_exception():
                 try:
-                    reason = str(exc)
+                    reason = six.text_type(exc)
                     msg = '%s aborted' % action
                     if reason:
                         msg += ' (%s)' % reason
@@ -1009,6 +1005,7 @@ class Resource(status.ResourceStatus):
                                     action
                                 )
 
+    @scheduler.wrappertask
     def _do_action(self, action, pre_func=None, resource_data=None):
         """Perform a transition to a new state via a specified action.
 
@@ -1031,7 +1028,7 @@ class Resource(status.ResourceStatus):
                 pre_func()
 
             handler_args = [resource_data] if resource_data is not None else []
-            yield from self.action_handler_task(action, args=handler_args)
+            yield self.action_handler_task(action, args=handler_args)
 
     def _update_stored_properties(self):
         old_props = self._stored_properties_data
@@ -1070,7 +1067,7 @@ class Resource(status.ResourceStatus):
             refd_attrs |= get_dep_attrs(stk_defn.resource_definition(r_name)
                                         for r_name in enabled_resources)
 
-        subset_outputs = isinstance(in_outputs, collections.abc.Iterable)
+        subset_outputs = isinstance(in_outputs, collections.Iterable)
         if subset_outputs or in_outputs:
             if not subset_outputs:
                 in_outputs = stk_defn.enabled_output_names()
@@ -1108,7 +1105,7 @@ class Resource(status.ResourceStatus):
         """
         def get_attrs(attrs, cacheable_only=False):
             for attr in attrs:
-                path = (attr,) if isinstance(attr, str) else attr
+                path = (attr,) if isinstance(attr, six.string_types) else attr
                 if (cacheable_only and
                     (self.attributes.get_cache_mode(path[0]) ==
                      attributes.Schema.CACHE_NONE)):
@@ -1192,6 +1189,7 @@ class Resource(status.ResourceStatus):
                         message="%s" % error_message)
                 raise
 
+    @scheduler.wrappertask
     def create(self):
         """Create the resource.
 
@@ -1201,22 +1199,22 @@ class Resource(status.ResourceStatus):
         action = self.CREATE
         if (self.action, self.status) != (self.INIT, self.COMPLETE):
             exc = exception.Error(_('State %s invalid for create')
-                                  % str(self.state))
+                                  % six.text_type(self.state))
             raise exception.ResourceFailure(exc, self, action)
 
         if self.external_id is not None:
-            yield from self._do_action(self.ADOPT,
-                                       resource_data={
-                                           'resource_id': self.external_id})
-            yield from self.check()
+            yield self._do_action(self.ADOPT,
+                                  resource_data={
+                                      'resource_id': self.external_id})
+            yield self.check()
             return
 
         # This method can be called when we replace a resource, too. In that
         # case, a hook has already been dealt with in `Resource.update` so we
         # shouldn't do it here again:
         if self.stack.action == self.stack.CREATE:
-            yield from self._break_if_required(self.CREATE,
-                                               environment.HOOK_PRE_CREATE)
+            yield self._break_if_required(
+                self.CREATE, environment.HOOK_PRE_CREATE)
 
         LOG.info('creating %s', self)
 
@@ -1241,13 +1239,13 @@ class Resource(status.ResourceStatus):
                 delay = timeutils.retry_backoff_delay(count[action],
                                                       jitter_max=2.0)
                 waiter = scheduler.TaskRunner(self.pause)
-                yield from waiter.as_task(timeout=delay)
+                yield waiter.as_task(timeout=delay)
             elif action == self.CREATE:
                 # Only validate properties in first create call.
                 pre_func = self.properties.validate
 
             try:
-                yield from self._do_action(action, pre_func)
+                yield self._do_action(action, pre_func)
                 if action == self.CREATE:
                     first_failure = None
                     break
@@ -1284,8 +1282,8 @@ class Resource(status.ResourceStatus):
             raise first_failure
 
         if self.stack.action == self.stack.CREATE:
-            yield from self._break_if_required(self.CREATE,
-                                               environment.HOOK_POST_CREATE)
+            yield self._break_if_required(
+                self.CREATE, environment.HOOK_POST_CREATE)
 
     @staticmethod
     def pause():
@@ -1314,7 +1312,7 @@ class Resource(status.ResourceStatus):
         adopt.
         """
         self._update_stored_properties()
-        yield from self._do_action(self.ADOPT, resource_data=resource_data)
+        return self._do_action(self.ADOPT, resource_data=resource_data)
 
     def handle_adopt(self, resource_data=None):
         resource_id, data, metadata = self._get_resource_info(resource_data)
@@ -1329,7 +1327,7 @@ class Resource(status.ResourceStatus):
 
         # save the resource data
         if data and isinstance(data, dict):
-            for key, value in data.items():
+            for key, value in six.iteritems(data):
                 self.data_set(key, value)
 
         # save the resource metadata
@@ -1417,7 +1415,7 @@ class Resource(status.ResourceStatus):
         if 'replace' in restricted_actions:
             ex = exception.ResourceActionRestricted(action='replace')
             failure = exception.ResourceFailure(ex, self, self.UPDATE)
-            self._add_event(self.UPDATE, self.FAILED, str(ex))
+            self._add_event(self.UPDATE, self.FAILED, six.text_type(ex))
             raise failure
         else:
             raise UpdateReplace(self.name)
@@ -1452,7 +1450,7 @@ class Resource(status.ResourceStatus):
             except Exception as e:
                 failure = exception.ResourceFailure(e, self, self.action)
                 self.state_set(self.UPDATE, self.FAILED,
-                               str(failure))
+                               six.text_type(failure))
                 raise failure
         self.replaced_by = None
 
@@ -1582,16 +1580,16 @@ class Resource(status.ResourceStatus):
             # if any exception happen, we should set the resource to
             # FAILED, then raise ResourceFailure
             failure = exception.ResourceFailure(e, self, action)
-            self.state_set(action, self.FAILED, str(failure))
+            self.state_set(action, self.FAILED, six.text_type(failure))
             raise failure
 
     @classmethod
     def check_is_substituted(cls, new_res_type):
-        support_status = getattr(cls, 'support_status', None)
-        if support_status:
-            is_substituted = support_status.is_substituted(new_res_type)
-            return is_substituted
-        return False
+            support_status = getattr(cls, 'support_status', None)
+            if support_status:
+                is_substituted = support_status.is_substituted(new_res_type)
+                return is_substituted
+            return False
 
     def _persist_update_no_change(self, new_template_id):
         """Persist an update where the resource is unchanged."""
@@ -1608,6 +1606,7 @@ class Resource(status.ResourceStatus):
         elif new_template_id is not None:
             self.store(lock=lock)
 
+    @scheduler.wrappertask
     def update(self, after, before=None, prev_resource=None,
                new_template_id=None, new_requires=None):
         """Return a task to update the resource.
@@ -1635,8 +1634,8 @@ class Resource(status.ResourceStatus):
 
         after_props, before_props = self._prepare_update_props(after, before)
 
-        yield from self._break_if_required(self.UPDATE,
-                                           environment.HOOK_PRE_UPDATE)
+        yield self._break_if_required(
+            self.UPDATE, environment.HOOK_PRE_UPDATE)
 
         try:
             registry = self.stack.env.registry
@@ -1658,7 +1657,7 @@ class Resource(status.ResourceStatus):
                         self._prepare_update_replace(action)
         except exception.ResourceActionRestricted as ae:
             failure = exception.ResourceFailure(ae, self, action)
-            self._add_event(action, self.FAILED, str(ae))
+            self._add_event(action, self.FAILED, six.text_type(ae))
             raise failure
 
         if not needs_update:
@@ -1696,9 +1695,9 @@ class Resource(status.ResourceStatus):
                 if new_template_id is not None:
                     self.current_template_id = new_template_id
 
-                yield from self.action_handler_task(action,
-                                                    args=[after, tmpl_diff,
-                                                          prop_diff])
+                yield self.action_handler_task(action,
+                                               args=[after, tmpl_diff,
+                                                     prop_diff])
             except UpdateReplace:
                 with excutils.save_and_reraise_exception():
                     self.current_template_id = self.old_template_id
@@ -1711,8 +1710,8 @@ class Resource(status.ResourceStatus):
             if new_requires is not None:
                 self.requires = new_requires
 
-        yield from self._break_if_required(self.UPDATE,
-                                           environment.HOOK_POST_UPDATE)
+        yield self._break_if_required(
+            self.UPDATE, environment.HOOK_POST_UPDATE)
 
     def prepare_for_replace(self):
         """Prepare resource for replacing.
@@ -1753,7 +1752,7 @@ class Resource(status.ResourceStatus):
                 raise failure
 
             with self.frozen_properties():
-                yield from self._do_action(action)
+                return self._do_action(action)
         else:
             if self.state == (self.INIT, self.COMPLETE):
                 # No need to store status; better to leave the resource in
@@ -1792,12 +1791,12 @@ class Resource(status.ResourceStatus):
                 (self.action != self.SUSPEND and
                  self.status != self.COMPLETE)):
             exc = exception.Error(_('State %s invalid for suspend')
-                                  % str(self.state))
+                                  % six.text_type(self.state))
             raise exception.ResourceFailure(exc, self, action)
 
         LOG.info('suspending %s', self)
         with self.frozen_properties():
-            yield from self._do_action(action)
+            return self._do_action(action)
 
     def resume(self):
         """Return a task to resume the resource.
@@ -1813,21 +1812,22 @@ class Resource(status.ResourceStatus):
                               (self.RESUME, self.FAILED),
                               (self.RESUME, self.COMPLETE)):
             exc = exception.Error(_('State %s invalid for resume')
-                                  % str(self.state))
+                                  % six.text_type(self.state))
             raise exception.ResourceFailure(exc, self, action)
 
         LOG.info('resuming %s', self)
         with self.frozen_properties():
-            yield from self._do_action(action)
+            return self._do_action(action)
 
     def snapshot(self):
         """Snapshot the resource and return the created data, if any."""
         LOG.info('snapshotting %s', self)
         with self.frozen_properties():
-            yield from self._do_action(self.SNAPSHOT)
+            return self._do_action(self.SNAPSHOT)
 
+    @scheduler.wrappertask
     def delete_snapshot(self, data):
-        yield from self.action_handler_task('delete_snapshot', args=[data])
+        yield self.action_handler_task('delete_snapshot', args=[data])
 
     def physical_resource_name(self):
         if self.id is None or self.action == self.INIT:
@@ -1977,6 +1977,7 @@ class Resource(status.ResourceStatus):
                 return self.resource_id
         return None
 
+    @scheduler.wrappertask
     def delete(self):
         """A task to delete the resource.
 
@@ -2004,8 +2005,8 @@ class Resource(status.ResourceStatus):
         # case, a hook has already been dealt with in `Resource.update` so we
         # shouldn't do it here again:
         if self.stack.action == self.stack.DELETE:
-            yield from self._break_if_required(self.DELETE,
-                                               environment.HOOK_PRE_DELETE)
+            yield self._break_if_required(
+                self.DELETE, environment.HOOK_PRE_DELETE)
 
         LOG.info('deleting %s', self)
 
@@ -2035,24 +2036,25 @@ class Resource(status.ResourceStatus):
                 while True:
                     count += 1
                     LOG.info('delete %(name)s attempt %(attempt)d' %
-                             {'name': str(self), 'attempt': count + 1})
+                             {'name': six.text_type(self), 'attempt': count+1})
                     if count:
                         delay = timeutils.retry_backoff_delay(count,
                                                               jitter_max=2.0)
                         waiter = scheduler.TaskRunner(self.pause)
-                        yield from waiter.as_task(timeout=delay)
+                        yield waiter.as_task(timeout=delay)
                     with excutils.exception_filter(should_retry):
-                        yield from self.action_handler_task(action,
-                                                            *action_args)
+                        yield self.action_handler_task(action,
+                                                       *action_args)
                         break
 
         if self.stack.action == self.stack.DELETE:
-            yield from self._break_if_required(self.DELETE,
-                                               environment.HOOK_POST_DELETE)
+            yield self._break_if_required(
+                self.DELETE, environment.HOOK_POST_DELETE)
 
+    @scheduler.wrappertask
     def destroy(self):
         """A task to delete the resource and remove it from the database."""
-        yield from self.delete()
+        yield self.delete()
 
         if self.id is None:
             return
@@ -2060,7 +2062,7 @@ class Resource(status.ResourceStatus):
         try:
             resource_objects.Resource.delete(self.context, self.id)
         except exception.NotFound:
-            # Don't fail on delete if the DB entry has
+            # Don't fail on delete if the db entry has
             # not been created yet.
             pass
 
@@ -2075,7 +2077,7 @@ class Resource(status.ResourceStatus):
                     self.id,
                     {'physical_resource_id': self.resource_id})
             except Exception as ex:
-                LOG.warning('DB error %s', ex)
+                LOG.warning('db error %s', ex)
 
     def store(self, set_metadata=False, lock=LOCK_NONE):
         """Create the resource in the database.
@@ -2087,7 +2089,7 @@ class Resource(status.ResourceStatus):
 
         rs = {'action': self.action,
               'status': self.status,
-              'status_reason': str(self.status_reason),
+              'status_reason': six.text_type(self.status_reason),
               'stack_id': self.stack.id,
               'physical_resource_id': self.resource_id,
               'name': self.name,
@@ -2115,7 +2117,7 @@ class Resource(status.ResourceStatus):
                     self.context, self.id, rs)
                 if lock != self.LOCK_NONE:
                     LOG.error('No calling_engine_id in store() %s',
-                              str(rs))
+                              six.text_type(rs))
             else:
                 self._store_with_lock(rs, lock)
         else:
@@ -2141,7 +2143,7 @@ class Resource(status.ResourceStatus):
             self._incr_atomic_key(self._atomic_key)
         else:
             LOG.info('Resource %s is locked or does not exist',
-                     str(self))
+                     six.text_type(self))
             LOG.debug('Resource id:%(resource_id)s locked or does not exist. '
                       'Expected atomic_key:%(atomic_key)s, '
                       'accessing from engine_id:%(engine_id)s',
@@ -2366,9 +2368,9 @@ class Resource(status.ResourceStatus):
         logic specific to the resource implementation.
         """
         if self.resource_id is not None:
-            return str(self.resource_id)
+            return six.text_type(self.resource_id)
         else:
-            return str(self.name)
+            return six.text_type(self.name)
 
     def FnGetRefId(self):
         """For the intrinsic function Ref.
@@ -2380,7 +2382,7 @@ class Resource(status.ResourceStatus):
     def physical_resource_name_or_FnGetRefId(self):
         res_name = self.physical_resource_name()
         if res_name is not None:
-            return str(res_name)
+            return six.text_type(res_name)
         else:
             return Resource.get_reference_id(self)
 
@@ -2434,13 +2436,13 @@ class Resource(status.ResourceStatus):
             hook = details['unset_hook']
             if not environment.valid_hook_type(hook):
                 msg = (_('Invalid hook type "%(hook)s" for %(resource)s') %
-                       {'hook': hook, 'resource': str(self)})
+                       {'hook': hook, 'resource': six.text_type(self)})
                 raise exception.InvalidBreakPointHook(message=msg)
 
             if not self.has_hook(hook):
                 msg = (_('The "%(hook)s" hook is not defined '
                          'on %(resource)s') %
-                       {'hook': hook, 'resource': str(self)})
+                       {'hook': hook, 'resource': six.text_type(self)})
                 raise exception.InvalidBreakPointHook(message=msg)
 
     def _unset_hook(self, details):
@@ -2449,7 +2451,7 @@ class Resource(status.ResourceStatus):
         hook = details['unset_hook']
         self.clear_hook(hook)
         LOG.info('Clearing %(hook)s hook on %(resource)s',
-                 {'hook': hook, 'resource': str(self)})
+                 {'hook': hook, 'resource': six.text_type(self)})
         self._add_event(self.action, self.status,
                         "Hook %s is cleared" % hook)
 
@@ -2460,7 +2462,7 @@ class Resource(status.ResourceStatus):
         def get_string_details():
             if details is None:
                 return 'No signal details provided'
-            if isinstance(details, str):
+            if isinstance(details, six.string_types):
                 return details
             if isinstance(details, dict):
                 if all(k in details for k in ('previous', 'current',
@@ -2486,8 +2488,8 @@ class Resource(status.ResourceStatus):
                 # No spam required
                 return
             LOG.info('signal %(name)s : %(msg)s',
-                     {'name': str(self),
-                      'msg': str(ex)},
+                     {'name': six.text_type(self),
+                      'msg': six.text_type(ex)},
                      exc_info=True)
             failure = exception.ResourceFailure(ex, self)
             raise failure

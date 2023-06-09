@@ -12,7 +12,9 @@
 #    under the License.
 
 import copy
-from unittest import mock
+
+import mock
+import six
 
 from heat.common import exception
 from heat.common import grouputils
@@ -648,7 +650,7 @@ class ResourceGroupTest(common.HeatTestCase):
         resg = stack.resources['group1']
         self.assertIsNone(resg.validate())
 
-    def test_validate_with_skiplist(self):
+    def test_validate_with_blacklist(self):
         templ = copy.deepcopy(template_server)
         self.mock_flavor = mock.Mock(ram=4, disk=4)
         self.mock_active_image = mock.Mock(min_ram=1, min_disk=1,
@@ -683,7 +685,7 @@ class ResourceGroupTest(common.HeatTestCase):
         exc = self.assertRaises(exception.StackValidationFailed,
                                 resg.validate)
         exp_msg = 'The Resource Type (idontexist) could not be found.'
-        self.assertIn(exp_msg, str(exc))
+        self.assertIn(exp_msg, six.text_type(exc))
 
     def test_reference_attr(self):
         stack = utils.parse_stack(template2)
@@ -710,7 +712,7 @@ class ResourceGroupTest(common.HeatTestCase):
         exc = self.assertRaises(exception.StackValidationFailed,
                                 resg.validate)
         errstr = "removal_policies: \"'notallowed'\" is not a list"
-        self.assertIn(errstr, str(exc))
+        self.assertIn(errstr, six.text_type(exc))
 
     def test_invalid_removal_policies_nomap(self):
         """Test that error raised for malformed removal_policies."""
@@ -723,7 +725,7 @@ class ResourceGroupTest(common.HeatTestCase):
         exc = self.assertRaises(exception.StackValidationFailed,
                                 resg.validate)
         errstr = '"notallowed" is not a map'
-        self.assertIn(errstr, str(exc))
+        self.assertIn(errstr, six.text_type(exc))
 
     def test_child_template(self):
         stack = utils.parse_stack(template2)
@@ -822,11 +824,11 @@ class ResourceGroupTest(common.HeatTestCase):
         self.assertTrue(resgrp._assemble_nested.called)
 
 
-class ResourceGroupSkiplistTest(common.HeatTestCase):
-    """This class tests ResourceGroup._name_skiplist()."""
+class ResourceGroupBlackList(common.HeatTestCase):
+    """This class tests ResourceGroup._name_blacklist()."""
 
-    # 1) no resource_list, empty skiplist
-    # 2) no resource_list, existing skiplist
+    # 1) no resource_list, empty blacklist
+    # 2) no resource_list, existing blacklist
     # 3) resource_list not in nested()
     # 4) resource_list (refid) not in nested()
     # 5) resource_list in nested() -> saved
@@ -876,7 +878,7 @@ class ResourceGroupSkiplistTest(common.HeatTestCase):
                    saved=True, fallback=True, rm_mode='update')),
     ]
 
-    def test_skiplist(self):
+    def test_blacklist(self):
         stack = utils.parse_stack(template)
         resg = stack['group1']
 
@@ -923,13 +925,13 @@ class ResourceGroupSkiplistTest(common.HeatTestCase):
             nested.resource_by_refid.side_effect = by_refid
             resg.nested = mock.Mock(return_value=nested)
 
-        resg._update_name_skiplist(properties)
+        resg._update_name_blacklist(properties)
         if self.saved:
             resg.data_set.assert_called_once_with('name_blacklist',
                                                   ','.join(self.expected))
         else:
             resg.data_set.assert_not_called()
-            self.assertEqual(set(self.expected), resg._name_skiplist())
+            self.assertEqual(set(self.expected), resg._name_blacklist())
 
 
 class ResourceGroupEmptyParams(common.HeatTestCase):
@@ -979,18 +981,18 @@ class ResourceGroupEmptyParams(common.HeatTestCase):
 class ResourceGroupNameListTest(common.HeatTestCase):
     """This class tests ResourceGroup._resource_names()."""
 
-    # 1) no skiplist, 0 count
-    # 2) no skiplist, x count
-    # 3) skiplist (not effecting)
-    # 4) skiplist with pruning
+    # 1) no blacklist, 0 count
+    # 2) no blacklist, x count
+    # 3) blacklist (not effecting)
+    # 4) blacklist with pruning
     scenarios = [
-        ('1', dict(skiplist=[], count=0,
+        ('1', dict(blacklist=[], count=0,
                    expected=[])),
-        ('2', dict(skiplist=[], count=4,
+        ('2', dict(blacklist=[], count=4,
                    expected=['0', '1', '2', '3'])),
-        ('3', dict(skiplist=['5', '6'], count=3,
+        ('3', dict(blacklist=['5', '6'], count=3,
                    expected=['0', '1', '2'])),
-        ('4', dict(skiplist=['2', '4'], count=4,
+        ('4', dict(blacklist=['2', '4'], count=4,
                    expected=['0', '1', '3', '5'])),
     ]
 
@@ -1000,7 +1002,7 @@ class ResourceGroupNameListTest(common.HeatTestCase):
 
         resg.properties = mock.MagicMock()
         resg.properties.get.return_value = self.count
-        resg._name_skiplist = mock.MagicMock(return_value=self.skiplist)
+        resg._name_blacklist = mock.MagicMock(return_value=self.blacklist)
         self.assertEqual(self.expected, list(resg._resource_names()))
 
 
@@ -1101,7 +1103,7 @@ class ResourceGroupAttrTest(common.HeatTestCase):
         ex = self.assertRaises(exception.NotFound, resg.FnGetAtt,
                                'resource.2')
         self.assertIn("Member '2' not found in group resource 'group1'.",
-                      str(ex))
+                      six.text_type(ex))
 
     def test_get_attribute_convg(self):
         cache_data = {'group1': node_data.NodeData.from_dict({
@@ -1115,7 +1117,7 @@ class ResourceGroupAttrTest(common.HeatTestCase):
         rsrc = stack.defn['group1']
         self.assertEqual(['rsrc1', 'rsrc2'], rsrc.FnGetAtt('refs'))
 
-    def test_get_attribute_skiplist(self):
+    def test_get_attribute_blacklist(self):
         resg = self._create_dummy_stack()
         resg.data = mock.Mock(return_value={'name_blacklist': '3,5'})
 
@@ -1201,48 +1203,48 @@ class ResourceGroupAttrFallbackTest(ResourceGroupAttrTest):
 
 class ReplaceTest(common.HeatTestCase):
     # 1. no min_in_service
-    # 2. min_in_service > count and existing with no skiplist
-    # 3. min_in_service > count and existing with skiplist
-    # 4. existing > count and min_in_service with skiplist
-    # 5. existing > count and min_in_service with no skiplist
-    # 6. all existing skipped
-    # 7. count > existing and min_in_service with no skiplist
-    # 8. count > existing and min_in_service with skiplist
-    # 9. count < existing - skiplisted
+    # 2. min_in_service > count and existing with no blacklist
+    # 3. min_in_service > count and existing with blacklist
+    # 4. existing > count and min_in_service with blacklist
+    # 5. existing > count and min_in_service with no blacklist
+    # 6. all existing blacklisted
+    # 7. count > existing and min_in_service with no blacklist
+    # 8. count > existing and min_in_service with blacklist
+    # 9. count < existing - blacklisted
     # 10. pause_sec > 0
 
     scenarios = [
         ('1', dict(min_in_service=0, count=2,
-                   existing=['0', '1'], skipped=['0'],
+                   existing=['0', '1'], black_listed=['0'],
                    batch_size=1, pause_sec=0, tasks=2)),
         ('2', dict(min_in_service=3, count=2,
-                   existing=['0', '1'], skipped=[],
+                   existing=['0', '1'], black_listed=[],
                    batch_size=2, pause_sec=0, tasks=3)),
         ('3', dict(min_in_service=3, count=2,
-                   existing=['0', '1'], skipped=['0'],
+                   existing=['0', '1'], black_listed=['0'],
                    batch_size=2, pause_sec=0, tasks=3)),
         ('4', dict(min_in_service=3, count=2,
-                   existing=['0', '1', '2', '3'], skipped=['2', '3'],
+                   existing=['0', '1', '2', '3'], black_listed=['2', '3'],
                    batch_size=1, pause_sec=0, tasks=4)),
         ('5', dict(min_in_service=2, count=2,
-                   existing=['0', '1', '2', '3'], skipped=[],
+                   existing=['0', '1', '2', '3'], black_listed=[],
                    batch_size=2, pause_sec=0, tasks=2)),
         ('6', dict(min_in_service=2, count=3,
-                   existing=['0', '1'], skipped=['0', '1'],
+                   existing=['0', '1'], black_listed=['0', '1'],
                    batch_size=2, pause_sec=0, tasks=2)),
         ('7', dict(min_in_service=0, count=5,
-                   existing=['0', '1'], skipped=[],
+                   existing=['0', '1'], black_listed=[],
                    batch_size=1, pause_sec=0, tasks=5)),
         ('8', dict(min_in_service=0, count=5,
-                   existing=['0', '1'], skipped=['0'],
+                   existing=['0', '1'], black_listed=['0'],
                    batch_size=1, pause_sec=0, tasks=5)),
         ('9', dict(min_in_service=0, count=3,
                    existing=['0', '1', '2', '3', '4', '5'],
-                   skipped=['0'],
+                   black_listed=['0'],
                    batch_size=2, pause_sec=0, tasks=2)),
         ('10', dict(min_in_service=0, count=3,
                     existing=['0', '1', '2', '3', '4', '5'],
-                    skipped=['0'],
+                    black_listed=['0'],
                     batch_size=2, pause_sec=10, tasks=3))]
 
     def setUp(self):
@@ -1263,8 +1265,8 @@ class ReplaceTest(common.HeatTestCase):
     def test_rolling_updates(self):
         self.group._nested = get_fake_nested_stack(self.existing)
         self.group.get_size = mock.Mock(return_value=self.count)
-        self.group._name_skiplist = mock.Mock(
-            return_value=set(self.skipped))
+        self.group._name_blacklist = mock.Mock(
+            return_value=set(self.black_listed))
         tasks = self.group._replace(self.min_in_service, self.batch_size,
                                     self.pause_sec)
         self.assertEqual(self.tasks, len(tasks))
@@ -1361,7 +1363,7 @@ class RollingUpdatePolicyTest(common.HeatTestCase):
         stack = utils.parse_stack(tmpl)
         error = self.assertRaises(
             exception.StackValidationFailed, stack.validate)
-        self.assertIn("foo", str(error))
+        self.assertIn("foo", six.text_type(error))
 
 
 class RollingUpdatePolicyDiffTest(common.HeatTestCase):
@@ -1457,7 +1459,7 @@ class RollingUpdateTest(common.HeatTestCase):
         err = self.assertRaises(ValueError, self.current_grp._update_timeout,
                                 3, 100)
         self.assertIn('The current update policy will result in stack update '
-                      'timeout.', str(err))
+                      'timeout.', six.text_type(err))
 
     def test_update_time_sufficient(self):
         current = copy.deepcopy(template)
@@ -1468,18 +1470,18 @@ class RollingUpdateTest(common.HeatTestCase):
 
 
 class TestUtils(common.HeatTestCase):
-    # 1. No existing no skiplist
-    # 2. Existing with no skiplist
-    # 3. Existing with skiplist
+    # 1. No existing no blacklist
+    # 2. Existing with no blacklist
+    # 3. Existing with blacklist
     scenarios = [
-        ('1', dict(existing=[], skipped=[], count=0)),
-        ('2', dict(existing=['0', '1'], skipped=[], count=0)),
-        ('3', dict(existing=['0', '1'], skipped=['0'], count=1)),
-        ('4', dict(existing=['0', '1'], skipped=['1', '2'], count=1))
+        ('1', dict(existing=[], black_listed=[], count=0)),
+        ('2', dict(existing=['0', '1'], black_listed=[], count=0)),
+        ('3', dict(existing=['0', '1'], black_listed=['0'], count=1)),
+        ('4', dict(existing=['0', '1'], black_listed=['1', '2'], count=1))
 
     ]
 
-    def test_count_skipped(self):
+    def test_count_black_listed(self):
         inspector = mock.Mock(spec=grouputils.GroupInspector)
         self.patchobject(grouputils.GroupInspector, 'from_parent_resource',
                          return_value=inspector)
@@ -1488,8 +1490,8 @@ class TestUtils(common.HeatTestCase):
         stack = utils.parse_stack(template2)
         snip = stack.t.resource_definitions(stack)['group1']
         resgrp = resource_group.ResourceGroup('test', snip, stack)
-        resgrp._name_skiplist = mock.Mock(return_value=set(self.skipped))
-        rcount = resgrp._count_skipped(self.existing)
+        resgrp._name_blacklist = mock.Mock(return_value=set(self.black_listed))
+        rcount = resgrp._count_black_listed(self.existing)
         self.assertEqual(self.count, rcount)
 
 
@@ -1761,7 +1763,7 @@ class TestGetBatches(common.HeatTestCase):
 
         self.stack = utils.parse_stack(template)
         self.grp = self.stack['group1']
-        self.grp._name_skiplist = mock.Mock(return_value={'0'})
+        self.grp._name_blacklist = mock.Mock(return_value={'0'})
 
     def test_get_batches(self):
         batches = list(self.grp._get_batches(self.targ_cap,

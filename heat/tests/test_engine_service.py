@@ -11,12 +11,13 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
 import uuid
 
+import mock
 from oslo_config import cfg
 from oslo_messaging.rpc import dispatcher
 from oslo_serialization import jsonutils as json
+import six
 
 from heat.common import context
 from heat.common import environment_util as env_util
@@ -289,7 +290,7 @@ class StackConvergenceServiceCreateUpdateTest(common.HeatTestCase):
         self.assertIsInstance(result, dict)
         self.assertTrue(result['stack_id'])
         parser.Stack.load.assert_called_once_with(
-            self.ctx, stack=mock.ANY, check_refresh_cred=True)
+            self.ctx, stack=mock.ANY)
         templatem.Template.assert_called_once_with(template, files=None)
         environment.Environment.assert_called_once_with(params)
 
@@ -851,7 +852,7 @@ class StackServiceTest(common.HeatTestCase):
         ret = self.assertRaises(exception.InvalidTemplateVersions,
                                 self.eng.list_template_versions, self.ctx)
         self.assertIn('A template version alias c.something was added',
-                      str(ret))
+                      six.text_type(ret))
 
     @mock.patch('heat.engine.template._get_template_extension_manager')
     def test_list_template_functions(self, templ_mock):
@@ -919,7 +920,7 @@ class StackServiceTest(common.HeatTestCase):
                                self.ctx,
                                version)
         msg = "Template with version %s not found" % version
-        self.assertEqual(msg, str(ex))
+        self.assertEqual(msg, six.text_type(ex))
 
     def test_stack_list_outputs(self):
         t = template_format.parse(tools.wp_template)
@@ -978,67 +979,16 @@ class StackServiceTest(common.HeatTestCase):
         env = {'parameters': {'KeyName': 'EnvKey'}}
         tmpl = templatem.Template(t)
         stack = parser.Stack(self.ctx, 'get_env_stack', tmpl)
-        stack.store()
 
         mock_get_stack = self.patchobject(self.eng, '_get_stack')
         mock_get_stack.return_value = mock.MagicMock()
         mock_get_stack.return_value.raw_template.environment = env
-        self.patchobject(templatem.Template, 'load', return_value=tmpl)
+        self.patchobject(parser.Stack, 'load', return_value=stack)
 
         # Test
         found = self.eng.get_environment(self.ctx, stack.identifier())
 
         # Verify
-        self.assertEqual(env, found)
-
-    def test_get_environment_hidden_param(self):
-        # Setup
-        env = {
-            'parameters': {
-                'admin': 'testuser',
-                'pass': 'pa55w0rd'
-            },
-            'parameter_defaults': {
-                'secret': 'dummy'
-            },
-            'resource_registry': {
-                'res': 'resource.yaml'
-            }
-        }
-        t = {
-            'heat_template_version': '2018-08-31',
-            'parameters': {
-                'admin': {'type': 'string'},
-                'pass': {'type': 'string', 'hidden': True}
-            },
-            'resources': {
-                'res1': {'type': 'res'}
-            }
-        }
-        files = {
-            'resource.yaml': '''
-                heat_template_version: 2018-08-31
-                parameters:
-                    secret:
-                        type: string
-                        hidden: true
-            '''
-        }
-        tmpl = templatem.Template(t, files=files)
-        stack = parser.Stack(self.ctx, 'get_env_stack', tmpl)
-        stack.store()
-
-        mock_get_stack = self.patchobject(self.eng, '_get_stack')
-        mock_get_stack.return_value = mock.MagicMock()
-        mock_get_stack.return_value.raw_template.environment = env
-        self.patchobject(templatem.Template, 'load', return_value=tmpl)
-
-        # Test
-        found = self.eng.get_environment(self.ctx, stack.identifier())
-
-        # Verify
-        env['parameters']['pass'] = '******'
-        env['parameter_defaults']['secret'] = '******'
         self.assertEqual(env, found)
 
     def test_get_environment_no_env(self):
@@ -1091,7 +1041,7 @@ class StackServiceTest(common.HeatTestCase):
                                self.ctx, mock.ANY, 'bunny')
         self.assertEqual(exception.NotFound, ex.exc_info[0])
         self.assertEqual('Specified output key bunny not found.',
-                         str(ex.exc_info[1]))
+                         six.text_type(ex.exc_info[1]))
 
     def test_stack_show_output_error(self):
         t = template_format.parse(tools.wp_template)
@@ -1252,7 +1202,7 @@ class StackServiceTest(common.HeatTestCase):
         msg = (u'"Type" is not a valid keyword '
                'inside a resource definition')
 
-        self.assertEqual(msg, str(ex))
+        self.assertEqual(msg, six.text_type(ex))
 
     def test_validate_new_stack_checks_incorrect_sections(self):
         template = {'heat_template_version': '2013-05-23',
@@ -1264,7 +1214,7 @@ class StackServiceTest(common.HeatTestCase):
                                self.ctx, 'test_existing_stack',
                                parsed_template)
         msg = u'The template section is invalid: unknown_section'
-        self.assertEqual(msg, str(ex))
+        self.assertEqual(msg, six.text_type(ex))
 
     def test_validate_new_stack_checks_resource_limit(self):
         cfg.CONF.set_override('max_resources_per_stack', 5)
@@ -1287,7 +1237,7 @@ class StackServiceTest(common.HeatTestCase):
         tmpl.validate.side_effect = AssertionError(expected_message)
         exc = self.assertRaises(AssertionError, self.eng._validate_new_stack,
                                 self.ctx, 'stack_name', tmpl)
-        self.assertEqual(expected_message, str(exc))
+        self.assertEqual(expected_message, six.text_type(exc))
 
     @mock.patch('heat.engine.service.ThreadGroupManager',
                 return_value=mock.Mock())

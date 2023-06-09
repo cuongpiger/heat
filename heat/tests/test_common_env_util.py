@@ -135,7 +135,7 @@ class TestMergeEnvironments(common.HeatTestCase):
 
     def test_merge_envs_with_specified_default(self):
         merge_strategies = {'default': 'deep_merge'}
-        self.env_1['parameter_merge_strategies'] = merge_strategies
+        self.env_2['parameter_merge_strategies'] = merge_strategies
         files = {'env_1': json.dumps(self.env_1),
                  'env_2': json.dumps(self.env_2)}
         environment_files = ['env_1', 'env_2']
@@ -169,7 +169,7 @@ class TestMergeEnvironments(common.HeatTestCase):
             'lst_value2': 'merge',
             'json_value1': 'deep_merge'}
 
-        self.env_1['parameter_merge_strategies'] = merge_strategies
+        self.env_2['parameter_merge_strategies'] = merge_strategies
 
         files = {'env_1': json.dumps(self.env_1),
                  'env_2': json.dumps(self.env_2)}
@@ -202,13 +202,7 @@ class TestMergeEnvironments(common.HeatTestCase):
             'lst_value1': "merge",
             'json_value1': "deep_merge"}
 
-        env3_merge_strategies = {
-            'default': "overwrite",
-            'lst_value1': "deep_merge",
-            'json_value1': "merge"}
-
-        self.env_1['parameter_merge_strategies'] = merge_strategies
-        self.env_3['parameter_merge_strategies'] = env3_merge_strategies
+        self.env_2['parameter_merge_strategies'] = merge_strategies
 
         files = {'env_1': json.dumps(self.env_1),
                  'env_2': json.dumps(self.env_2),
@@ -227,12 +221,7 @@ class TestMergeEnvironments(common.HeatTestCase):
             'default': "overwrite",
             'lst_value2': "merge"}
 
-        env4_merge_strategies = {
-            'default': "overwrite",
-            'lst_value2': "overwrite"}
-
-        self.env_1['parameter_merge_strategies'] = merge_strategies
-        self.env_4['parameter_merge_strategies'] = env4_merge_strategies
+        self.env_2['parameter_merge_strategies'] = merge_strategies
 
         files = {'env_1': json.dumps(self.env_1),
                  'env_2': json.dumps(self.env_2),
@@ -275,9 +264,9 @@ class TestMergeEnvironments(common.HeatTestCase):
         self.assertEqual({'value1': 0}, self.params['parameter_defaults'])
 
     def test_merge_envs_with_zeros_in_maps(self):
-        env1 = {'parameter_defaults': {'value1': {'foo': 1}},
+        env1 = {'parameter_defaults': {'value1': {'foo': 1}}}
+        env2 = {'parameter_defaults': {'value1': {'foo': 0}},
                 'parameter_merge_strategies': {'value1': 'deep_merge'}}
-        env2 = {'parameter_defaults': {'value1': {'foo': 0}}}
         files = {'env_1': json.dumps(env1),
                  'env_2': json.dumps(env2)}
         environment_files = ['env_1', 'env_2']

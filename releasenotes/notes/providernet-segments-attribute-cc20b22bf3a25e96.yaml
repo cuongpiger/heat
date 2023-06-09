@@ -1,4 +1,0 @@
----
-features:
-  - Adds a new ``segments`` attribute to the ``OS::Neutron::ProviderNet``
-    resource. The attribute resolves the segments of the network.

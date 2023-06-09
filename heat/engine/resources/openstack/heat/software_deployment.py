@@ -12,7 +12,8 @@
 #    under the License.
 
 import copy
-import itertools
+import six
+from six import itertools
 import uuid
 
 from oslo_config import cfg
@@ -70,10 +71,6 @@ class SoftwareDeployment(signal_responder.SignalResponder):
     """
 
     support_status = support.SupportStatus(version='2014.1')
-
-    default_client_name = 'heat'
-
-    entity = 'software_deployments'
 
     PROPERTIES = (
         CONFIG, SERVER, INPUT_VALUES,
@@ -709,10 +706,10 @@ class SoftwareDeploymentGroup(resource_group.ResourceGroup):
     def res_def_changed(self, prop_diff):
         return True
 
-    def _update_name_skiplist(self, properties):
+    def _update_name_blacklist(self, properties):
         pass
 
-    def _name_skiplist(self):
+    def _name_blacklist(self):
         return set()
 
     def get_resource_def(self, include_all=False):
@@ -748,7 +745,7 @@ class SoftwareDeploymentGroup(resource_group.ResourceGroup):
 
     def _nested_output_defns(self, resource_names, get_attr_fn, get_res_fn):
         for attr in self.referenced_attrs():
-            key = attr if isinstance(attr, str) else attr[0]
+            key = attr if isinstance(attr, six.string_types) else attr[0]
             n_attr = self._member_attribute_name(key)
             output_name = self._attribute_output_name(self.ATTR_ATTRIBUTES,
                                                       n_attr)

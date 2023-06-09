@@ -552,8 +552,7 @@ class IKEPolicy(neutron.NeutronResource):
             constraints=[
                 constraints.AllowedValues(['3des', 'aes-128', 'aes-192',
                                            'aes-256']),
-            ],
-            update_allowed=True
+            ]
         ),
         PHASE1_NEGOTIATION_MODE: properties.Schema(
             properties.Schema.STRING,
@@ -566,7 +565,6 @@ class IKEPolicy(neutron.NeutronResource):
         LIFETIME: properties.Schema(
             properties.Schema.MAP,
             _('Safety assessment lifetime configuration for the ike policy.'),
-            update_allowed=True,
             schema={
                 LIFETIME_UNITS: properties.Schema(
                     properties.Schema.STRING,
@@ -590,8 +588,7 @@ class IKEPolicy(neutron.NeutronResource):
             default='group5',
             constraints=[
                 constraints.AllowedValues(['group2', 'group5', 'group14']),
-            ],
-            update_allowed=True
+            ]
         ),
         IKE_VERSION: properties.Schema(
             properties.Schema.STRING,
@@ -599,8 +596,7 @@ class IKEPolicy(neutron.NeutronResource):
             default='v1',
             constraints=[
                 constraints.AllowedValues(['v1', 'v2']),
-            ],
-            update_allowed=True
+            ]
         ),
     }
 

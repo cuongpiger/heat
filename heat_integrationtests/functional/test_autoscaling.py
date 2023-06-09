@@ -15,6 +15,7 @@ import json
 
 from heatclient import exc
 from oslo_log import log as logging
+import six
 from testtools import matchers
 
 from heat_integrationtests.common import test
@@ -735,7 +736,7 @@ outputs:
                                stack_identifier, 'ScaleUpPolicy')
 
         error_msg = 'Signal resource during SUSPEND is not supported'
-        self.assertIn(error_msg, str(ex))
+        self.assertIn(error_msg, six.text_type(ex))
         ev = self.wait_for_event_with_reason(
             stack_identifier,
             reason='Cannot signal resource during SUSPEND',

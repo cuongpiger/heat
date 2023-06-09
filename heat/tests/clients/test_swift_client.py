@@ -12,8 +12,8 @@
 #    under the License.
 
 import datetime
-from unittest import mock
 
+import mock
 import pytz
 from testtools import matchers
 
@@ -27,7 +27,7 @@ class SwiftClientPluginTestCase(common.HeatTestCase):
         super(SwiftClientPluginTestCase, self).setUp()
         self.swift_client = mock.Mock()
         self.context = utils.dummy_context()
-        self.context.project_id = "demo"
+        self.context.tenant = "demo"
         c = self.context.clients
         self.swift_plugin = c.client_plugin('swift')
         self.swift_plugin.client = lambda: self.swift_client
@@ -76,7 +76,7 @@ class SwiftUtilsTest(SwiftClientPluginTestCase):
         url = self.swift_plugin.get_temp_url(container_name, obj_name)
         self.assertFalse(self.swift_client.post_account.called)
         regexp = ("http://fake-host.com:8080/v1/AUTH_demo/%s"
-                  r"/%s\?temp_url_sig=[0-9a-f]{40,64}&"
+                  r"/%s\?temp_url_sig=[0-9a-f]{40}&"
                   "temp_url_expires=[0-9]{10}" %
                   (container_name, obj_name))
         self.assertThat(url, matchers.MatchesRegex(regexp))
@@ -119,7 +119,7 @@ class SwiftUtilsTest(SwiftClientPluginTestCase):
         self.assertTrue(self.swift_client.put_container.called)
         self.assertTrue(self.swift_client.put_object.called)
         regexp = ("http://fake-host.com:8080/v1/AUTH_demo/%s"
-                  r"/%s\?temp_url_sig=[0-9a-f]{40,64}&"
+                  r"/%s\?temp_url_sig=[0-9a-f]{40}&"
                   "temp_url_expires=[0-9]{10}" %
                   (container_name, obj_name))
         self.assertThat(url, matchers.MatchesRegex(regexp))

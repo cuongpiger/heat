@@ -11,7 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
+import six
 
 from neutronclient.common import exceptions
 from neutronclient.v2_0 import client as neutronclient
@@ -90,7 +91,7 @@ class MeteringLabelTest(common.HeatTestCase):
         self.assertEqual(
             'NeutronClientException: resources.label: '
             'An unknown exception occurred.',
-            str(error))
+            six.text_type(error))
         self.assertEqual((rsrc.CREATE, rsrc.FAILED), rsrc.state)
 
         self.mockclient.create_metering_label.assert_called_once_with({
@@ -151,7 +152,7 @@ class MeteringLabelTest(common.HeatTestCase):
         self.assertEqual(
             'NeutronClientException: resources.label: '
             'An unknown exception occurred.',
-            str(error))
+            six.text_type(error))
         self.assertEqual((rsrc.DELETE, rsrc.FAILED), rsrc.state)
 
         self.mockclient.create_metering_label.assert_called_once_with({
@@ -240,7 +241,7 @@ class MeteringRuleTest(common.HeatTestCase):
         self.assertEqual(
             'NeutronClientException: resources.rule: '
             'An unknown exception occurred.',
-            str(error))
+            six.text_type(error))
         self.assertEqual((rsrc.CREATE, rsrc.FAILED), rsrc.state)
 
         self.mockclient.create_metering_label_rule.assert_called_once_with({
@@ -307,7 +308,7 @@ class MeteringRuleTest(common.HeatTestCase):
         self.assertEqual(
             'NeutronClientException: resources.rule: '
             'An unknown exception occurred.',
-            str(error))
+            six.text_type(error))
         self.assertEqual((rsrc.DELETE, rsrc.FAILED), rsrc.state)
 
         self.mockclient.create_metering_label_rule.assert_called_once_with({

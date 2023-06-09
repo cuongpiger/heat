@@ -15,7 +15,8 @@
 
 import contextlib
 from oslo_log import log as logging
-from urllib import parse
+import six
+from six.moves.urllib import parse
 from webob import exc
 
 from heat.api.openstack.v1 import util
@@ -78,7 +79,7 @@ class InstantiationData(object):
         try:
             yield
         except ValueError as parse_ex:
-            mdict = {'type': data_type, 'error': str(parse_ex)}
+            mdict = {'type': data_type, 'error': six.text_type(parse_ex)}
             msg = _("%(type)s not in valid format: %(error)s") % mdict
             raise exc.HTTPBadRequest(msg)
 
@@ -100,7 +101,7 @@ class InstantiationData(object):
             try:
                 adopt_data = template_format.simple_parse(adopt_data)
                 template_format.validate_template_limit(
-                    str(adopt_data['template']))
+                    six.text_type(adopt_data['template']))
                 return adopt_data['template']
             except (ValueError, KeyError) as ex:
                 err_reason = _('Invalid adopt data: %s') % ex
@@ -108,7 +109,7 @@ class InstantiationData(object):
         elif self.PARAM_TEMPLATE in self.data:
             template_data = self.data[self.PARAM_TEMPLATE]
             if isinstance(template_data, dict):
-                template_format.validate_template_limit(str(
+                template_format.validate_template_limit(six.text_type(
                     template_data))
                 return template_data
 
@@ -166,24 +167,13 @@ class InstantiationData(object):
         params = self.data.items()
         return dict((k, v) for k, v in params if k not in self.PARAMS)
 
-    def no_change(self):
-        assert self.patch
-        return ((self.template() is None) and
-                (self.environment() ==
-                    environment_format.default_for_missing({})) and
-                (not self.files()) and
-                (not self.environment_files()) and
-                (self.files_container() is None) and
-                (not any(k != rpc_api.PARAM_EXISTING
-                         for k in self.args().keys())))
-
 
 class StackController(object):
     """WSGI controller for stacks resource in Heat v1 API.
 
     Implements the API actions.
     """
-    # Define request scope (must match what is in policy.yaml or policies in
+    # Define request scope (must match what is in policy.json or policies in
     # code)
     REQUEST_SCOPE = 'stacks'
 
@@ -198,7 +188,7 @@ class StackController(object):
         try:
             return param_utils.extract_bool(name, value)
         except ValueError as e:
-            raise exc.HTTPBadRequest(str(e))
+            raise exc.HTTPBadRequest(six.text_type(e))
 
     def _extract_int_param(self, name, value,
                            allow_zero=True, allow_negative=False):
@@ -206,16 +196,16 @@ class StackController(object):
             return param_utils.extract_int(name, value,
                                            allow_zero, allow_negative)
         except ValueError as e:
-            raise exc.HTTPBadRequest(str(e))
+            raise exc.HTTPBadRequest(six.text_type(e))
 
     def _extract_tags_param(self, tags):
         try:
             return param_utils.extract_tags(tags)
         except ValueError as e:
-            raise exc.HTTPBadRequest(str(e))
+            raise exc.HTTPBadRequest(six.text_type(e))
 
     def _index(self, req, use_admin_cnxt=False):
-        filter_param_types = {
+        filter_whitelist = {
             # usage of keys in this list are not encouraged, please use
             # rpc_api.STACK_KEYS instead
             'id': util.PARAM_TYPE_MIXED,
@@ -226,7 +216,7 @@ class StackController(object):
             'username': util.PARAM_TYPE_MIXED,
             'owner_id': util.PARAM_TYPE_MIXED,
         }
-        param_types = {
+        whitelist = {
             'limit': util.PARAM_TYPE_SINGLE,
             'marker': util.PARAM_TYPE_SINGLE,
             'sort_dir': util.PARAM_TYPE_SINGLE,
@@ -239,7 +229,7 @@ class StackController(object):
             'not_tags': util.PARAM_TYPE_SINGLE,
             'not_tags_any': util.PARAM_TYPE_SINGLE,
         }
-        params = util.get_allowed_params(req.params, param_types)
+        params = util.get_allowed_params(req.params, whitelist)
         stack_keys = dict.fromkeys(rpc_api.STACK_KEYS, util.PARAM_TYPE_MIXED)
         unsupported = (
             rpc_api.STACK_ID,  # not user visible
@@ -257,7 +247,7 @@ class StackController(object):
         for key in unsupported:
             stack_keys.pop(key)
         # downward compatibility
-        stack_keys.update(filter_param_types)
+        stack_keys.update(filter_whitelist)
         filter_params = util.get_allowed_params(req.params, stack_keys)
 
         show_deleted = False
@@ -402,7 +392,7 @@ class StackController(object):
         if not is_update and key in args:
             msg = _("%s flag only supported in stack update (or update "
                     "preview) request.") % key
-            raise exc.HTTPBadRequest(str(msg))
+            raise exc.HTTPBadRequest(six.text_type(msg))
         return args
 
     @util.registered_policy_enforce
@@ -507,8 +497,7 @@ class StackController(object):
 
         raise exc.HTTPAccepted()
 
-    @util.no_policy_enforce
-    @util._identified_stack
+    @util.registered_identified_stack
     def update_patch(self, req, identity, body):
         """Update an existing stack with a new template.
 
@@ -516,17 +505,6 @@ class StackController(object):
         Add the flag patch to the args so the engine code can distinguish
         """
         data = InstantiationData(body, patch=True)
-        _target = {"project_id": req.context.tenant_id}
-
-        policy_act = 'update_no_change' if data.no_change() else 'update_patch'
-        allowed = req.context.policy.enforce(
-            context=req.context,
-            action=policy_act,
-            scope=self.REQUEST_SCOPE,
-            target=_target,
-            is_registered_policy=True)
-        if not allowed:
-            raise exc.HTTPForbidden()
 
         args = self.prepare_args(data, is_update=True)
         self.rpc_client.update_stack(
@@ -542,8 +520,8 @@ class StackController(object):
         raise exc.HTTPAccepted()
 
     def _param_show_nested(self, req):
-        param_types = {'show_nested': util.PARAM_TYPE_SINGLE}
-        params = util.get_allowed_params(req.params, param_types)
+        whitelist = {'show_nested': 'single'}
+        params = util.get_allowed_params(req.params, whitelist)
 
         p_name = 'show_nested'
         if p_name in params:
@@ -627,9 +605,9 @@ class StackController(object):
 
         data = InstantiationData(body)
 
-        param_types = {'show_nested': util.PARAM_TYPE_SINGLE,
-                       'ignore_errors': util.PARAM_TYPE_SINGLE}
-        params = util.get_allowed_params(req.params, param_types)
+        whitelist = {'show_nested': util.PARAM_TYPE_SINGLE,
+                     'ignore_errors': util.PARAM_TYPE_SINGLE}
+        params = util.get_allowed_params(req.params, whitelist)
 
         show_nested = False
         p_name = rpc_api.PARAM_SHOW_NESTED
@@ -722,7 +700,7 @@ class StackController(object):
                     req.params.get(rpc_api.TEMPLATE_TYPE))
             except ValueError as ex:
                 msg = _("Template type is not supported: %s") % ex
-                raise exc.HTTPBadRequest(str(msg))
+                raise exc.HTTPBadRequest(six.text_type(msg))
 
         return self.rpc_client.generate_template(req.context,
                                                  type_name,
@@ -775,7 +753,10 @@ class StackSerializer(serializers.JSONResponseSerializer):
 
     def _populate_response_header(self, response, location, status):
         response.status = status
-        response.headers['Location'] = location
+        if six.PY2:
+            response.headers['Location'] = location.encode('utf-8')
+        else:
+            response.headers['Location'] = location
         response.headers['Content-Type'] = 'application/json'
         return response
 
@@ -783,7 +764,7 @@ class StackSerializer(serializers.JSONResponseSerializer):
         self._populate_response_header(response,
                                        result['stack']['links'][0]['href'],
                                        201)
-        response.body = self.to_json(result).encode('latin-1')
+        response.body = six.b(self.to_json(result))
         return response
 
 

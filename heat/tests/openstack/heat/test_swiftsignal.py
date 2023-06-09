@@ -13,10 +13,11 @@
 
 import datetime
 import json
-from unittest import mock
 import uuid
 
+import mock
 from oslo_utils import timeutils
+import six
 from swiftclient import client as swiftclient_client
 from swiftclient import exceptions as swiftclient_exceptions
 from testtools import matchers
@@ -129,15 +130,14 @@ class SwiftSignalHandleTest(common.HeatTestCase):
         obj_name = "%s-%s-abcdefghijkl" % (st.name, handle.name)
         mock_name.return_value = obj_name
         mock_swift_object.get_container.return_value = cont_index(obj_name, 2)
-        mock_swift_object.get_object.return_value = (obj_header,
-                                                     b'{"id": "1"}')
+        mock_swift_object.get_object.return_value = (obj_header, '{"id": "1"}')
 
         st.create()
         handle = st.resources['test_wait_condition_handle']
         obj_name = "%s-%s-abcdefghijkl" % (st.name, handle.name)
         regexp = ("http://fake-host.com:8080/v1/AUTH_test_tenant/%s/test_st-"
                   "test_wait_condition_handle-abcdefghijkl"
-                  r"\?temp_url_sig=[0-9a-f]{40,64}&temp_url_expires=[0-9]{10}"
+                  r"\?temp_url_sig=[0-9a-f]{40}&temp_url_expires=[0-9]{10}"
                   % st.id)
         res_id = st.resources['test_wait_condition_handle'].resource_id
         self.assertEqual(res_id, handle.physical_resource_name())
@@ -201,7 +201,7 @@ class SwiftSignalHandleTest(common.HeatTestCase):
                                 scheduler.TaskRunner(rsrc.delete))
         self.assertEqual('ClientException: '
                          'resources.test_wait_condition_handle: '
-                         'Overlimit: 413', str(exc))
+                         'Overlimit: 413', six.text_type(exc))
 
     @mock.patch.object(swift.SwiftClientPlugin, '_create')
     @mock.patch.object(resource.Resource, 'physical_resource_name')
@@ -232,7 +232,7 @@ class SwiftSignalHandleTest(common.HeatTestCase):
                                 scheduler.TaskRunner(rsrc.delete))
         self.assertEqual('ClientException: '
                          'resources.test_wait_condition_handle: '
-                         'Overlimit: 413', str(exc))
+                         'Overlimit: 413', six.text_type(exc))
 
     @mock.patch.object(swift.SwiftClientPlugin, '_create')
     @mock.patch.object(resource.Resource, 'physical_resource_name')
@@ -312,7 +312,7 @@ class SwiftSignalTest(common.HeatTestCase):
         obj_name = "%s-%s-abcdefghijkl" % (st.name, handle.name)
         mock_name.return_value = obj_name
         mock_swift_object.get_container.return_value = cont_index(obj_name, 2)
-        mock_swift_object.get_object.return_value = (obj_header, b'')
+        mock_swift_object.get_object.return_value = (obj_header, '')
 
         st.create()
         self.assertEqual(('CREATE', 'COMPLETE'), st.state)
@@ -328,7 +328,7 @@ class SwiftSignalTest(common.HeatTestCase):
 
         st.create()
         self.assertIn('not a valid SwiftSignalHandle.  The Swift TempURL path',
-                      str(st.status_reason))
+                      six.text_type(st.status_reason))
 
     @mock.patch.object(swift.SwiftClientPlugin, 'get_signal_url')
     def test_validate_handle_url_bad_container_name(self, mock_handle_url):
@@ -341,7 +341,7 @@ class SwiftSignalTest(common.HeatTestCase):
 
         st.create()
         self.assertIn('not a valid SwiftSignalHandle.  The container name',
-                      str(st.status_reason))
+                      six.text_type(st.status_reason))
 
     @mock.patch.object(swift.SwiftClientPlugin, '_create')
     @mock.patch.object(resource.Resource, 'physical_resource_name')
@@ -359,13 +359,13 @@ class SwiftSignalTest(common.HeatTestCase):
         mock_name.return_value = obj_name
         mock_swift_object.get_container.return_value = cont_index(obj_name, 2)
         mock_swift_object.get_object.side_effect = (
-            (obj_header, json.dumps({'id': 1}).encode()),
-            (obj_header, json.dumps({'id': 1}).encode()),
-            (obj_header, json.dumps({'id': 1}).encode()),
+            (obj_header, json.dumps({'id': 1})),
+            (obj_header, json.dumps({'id': 1})),
+            (obj_header, json.dumps({'id': 1})),
 
-            (obj_header, json.dumps({'id': 1}).encode()),
-            (obj_header, json.dumps({'id': 2}).encode()),
-            (obj_header, json.dumps({'id': 3}).encode()),
+            (obj_header, json.dumps({'id': 1})),
+            (obj_header, json.dumps({'id': 2})),
+            (obj_header, json.dumps({'id': 3})),
         )
 
         st.create()
@@ -386,12 +386,12 @@ class SwiftSignalTest(common.HeatTestCase):
         obj_name = "%s-%s-abcdefghijkl" % (st.name, handle.name)
         mock_name.return_value = obj_name
         mock_swift_object.get_container.return_value = cont_index(obj_name, 2)
-        body = json.dumps({'id': 1}).encode()
-        mock_swift_object.get_object.return_value = (obj_header, body)
+        mock_swift_object.get_object.return_value = (obj_header,
+                                                     json.dumps({'id': 1}))
 
         time_now = timeutils.utcnow()
         time_series = [datetime.timedelta(0, t) + time_now
-                       for t in range(1, 100)]
+                       for t in six.moves.xrange(1, 100)]
         timeutils.set_time_override(time_series)
         self.addCleanup(timeutils.clear_time_override)
 
@@ -420,9 +420,9 @@ class SwiftSignalTest(common.HeatTestCase):
         mock_name.return_value = obj_name
         mock_swift_object.get_container.return_value = cont_index(obj_name, 2)
         mock_swift_object.get_object.side_effect = (
-            (obj_header, json.dumps({'id': 1, 'status': "SUCCESS"}).encode()),
-            (obj_header, json.dumps({'id': 1, 'status': "SUCCESS"}).encode()),
-            (obj_header, json.dumps({'id': 2, 'status': "SUCCESS"}).encode()),
+            (obj_header, json.dumps({'id': 1, 'status': "SUCCESS"})),
+            (obj_header, json.dumps({'id': 1, 'status': "SUCCESS"})),
+            (obj_header, json.dumps({'id': 2, 'status': "SUCCESS"})),
         )
 
         st.create()
@@ -446,15 +446,15 @@ class SwiftSignalTest(common.HeatTestCase):
         mock_swift_object.get_object.side_effect = (
             # Create
             (obj_header, json.dumps({'id': 1, 'status': "FAILURE",
-                                     'reason': "foo"}).encode()),
+                                     'reason': "foo"})),
             (obj_header, json.dumps({'id': 2, 'status': "FAILURE",
-                                     'reason': "bar"}).encode()),
+                                     'reason': "bar"})),
 
             # SwiftSignalFailure
             (obj_header, json.dumps({'id': 1, 'status': "FAILURE",
-                                     'reason': "foo"}).encode()),
+                                     'reason': "foo"})),
             (obj_header, json.dumps({'id': 2, 'status': "FAILURE",
-                                     'reason': "bar"}).encode()),
+                                     'reason': "bar"})),
         )
 
         st.create()
@@ -481,14 +481,14 @@ class SwiftSignalTest(common.HeatTestCase):
 
         mock_swift_object.get_object.side_effect = (
             # st create
-            (obj_header, json.dumps({'id': 1, 'data': "foo"}).encode()),
-            (obj_header, json.dumps({'id': 2, 'data': "bar"}).encode()),
-            (obj_header, json.dumps({'id': 3, 'data': "baz"}).encode()),
+            (obj_header, json.dumps({'id': 1, 'data': "foo"})),
+            (obj_header, json.dumps({'id': 2, 'data': "bar"})),
+            (obj_header, json.dumps({'id': 3, 'data': "baz"})),
 
             # FnGetAtt call
-            (obj_header, json.dumps({'id': 1, 'data': "foo"}).encode()),
-            (obj_header, json.dumps({'id': 2, 'data': "bar"}).encode()),
-            (obj_header, json.dumps({'id': 3, 'data': "baz"}).encode()),
+            (obj_header, json.dumps({'id': 1, 'data': "foo"})),
+            (obj_header, json.dumps({'id': 2, 'data': "bar"})),
+            (obj_header, json.dumps({'id': 3, 'data': "baz"})),
         )
 
         st.create()
@@ -516,15 +516,15 @@ class SwiftSignalTest(common.HeatTestCase):
         mock_swift_object.get_object.side_effect = (
             # st create
             (obj_header, json.dumps({'data': "foo", 'reason': "bar",
-                                     'status': "SUCCESS"}).encode()),
+                                     'status': "SUCCESS"})),
             (obj_header, json.dumps({'data': "dog", 'reason': "cat",
-                                     'status': "SUCCESS"}).encode()),
+                                     'status': "SUCCESS"})),
 
             # FnGetAtt call
             (obj_header, json.dumps({'data': "foo", 'reason': "bar",
-                                     'status': "SUCCESS"}).encode()),
+                                     'status': "SUCCESS"})),
             (obj_header, json.dumps({'data': "dog", 'reason': "cat",
-                                     'status': "SUCCESS"}).encode()),
+                                     'status': "SUCCESS"})),
         )
 
         st.create()
@@ -550,12 +550,12 @@ class SwiftSignalTest(common.HeatTestCase):
 
         mock_swift_object.get_object.side_effect = (
             # st create
-            (obj_header, b''),
-            (obj_header, b''),
+            (obj_header, ''),
+            (obj_header, ''),
 
             # FnGetAtt call
-            (obj_header, b''),
-            (obj_header, b''),
+            (obj_header, ''),
+            (obj_header, ''),
         )
 
         st.create()
@@ -580,7 +580,7 @@ class SwiftSignalTest(common.HeatTestCase):
         mock_name.return_value = obj_name
         mock_swift_object.get_container.return_value = cont_index(obj_name, 1)
         mock_swift_object.get_object.return_value = (
-            obj_header, json.dumps({'status': 'SUCCESS'}).encode())
+            obj_header, json.dumps({'status': 'SUCCESS'}))
 
         st.create()
         self.assertEqual(['SUCCESS', 'SUCCESS'], wc.get_status())
@@ -606,7 +606,7 @@ class SwiftSignalTest(common.HeatTestCase):
         obj_name = "%s-%s-abcdefghijkl" % (st.name, handle.name)
         mock_name.return_value = obj_name
         mock_swift_object.get_container.return_value = cont_index(obj_name, 1)
-        mock_swift_object.get_object.return_value = (obj_header, b'')
+        mock_swift_object.get_object.return_value = (obj_header, '')
 
         st.create()
         self.assertEqual(['SUCCESS', 'SUCCESS'], wc.get_status())
@@ -633,7 +633,7 @@ class SwiftSignalTest(common.HeatTestCase):
         mock_name.return_value = obj_name
         mock_swift_object.get_container.return_value = cont_index(obj_name, 1)
         mock_swift_object.get_object.return_value = (
-            obj_header, json.dumps({'id': 1, 'status': "SUCCESS"}).encode())
+            obj_header, json.dumps({'id': 1, 'status': "SUCCESS"}))
 
         st.create()
         self.assertEqual(['SUCCESS'], wc.get_status())
@@ -658,7 +658,7 @@ class SwiftSignalTest(common.HeatTestCase):
         mock_name.return_value = obj_name
         mock_swift_object.get_container.return_value = cont_index(obj_name, 1)
         mock_swift_object.get_object.return_value = (
-            obj_header, json.dumps({'id': 1, 'status': "FAILURE"}).encode())
+            obj_header, json.dumps({'id': 1, 'status': "FAILURE"}))
 
         st.create()
         self.assertEqual(('CREATE', 'FAILED'), st.state)
@@ -685,8 +685,8 @@ class SwiftSignalTest(common.HeatTestCase):
 
         mock_swift_object.get_object.side_effect = (
             # st create
-            (obj_header, b''),
-            (obj_header, b''),
+            (obj_header, ''),
+            (obj_header, ''),
         )
 
         st.create()
@@ -711,16 +711,15 @@ class SwiftSignalTest(common.HeatTestCase):
 
         mock_swift_object.get_object.side_effect = (
             # st create
-            (obj_header, b''),
-            (obj_header, b''),
+            (obj_header, ''),
+            (obj_header, ''),
         )
 
         st.create()
         self.assertEqual(('CREATE', 'COMPLETE'), st.state)
         expected = ('http://fake-host.com:8080/v1/AUTH_test_tenant/%s/'
                     r'test_st-test_wait_condition_handle-abcdefghijkl\?temp_'
-                    'url_sig=[0-9a-f]{40,64}&'
-                    'temp_url_expires=[0-9]{10}') % st.id
+                    'url_sig=[0-9a-f]{40}&temp_url_expires=[0-9]{10}') % st.id
         self.assertThat(handle.FnGetAtt('endpoint'),
                         matchers.MatchesRegex(expected))
 
@@ -742,15 +741,15 @@ class SwiftSignalTest(common.HeatTestCase):
 
         mock_swift_object.get_object.side_effect = (
             # st create
-            (obj_header, b''),
-            (obj_header, b''),
+            (obj_header, ''),
+            (obj_header, ''),
         )
 
         st.create()
         self.assertEqual(('CREATE', 'COMPLETE'), st.state)
         expected = ("curl -i -X PUT 'http://fake-host.com:8080/v1/"
                     "AUTH_test_tenant/%s/test_st-test_wait_condition_"
-                    r"handle-abcdefghijkl\?temp_url_sig=[0-9a-f]{40,64}&"
+                    r"handle-abcdefghijkl\?temp_url_sig=[0-9a-f]{40}&"
                     "temp_url_expires=[0-9]{10}'") % st.id
         self.assertThat(handle.FnGetAtt('curl_cli'),
                         matchers.MatchesRegex(expected))
@@ -773,8 +772,8 @@ class SwiftSignalTest(common.HeatTestCase):
 
         mock_swift_object.get_object.side_effect = (
             # st create
-            (obj_header, b'{"status": "SUCCESS"'),
-            (obj_header, b'{"status": "FAI'),
+            (obj_header, '{"status": "SUCCESS"'),
+            (obj_header, '{"status": "FAI'),
         )
 
         st.create()
@@ -801,7 +800,7 @@ class SwiftSignalTest(common.HeatTestCase):
         mock_swift_object.get_container.return_value = cont_index(obj_name, 1)
 
         mock_swift_object.get_object.return_value = (
-            obj_header, b'{"status": "BOO"}')
+            obj_header, '{"status": "BOO"}')
 
         st.create()
         self.assertEqual(('CREATE', 'FAILED'), st.state)
@@ -828,10 +827,9 @@ class SwiftSignalTest(common.HeatTestCase):
             (container_header, []),   # The user deleted the objects
         )
         mock_swift_object.get_object.side_effect = (
-            # Objects there during create
-            (obj_header, json.dumps({'id': 1}).encode()),
-            (obj_header, json.dumps({'id': 2}).encode()),
-            (obj_header, json.dumps({'id': 3}).encode()),
+            (obj_header, json.dumps({'id': 1})),  # Objects there during create
+            (obj_header, json.dumps({'id': 2})),
+            (obj_header, json.dumps({'id': 3})),
         )
 
         st.create()
@@ -862,8 +860,8 @@ class SwiftSignalTest(common.HeatTestCase):
             cont_index(obj_name, 1),
         )
         mock_swift_object.get_object.side_effect = (
-            (obj_header, json.dumps({'id': 1}).encode()),
-            (obj_header, json.dumps({'id': 2}).encode()),
+            (obj_header, json.dumps({'id': 1})),
+            (obj_header, json.dumps({'id': 2})),
         )
 
         st.create()
@@ -889,10 +887,9 @@ class SwiftSignalTest(common.HeatTestCase):
                                                http_status=404)  # User deleted
         ]
         mock_swift_object.get_object.side_effect = (
-            # Objects there during create
-            (obj_header, json.dumps({'id': 1}).encode()),
-            (obj_header, json.dumps({'id': 2}).encode()),
-            (obj_header, json.dumps({'id': 3}).encode()),
+            (obj_header, json.dumps({'id': 1})),  # Objects there during create
+            (obj_header, json.dumps({'id': 2})),
+            (obj_header, json.dumps({'id': 3})),
         )
 
         st.create()
@@ -918,8 +915,8 @@ class SwiftSignalTest(common.HeatTestCase):
         mock_swift_object.get_object.side_effect = (
             swiftclient_client.ClientException(
                 "Object %s not found" % obj_name, http_status=404),
-            (obj_header, b'{"id": 1}'),
-            (obj_header, b'{"id": 2}'),
+            (obj_header, '{"id": 1}'),
+            (obj_header, '{"id": 2}'),
         )
 
         st.create()

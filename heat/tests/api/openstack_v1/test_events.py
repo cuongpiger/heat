@@ -11,8 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
-
+import mock
+import six
 import webob.exc
 
 import heat.api.middleware.fault as fault
@@ -341,7 +341,7 @@ class EventControllerTest(tools.ControllerTest, common.HeatTestCase):
             stack_id=stack_identity.stack_id)
 
         self.assertEqual(403, resp.status_int)
-        self.assertIn('403 Forbidden', str(resp))
+        self.assertIn('403 Forbidden', six.text_type(resp))
 
     def test_index_resource_nonexist(self, mock_enforce):
         self._mock_enforce_setup(mock_enforce, 'index', True)
@@ -374,7 +374,7 @@ class EventControllerTest(tools.ControllerTest, common.HeatTestCase):
         )
 
     @mock.patch.object(rpc_client.EngineClient, 'call')
-    def test_index_bogus_pagination_param(self, mock_call, mock_enforce):
+    def test_index_whitelists_pagination_params(self, mock_call, mock_enforce):
         self._mock_enforce_setup(mock_enforce, 'index', True)
         params = {
             'limit': 10,
@@ -424,11 +424,11 @@ class EventControllerTest(tools.ControllerTest, common.HeatTestCase):
                                stack_name=sid.stack_name,
                                stack_id=sid.stack_id)
         self.assertEqual("Only integer is acceptable by 'limit'.",
-                         str(ex))
+                         six.text_type(ex))
         self.assertFalse(mock_call.called)
 
     @mock.patch.object(rpc_client.EngineClient, 'call')
-    def test_index_bogus_filter_param(self, mock_call, mock_enforce):
+    def test_index_whitelist_filter_params(self, mock_call, mock_enforce):
         self._mock_enforce_setup(mock_enforce, 'index', True)
         params = {
             'resource_status': 'COMPLETE',
@@ -631,7 +631,7 @@ class EventControllerTest(tools.ControllerTest, common.HeatTestCase):
             event_id=event_id)
 
         self.assertEqual(403, resp.status_int)
-        self.assertIn('403 Forbidden', str(resp))
+        self.assertIn('403 Forbidden', six.text_type(resp))
 
     @mock.patch.object(rpc_client.EngineClient, 'call')
     def test_show_multiple_resource_names(self, mock_call, mock_enforce):

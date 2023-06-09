@@ -12,13 +12,12 @@
 #    under the License.
 
 import copy
-from unittest import mock
 
+import mock
 
 from heat.common import exception
 from heat.common import template_format
-from heat.db import api as db_api
-from heat.engine.clients.os.keystone import fake_keystoneclient
+from heat.db.sqlalchemy import api as db_api
 from heat.engine import environment
 from heat.engine import resource
 from heat.engine import rsrc_defn
@@ -72,37 +71,6 @@ class StackUpdateTest(common.HeatTestCase):
         self.assertNotEqual(raw_template_id, self.stack.prev_raw_template_id)
         self.assertRaises(exception.NotFound,
                           db_api.raw_template_get, self.ctx, raw_template_id)
-
-    def test_update_with_refresh_creds(self):
-        tmpl = {'HeatTemplateFormatVersion': '2012-12-12',
-                'Resources': {'AResource': {'Type': 'GenericResourceType'}}}
-
-        self.stack = stack.Stack(self.ctx, 'update_test_stack',
-                                 template.Template(tmpl))
-        self.stack.store()
-        self.stack.create()
-        self.assertEqual((stack.Stack.CREATE, stack.Stack.COMPLETE),
-                         self.stack.state)
-
-        tmpl2 = {'HeatTemplateFormatVersion': '2012-12-12',
-                 'Resources': {
-                     'AResource': {'Type': 'GenericResourceType'},
-                     'BResource': {'Type': 'GenericResourceType'}}}
-        updated_stack = stack.Stack(self.ctx, 'updated_stack',
-                                    template.Template(tmpl2))
-        old_user_creds_id = self.stack.user_creds_id
-        self.stack.refresh_cred = True
-
-        self.stack.context.user_id = '5678'
-
-        mock_del_trust = self.patchobject(
-            fake_keystoneclient.FakeKeystoneClient, 'delete_trust')
-
-        self.stack.update(updated_stack)
-        self.assertEqual((stack.Stack.UPDATE, stack.Stack.COMPLETE),
-                         self.stack.state)
-        self.assertEqual(1, mock_del_trust.call_count)
-        self.assertNotEqual(self.stack.user_creds_id, old_user_creds_id)
 
     def test_update_remove(self):
         tmpl = {'HeatTemplateFormatVersion': '2012-12-12',
@@ -266,7 +234,7 @@ class StackUpdateTest(common.HeatTestCase):
         self.stack.update(updated_stack)
         self.assertEqual((stack.Stack.UPDATE, stack.Stack.COMPLETE),
                          self.stack.state)
-        self.assertEqual([], self.stack.tags)
+        self.assertIsNone(self.stack.tags)
 
     def test_update_modify_ok_replace(self):
         tmpl = {'HeatTemplateFormatVersion': '2012-12-12',
@@ -2142,7 +2110,6 @@ class StackUpdateTest(common.HeatTestCase):
 
             def update(self, after, before=None, prev_resource=None):
                 ResourceTypeB.count_b += 1
-                yield
 
         resource._register_class('ResourceTypeB', ResourceTypeB)
 
@@ -2157,7 +2124,6 @@ class StackUpdateTest(common.HeatTestCase):
 
             def update(self, after, before=None, prev_resource=None):
                 ResourceTypeA.count_a += 1
-                yield
 
         resource._register_class('ResourceTypeA', ResourceTypeA)
 

@@ -12,6 +12,7 @@
 #    under the License.
 
 from oslo_log import log as logging
+import six
 
 from heat.common import exception
 from heat.common.i18n import _
@@ -365,7 +366,7 @@ class Instance(resource.Resource):
                 nic_dict['v4-fixed-ip'] = ip
             nics.append(nic_dict)
 
-        # create DB instance
+        # create db instance
         instance = self.client().instances.create(
             self._dbinstance_name(),
             self.flavor,
@@ -500,9 +501,9 @@ class Instance(resource.Resource):
                     # we retrieve it and try to update it so check again
                     if self.client_plugin().is_over_limit(exc):
                         LOG.debug("API rate limit: %(ex)s. Retrying.",
-                                  {'ex': str(exc)})
+                                  {'ex': six.text_type(exc)})
                         return False
-                    if "No change was requested" in str(exc):
+                    if "No change was requested" in six.text_type(exc):
                         LOG.warning("Unexpected instance state change "
                                     "during update. Retrying.")
                         return False
@@ -517,8 +518,8 @@ class Instance(resource.Resource):
 
     def _update_flavor(self, instance, new_flavor):
         if new_flavor:
-            current_flav = str(instance.flavor['id'])
-            new_flav = str(new_flavor)
+            current_flav = six.text_type(instance.flavor['id'])
+            new_flav = six.text_type(new_flavor)
             if new_flav != current_flav:
                 dmsg = "Resizing instance flavor from %(old)s to %(new)s"
                 LOG.debug(dmsg % {"old": current_flav, "new": new_flav})

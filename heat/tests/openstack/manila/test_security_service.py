@@ -11,7 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
+import six
 
 from heat.common import exception
 from heat.common import template_format
@@ -111,7 +112,7 @@ class ManilaSecurityServiceTest(common.HeatTestCase):
         expected_state = (ss.CREATE, ss.FAILED)
         self.assertEqual(expected_state, ss.state)
         self.assertIn('Exception: resources.security_service: error',
-                      str(exc))
+                      six.text_type(exc))
 
     def test_update(self):
         ss = self._create_resource('security_service', self.rsrc_defn,
@@ -141,4 +142,4 @@ class ManilaSecurityServiceTest(common.HeatTestCase):
         err = self.assertRaises(resource.UpdateReplace,
                                 scheduler.TaskRunner(ss.update, new_ss))
         msg = 'The Resource security_service requires replacement.'
-        self.assertEqual(msg, str(err))
+        self.assertEqual(msg, six.text_type(err))

@@ -11,7 +11,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
 
 from neutronclient.v2_0 import client as neutronclient
 
@@ -74,18 +74,11 @@ class NeutronExtraRouteTest(common.HeatTestCase):
         self.assertEqual((rsrc.CREATE, rsrc.COMPLETE), rsrc.state)
         return rsrc
 
-    def _test_extraroute(self, ipv6=False):
-
-        if ipv6:
-            route1 = {"destination": "ffff:f53b:82e4::56/46",
-                      "nexthop": "dce7:f53b:82e4::56"}
-            route2 = {"destination": "ffff:f53b:ffff::56/46",
-                      "nexthop": "dce7:f53b:82e4::56"}
-        else:
-            route1 = {"destination": "192.168.0.0/24",
-                      "nexthop": "1.1.1.1"}
-            route2 = {"destination": "192.168.255.0/24",
-                      "nexthop": "1.1.1.1"}
+    def test_extraroute(self):
+        route1 = {"destination": "192.168.0.0/24",
+                  "nexthop": "1.1.1.1"}
+        route2 = {"destination": "192.168.255.0/24",
+                  "nexthop": "1.1.1.1"}
 
         self.stub_RouterConstraint_validate()
 
@@ -104,30 +97,17 @@ class NeutronExtraRouteTest(common.HeatTestCase):
         t = template_format.parse(neutron_template)
         stack = utils.parse_stack(t)
 
-        if ipv6:
-            rsrc1 = self.create_extraroute(
-                t, stack, 'extraroute1', properties={
-                    'router_id': '3e46229d-8fce-4733-819a-b5fe630550f8',
-                    'destination': 'ffff:f53b:82e4::56/46',
-                    'nexthop': 'dce7:f53b:82e4::56'})
+        rsrc1 = self.create_extraroute(
+            t, stack, 'extraroute1', properties={
+                'router_id': '3e46229d-8fce-4733-819a-b5fe630550f8',
+                'destination': '192.168.0.0/24',
+                'nexthop': '1.1.1.1'})
 
-            self.create_extraroute(
-                t, stack, 'extraroute2', properties={
-                    'router_id': '3e46229d-8fce-4733-819a-b5fe630550f8',
-                    'destination': 'ffff:f53b:ffff::56/46',
-                    'nexthop': 'dce7:f53b:82e4::56'})
-        else:
-            rsrc1 = self.create_extraroute(
-                t, stack, 'extraroute1', properties={
-                    'router_id': '3e46229d-8fce-4733-819a-b5fe630550f8',
-                    'destination': '192.168.0.0/24',
-                    'nexthop': '1.1.1.1'})
-
-            self.create_extraroute(
-                t, stack, 'extraroute2', properties={
-                    'router_id': '3e46229d-8fce-4733-819a-b5fe630550f8',
-                    'destination': '192.168.255.0/24',
-                    'nexthop': '1.1.1.1'})
+        self.create_extraroute(
+            t, stack, 'extraroute2', properties={
+                'router_id': '3e46229d-8fce-4733-819a-b5fe630550f8',
+                'destination': '192.168.255.0/24',
+                'nexthop': '1.1.1.1'})
 
         scheduler.TaskRunner(rsrc1.delete)()
         rsrc1.state_set(rsrc1.CREATE, rsrc1.COMPLETE, 'to delete again')
@@ -147,9 +127,3 @@ class NeutronExtraRouteTest(common.HeatTestCase):
             mock.call('3e46229d-8fce-4733-819a-b5fe630550f8',
                       {'router': {'routes': [route2.copy()]}}),
         ])
-
-    def test_extraroute_ipv4(self):
-        self._test_extraroute(ipv6=False)
-
-    def test_extraroute_ipv6(self):
-        self._test_extraroute(ipv6=True)

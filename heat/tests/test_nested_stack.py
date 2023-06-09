@@ -12,10 +12,10 @@
 #    under the License.
 
 
-from unittest import mock
-
+import mock
 from oslo_config import cfg
 from requests import exceptions
+import six
 import yaml
 
 from heat.common import exception
@@ -30,7 +30,6 @@ from heat.engine import rsrc_defn
 from heat.engine import stack as parser
 from heat.engine import template
 from heat.objects import resource_data as resource_data_object
-from heat.objects import stack as stack_object
 from heat.tests import common
 from heat.tests import generic_resource as generic_rsrc
 from heat.tests import utils
@@ -165,7 +164,7 @@ Resources:
 
         res = self.assertRaises(exception.StackValidationFailed,
                                 stack.validate)
-        self.assertIn('Recursion depth exceeds', str(res))
+        self.assertIn('Recursion depth exceeds', six.text_type(res))
 
         calls = [mock.call('https://server.test/depth1.template'),
                  mock.call('https://server.test/depth2.template'),
@@ -230,7 +229,7 @@ Resources:
         tr.return_value = 2
         res = self.assertRaises(exception.StackValidationFailed,
                                 stack.validate)
-        self.assertIn('Recursion depth exceeds', str(res))
+        self.assertIn('Recursion depth exceeds', six.text_type(res))
         expected_count = cfg.CONF.get('max_nested_stack_depth') + 1
         self.assertEqual(expected_count, urlfetch.get.call_count)
 
@@ -303,7 +302,7 @@ Resources:
         nested_t = template_format.parse(self.nested_template)
         nested_t['Parameters']['KeyName']['Default'] = 'Key'
 
-        nested_stack = parser.Stack(ctx, 'test_nested',
+        nested_stack = parser.Stack(ctx, 'test',
                                     template.Template(nested_t))
         nested_stack.store()
 
@@ -387,10 +386,6 @@ Outputs:
                                          self.defn, self.stack)
         self.assertIsNone(self.res.validate())
         self.res.store()
-
-        self.patchobject(stack_object.Stack, 'get_status',
-                         return_value=('CREATE', 'COMPLETE',
-                                       'Created', 'Sometime'))
 
     def test_handle_create(self):
         self.res.create_with_template = mock.Mock(return_value=None)

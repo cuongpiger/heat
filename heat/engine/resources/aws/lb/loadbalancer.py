@@ -14,6 +14,7 @@ import os
 
 from oslo_config import cfg
 from oslo_log import log as logging
+import six
 
 from heat.common import exception
 from heat.common.i18n import _
@@ -622,7 +623,7 @@ backend servers
                         'Interval must be larger than Timeout'}
 
     def get_reference_id(self):
-        return str(self.name)
+        return six.text_type(self.name)
 
     def _resolve_attribute(self, name):
         """We don't really support any of these yet."""

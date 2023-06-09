@@ -1,4 +1,0 @@
----
-features:
-  - |
-    New resource type ``OS::Ironic::Port`` is now supported in orchestration service.

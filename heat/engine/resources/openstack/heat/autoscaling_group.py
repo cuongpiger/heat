@@ -11,6 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import six
+
 from oslo_log import log as logging
 
 from heat.common import exception
@@ -206,9 +208,9 @@ class AutoScalingResourceGroup(aws_asg.AutoScalingGroup):
                                             template_version=template_version)
 
     def _attribute_output_name(self, *attr_path):
-        return ', '.join(str(a) for a in attr_path)
+        return ', '.join(six.text_type(a) for a in attr_path)
 
-    def get_attribute(self, key, *path):  # noqa: C901
+    def get_attribute(self, key, *path):
         if key == self.CURRENT_SIZE:
             return grouputils.get_size(self)
 
@@ -278,7 +280,7 @@ class AutoScalingResourceGroup(aws_asg.AutoScalingGroup):
 
     def _nested_output_defns(self, resource_names, get_attr_fn, get_res_fn):
         for attr in self.referenced_attrs():
-            if isinstance(attr, str):
+            if isinstance(attr, six.string_types):
                 key, path = attr, []
             else:
                 key, path = attr[0], list(attr[1:])

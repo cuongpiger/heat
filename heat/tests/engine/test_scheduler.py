@@ -13,11 +13,12 @@
 
 import contextlib
 import itertools
-from unittest import mock
 
 import eventlet
+import mock
+import six
 
-from heat.common import exception
+from heat.common.i18n import repr_wrapper
 from heat.common import timeutils
 from heat.engine import dependencies
 from heat.engine import scheduler
@@ -67,7 +68,7 @@ class ExceptionGroupTest(common.HeatTestCase):
         ex2 = Exception("ex 2")
 
         exception_group = scheduler.ExceptionGroup([ex1, ex2])
-        self.assertEqual("['ex 1', 'ex 2']", str(exception_group))
+        self.assertEqual("['ex 1', 'ex 2']", six.text_type(exception_group))
 
 
 class StepTracker(object):
@@ -260,7 +261,7 @@ class DependencyTaskGroupTest(common.HeatTestCase):
         d = dependencies.Dependencies([('first', 'second'),
                                        ('second', 'third'),
                                        ('third', 'first')])
-        self.assertRaises(exception.CircularDependencyException,
+        self.assertRaises(dependencies.CircularDependencyException,
                           scheduler.DependencyTaskGroup, d)
 
     def test_aggregate_exceptions_raises_all_at_the_end(self):
@@ -1241,9 +1242,9 @@ class DescriptionTest(common.HeatTestCase):
         self.assertEqual('f', scheduler.task_description(f))
 
     def test_lambda(self):
-        lam = lambda: None  # noqa: E731
+        l = lambda: None
 
-        self.assertEqual('<lambda>', scheduler.task_description(lam))
+        self.assertEqual('<lambda>', scheduler.task_description(l))
 
     def test_method(self):
         class C(object):
@@ -1272,6 +1273,8 @@ class DescriptionTest(common.HeatTestCase):
         self.assertEqual('o', scheduler.task_description(C()))
 
     def test_unicode(self):
+        @repr_wrapper
+        @six.python_2_unicode_compatible
         class C(object):
             def __str__(self):
                 return u'C "\u2665"'

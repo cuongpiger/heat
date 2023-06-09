@@ -13,12 +13,13 @@
 
 import collections
 import json
-from unittest import mock
 
 from heatclient import exc
 from heatclient.v1 import stacks
 from keystoneauth1 import loading as ks_loading
+import mock
 from oslo_config import cfg
+import six
 
 from heat.common import exception
 from heat.common.i18n import _
@@ -260,7 +261,7 @@ class RemoteStackTest(tests_common.HeatTestCase):
                                rsrc.validate)
         msg = ('Cannot establish connection to Heat endpoint '
                'at region "%s"' % self.bad_region)
-        self.assertIn(msg, str(ex))
+        self.assertIn(msg, six.text_type(ex))
 
     def test_remote_validation_failed(self):
         parent, rsrc = self.create_parent_stack(remote_region=self.that_region,
@@ -281,7 +282,7 @@ class RemoteStackTest(tests_common.HeatTestCase):
         ex = self.assertRaises(exception.StackValidationFailed, rsrc.validate)
         msg = ('Failed validating stack template using Heat endpoint at region'
                ' "%s"') % self.that_region
-        self.assertIn(msg, str(ex))
+        self.assertIn(msg, six.text_type(ex))
 
     def test_create(self):
         rsrc = self.create_remote_stack()
@@ -350,13 +351,13 @@ class RemoteStackTest(tests_common.HeatTestCase):
             ks_loading, 'get_plugin_loader', return_value=self.m_plugin)
         self._create_with_remote_credential('cred_2')
         self.assertEqual(
-            [mock.call(secret_ref='secrets/cred_2')] * 2,
+            [mock.call(secret_ref='secrets/cred_2')]*2,
             m_gsbr.call_args_list)
         expected_load_options = [
             mock.call(
                 application_credential_id='9dfa187e5a354484bf9c49a2b674333a',
                 application_credential_secret='sec',
-                auth_url='http://192.168.1.101/identity/v3')] * 2
+                auth_url='http://192.168.1.101/identity/v3')]*2
 
         self.assertEqual(expected_load_options,
                          self.m_plugin.load_from_options.call_args_list)
@@ -394,7 +395,7 @@ class RemoteStackTest(tests_common.HeatTestCase):
         error_msg = ('ResourceInError: resources.remote_stack: '
                      'Went to status CREATE_FAILED due to '
                      '"Remote stack creation failed"')
-        self.assertEqual(error_msg, str(error))
+        self.assertEqual(error_msg, six.text_type(error))
         self.assertEqual((rsrc.CREATE, rsrc.FAILED), rsrc.state)
 
     def test_delete(self):
@@ -440,7 +441,7 @@ class RemoteStackTest(tests_common.HeatTestCase):
         error_msg = ('ResourceInError: resources.remote_stack: '
                      'Went to status DELETE_FAILED due to '
                      '"Remote stack deletion failed"')
-        self.assertIn(error_msg, str(error))
+        self.assertIn(error_msg, six.text_type(error))
         self.assertEqual((rsrc.DELETE, rsrc.FAILED), rsrc.state)
         self.heat.stacks.delete.assert_called_with(stack_id=remote_stack_id)
         self.assertEqual(rsrc.resource_id, remote_stack_id)
@@ -469,7 +470,7 @@ class RemoteStackTest(tests_common.HeatTestCase):
         self.assertEqual(
             'The Referenced Attribute (remote_stack non-existent_property) is '
             'incorrect.',
-            str(error))
+            six.text_type(error))
 
     def test_snapshot(self):
         stacks = [get_stack(stack_status='SNAPSHOT_IN_PROGRESS'),
@@ -562,7 +563,7 @@ class RemoteStackTest(tests_common.HeatTestCase):
         error_msg = ('ResourceInError: resources.remote_stack: '
                      'Went to status CHECK_FAILED due to '
                      '"Remote stack check failed"')
-        self.assertEqual(error_msg, str(error))
+        self.assertEqual(error_msg, six.text_type(error))
         self.assertEqual((rsrc.CHECK, rsrc.FAILED), rsrc.state)
         self.heat.actions.check.assert_called_with(stack_id=rsrc.resource_id)
 
@@ -595,7 +596,7 @@ class RemoteStackTest(tests_common.HeatTestCase):
         error_msg = ('ResourceInError: resources.remote_stack: '
                      'Went to status RESUME_FAILED due to '
                      '"Remote stack resume failed"')
-        self.assertEqual(error_msg, str(error))
+        self.assertEqual(error_msg, six.text_type(error))
         self.assertEqual((rsrc.RESUME, rsrc.FAILED), rsrc.state)
         self.heat.actions.resume.assert_called_with(stack_id=rsrc.resource_id)
 
@@ -607,7 +608,7 @@ class RemoteStackTest(tests_common.HeatTestCase):
                                   scheduler.TaskRunner(rsrc.resume))
         error_msg = ('Error: resources.remote_stack: '
                      'Cannot resume remote_stack, resource not found')
-        self.assertEqual(error_msg, str(error))
+        self.assertEqual(error_msg, six.text_type(error))
         self.assertEqual((rsrc.RESUME, rsrc.FAILED), rsrc.state)
 
     def test_suspend(self):
@@ -637,7 +638,7 @@ class RemoteStackTest(tests_common.HeatTestCase):
         error_msg = ('ResourceInError: resources.remote_stack: '
                      'Went to status SUSPEND_FAILED due to '
                      '"Remote stack suspend failed"')
-        self.assertEqual(error_msg, str(error))
+        self.assertEqual(error_msg, six.text_type(error))
         self.assertEqual((rsrc.SUSPEND, rsrc.FAILED), rsrc.state)
         # assert suspend was not called
         self.heat.actions.suspend.assert_has_calls([])
@@ -651,7 +652,7 @@ class RemoteStackTest(tests_common.HeatTestCase):
                                   scheduler.TaskRunner(rsrc.suspend))
         error_msg = ('Error: resources.remote_stack: '
                      'Cannot suspend remote_stack, resource not found')
-        self.assertEqual(error_msg, str(error))
+        self.assertEqual(error_msg, six.text_type(error))
         self.assertEqual((rsrc.SUSPEND, rsrc.FAILED), rsrc.state)
         # assert suspend was not called
         self.heat.actions.suspend.assert_has_calls([])
@@ -718,7 +719,7 @@ class RemoteStackTest(tests_common.HeatTestCase):
         error_msg = _('ResourceInError: resources.remote_stack: '
                       'Went to status UPDATE_FAILED due to '
                       '"Remote stack update failed"')
-        self.assertEqual(error_msg, str(error))
+        self.assertEqual(error_msg, six.text_type(error))
         self.assertEqual((rsrc.UPDATE, rsrc.FAILED), rsrc.state)
         self.assertEqual(2, len(self.heat.stacks.get.call_args_list))
 

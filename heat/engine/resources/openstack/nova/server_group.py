@@ -17,8 +17,7 @@ from heat.engine import properties
 from heat.engine import resource
 from heat.engine import support
 
-NOVA_MICROVERSIONS = (MICROVERSION_SOFT_POLICIES, MICROVERSION_RULE) = ('2.15',
-                                                                        '2.64')
+NOVA_MICROVERSIONS = (MICROVERSION_SOFT_POLICIES) = ('2.15')
 
 
 class ServerGroup(resource.Resource):
@@ -34,13 +33,13 @@ class ServerGroup(resource.Resource):
 
     entity = 'server_groups'
 
-    PROPERTIES = (
-        NAME, POLICIES, RULES
-    ) = (
-        'name', 'policies', 'rules'
-    )
+    required_service_extension = 'os-server-groups'
 
-    _RULES = (MAX_SERVER_PER_HOST) = ('max_server_per_host')
+    PROPERTIES = (
+        NAME, POLICIES
+    ) = (
+        'name', 'policies'
+    )
 
     properties_schema = {
         NAME: properties.Schema(
@@ -49,7 +48,7 @@ class ServerGroup(resource.Resource):
         ),
         POLICIES: properties.Schema(
             properties.Schema.LIST,
-            _('A list of exactly one policy to apply. '
+            _('A list of string policies to apply. '
               'Defaults to anti-affinity.'),
             default=['anti-affinity'],
             constraints=[
@@ -59,19 +58,7 @@ class ServerGroup(resource.Resource):
             ],
             schema=properties.Schema(
                 properties.Schema.STRING,
-            ),
-        ),
-        RULES: properties.Schema(
-            properties.Schema.MAP,
-            _('Rules for a policy.'),
-            schema={
-                MAX_SERVER_PER_HOST: properties.Schema(
-                    properties.Schema.NUMBER,
-                    _('Maximum servers in a group on a given host. '
-                      'Rule for anti-affinity policy.')
-                )
-            },
-            support_status=support.SupportStatus(version='17.0.0'),
+            )
         ),
     }
 
@@ -85,25 +72,12 @@ class ServerGroup(resource.Resource):
             msg = _('Required microversion for soft policies not supported.')
             raise exception.StackValidationFailed(message=msg)
 
-        if self.properties[self.RULES]:
-            is_supported = self.client_plugin().is_version_supported(
-                MICROVERSION_RULE)
-            if not is_supported:
-                msg = _('Required microversion for rules not supported.')
-                raise exception.StackValidationFailed(message=msg)
-
     def handle_create(self):
         name = self.physical_resource_name()
         policies = self.properties[self.POLICIES]
-        rules = self.properties[self.RULES]
-        rules_supported = self.client_plugin().is_version_supported(
-            MICROVERSION_RULE)
-        if rules_supported:
-            server_group = self.client().server_groups.create(
-                name=name, policy=policies[0], rules=rules)
-        else:
-            server_group = self.client().server_groups.create(
-                name=name, policies=policies)
+        client = self.client(version=MICROVERSION_SOFT_POLICIES)
+        server_group = client.server_groups.create(name=name,
+                                                   policies=policies)
         self.resource_id_set(server_group.id)
 
     def needs_replace_failed(self):

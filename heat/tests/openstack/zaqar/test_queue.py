@@ -11,8 +11,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
-from urllib import parse as urlparse
+import mock
+import six
+
+from six.moves.urllib import parse as urlparse
 
 from heat.common import template_format
 from heat.engine.clients import client_plugin
@@ -212,7 +214,7 @@ class ZaqarMessageQueueTest(common.HeatTestCase):
                                 scheduler.TaskRunner(queue.update,
                                                      new_queue))
         msg = 'The Resource MyQueue2 requires replacement.'
-        self.assertEqual(msg, str(err))
+        self.assertEqual(msg, six.text_type(err))
 
     def test_show_resource(self):
         t = template_format.parse(wp_template)

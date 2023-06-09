@@ -27,26 +27,21 @@ from heat.common import profiler
 from heat import version as hversion
 
 
-CONF = cfg.CONF
-
-
 def init_application():
     i18n.enable_lazy()
 
-    # NOTE(hberaud): Call reset to ensure the ConfigOpts object doesn't
-    # already contain registered options if the app is reloaded.
-    CONF.reset()
-    logging.register_options(CONF)
+    LOG = logging.getLogger('heat.api')
+
+    logging.register_options(cfg.CONF)
     version = hversion.version_info.version_string()
-    CONF(project='heat', prog='heat-api', version=version)
-    logging.setup(CONF, CONF.prog)
-    LOG = logging.getLogger(CONF.prog)
+    cfg.CONF(project='heat', prog='heat-api', version=version)
+    logging.setup(cfg.CONF, 'heat-api')
     config.set_config_defaults()
     messaging.setup()
 
-    port = CONF.heat_api.bind_port
-    host = CONF.heat_api.bind_host
-    profiler.setup(CONF.prog, host)
+    port = cfg.CONF.heat_api.bind_port
+    host = cfg.CONF.heat_api.bind_host
+    profiler.setup('heat-api', host)
     LOG.info('Starting Heat REST API on %(host)s:%(port)s',
              {'host': host, 'port': port})
     return config.load_paste_app()

@@ -11,7 +11,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
 
 from heat.common import exception
 from heat.common import service_utils
@@ -36,7 +36,7 @@ class StackLockTest(common.HeatTestCase):
             stack_object.Stack, 'get_by_id', return_value=stack)
 
     class TestThreadLockException(Exception):
-        pass
+            pass
 
     def test_successful_acquire_new_lock(self):
         mock_create = self.patchobject(stack_lock_object.StackLock,

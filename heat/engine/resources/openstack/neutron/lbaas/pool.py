@@ -32,12 +32,7 @@ class Pool(neutron.NeutronResource):
     and the nodes themselves.
     """
 
-    support_status = support.SupportStatus(
-        status=support.HIDDEN,
-        version='21.0.0',
-        message=_('Use octavia instead.'),
-        previous_status=support.SupportStatus(version='6.0.0')
-    )
+    support_status = support.SupportStatus(version='6.0.0')
 
     required_service_extension = 'lbaasv2'
 
@@ -202,8 +197,8 @@ class Pool(neutron.NeutronResource):
 
         if (self.properties[self.LISTENER] is None and
                 self.properties[self.LOADBALANCER] is None):
-            raise exception.PropertyUnspecifiedError(self.LISTENER,
-                                                     self.LOADBALANCER)
+                raise exception.PropertyUnspecifiedError(self.LISTENER,
+                                                         self.LOADBALANCER)
 
         if self.properties[self.SESSION_PERSISTENCE] is not None:
             session_p = self.properties[self.SESSION_PERSISTENCE]

@@ -21,12 +21,13 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_versionedobjects import base
 from oslo_versionedobjects import fields
+import six
 import tenacity
 
 from heat.common import crypt
 from heat.common import exception
 from heat.common.i18n import _
-from heat.db import api as db_api
+from heat.db.sqlalchemy import api as db_api
 from heat.objects import base as heat_base
 from heat.objects import fields as heat_fields
 from heat.objects import resource_data
@@ -56,7 +57,7 @@ class ResourceCache(object):
         self.by_stack_id_name = collections.defaultdict(dict)
 
     def set_by_stack_id(self, resources):
-        for res in resources.values():
+        for res in six.itervalues(resources):
             self.by_stack_id_name[res.stack_id][res.name] = res
 
 
@@ -189,7 +190,7 @@ class Resource(
                 resource_name,
                 cls._from_db_object(cls(context), context, resource_db)
             )
-            for resource_name, resource_db in resources_db.items()
+            for resource_name, resource_db in six.iteritems(resources_db)
         ]
         return dict(resources)
 
@@ -244,7 +245,7 @@ class Resource(
                 resource_name,
                 cls._from_db_object(cls(context), context, resource_db)
             )
-            for resource_name, resource_db in resources_db.items()
+            for resource_name, resource_db in six.iteritems(resources_db)
         ]
         return dict(resources)
 
@@ -257,7 +258,7 @@ class Resource(
                 resource_id,
                 cls._from_db_object(cls(context), context, resource_db)
             )
-            for resource_id, resource_db in resources_db.items()
+            for resource_id, resource_db in six.iteritems(resources_db)
         ]
         return dict(resources)
 
@@ -278,7 +279,7 @@ class Resource(
             context,
             stack_id,
             stack_id_only=True)
-        return {db_res.stack_id for db_res in resources_db.values()}
+        return {db_res.stack_id for db_res in six.itervalues(resources_db)}
 
     @classmethod
     def purge_deleted(cls, context, stack_id):

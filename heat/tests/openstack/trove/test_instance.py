@@ -11,10 +11,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
 import uuid
 
+import mock
 from oslo_config import cfg
+import six
 from troveclient import exceptions as troveexc
 from troveclient.v1 import users
 
@@ -179,7 +180,7 @@ class InstanceTest(common.HeatTestCase):
         exc = self.assertRaises(exception.ResourceInError,
                                 osdb_res.check_create_complete,
                                 mock_input)
-        self.assertIn(error_string, str(exc))
+        self.assertIn(error_string, six.text_type(exc))
 
         mock_input = mock.Mock()
         mock_input.status = 'FAILED'
@@ -192,7 +193,7 @@ class InstanceTest(common.HeatTestCase):
         exc = self.assertRaises(exception.ResourceInError,
                                 osdb_res.check_create_complete,
                                 mock_input)
-        self.assertIn(error_string, str(exc))
+        self.assertIn(error_string, six.text_type(exc))
 
         # test if error string is not defined
 
@@ -204,7 +205,7 @@ class InstanceTest(common.HeatTestCase):
         exc = self.assertRaises(exception.ResourceInError,
                                 osdb_res.check_create_complete,
                                 mock_input)
-        self.assertIn(error_string, str(exc))
+        self.assertIn(error_string, six.text_type(exc))
 
     def _create_failed_bad_status(self, status, error_message):
         t = template_format.parse(db_template)
@@ -215,7 +216,7 @@ class InstanceTest(common.HeatTestCase):
         ex = self.assertRaises(exception.ResourceInError,
                                instance.check_create_complete,
                                self.fake_instance.id)
-        self.assertIn(error_message, str(ex))
+        self.assertIn(error_message, six.text_type(ex))
 
     def test_create_failed_status_error(self):
         self._create_failed_bad_status(
@@ -293,7 +294,7 @@ class InstanceTest(common.HeatTestCase):
 
         exc = self.assertRaises(exception.ResourceFailure,
                                 scheduler.TaskRunner(res.check))
-        self.assertIn('FOOBAR', str(exc))
+        self.assertIn('FOOBAR', six.text_type(exc))
         self.assertEqual((res.CHECK, res.FAILED), res.state)
         # return previous status
         self.fake_instance.status = 'ACTIVE'
@@ -365,7 +366,7 @@ class InstanceTest(common.HeatTestCase):
                                instance.validate)
         self.assertEqual("Database ['invaliddb'] specified for user does not "
                          "exist in databases for resource MySqlCloudDB.",
-                         str(ex))
+                         six.text_type(ex))
 
     def test_instance_validation_db_name_hyphens(self):
         t = template_format.parse(db_template)
@@ -399,7 +400,7 @@ class InstanceTest(common.HeatTestCase):
                                instance.validate)
         self.assertEqual('Databases property is required if users property '
                          'is provided for resource MySqlCloudDB.',
-                         str(ex))
+                         six.text_type(ex))
 
     def test_instance_validation_user_no_db(self):
         t = template_format.parse(db_template)
@@ -414,7 +415,7 @@ class InstanceTest(common.HeatTestCase):
         self.assertEqual('Property error: '
                          'Resources.MySqlCloudDB.Properties.'
                          'users[0].databases: length (0) is out of range '
-                         '(min: 1, max: None)', str(ex))
+                         '(min: 1, max: None)', six.text_type(ex))
 
     def test_instance_validation_no_datastore_yes_version(self):
         t = template_format.parse(db_template)
@@ -423,7 +424,7 @@ class InstanceTest(common.HeatTestCase):
         ex = self.assertRaises(exception.StackValidationFailed,
                                instance.validate)
         exp_msg = "Not allowed - datastore_version without datastore_type."
-        self.assertEqual(exp_msg, str(ex))
+        self.assertEqual(exp_msg, six.text_type(ex))
 
     def test_instance_validation_no_ds_version(self):
         t = template_format.parse(db_template)
@@ -448,7 +449,7 @@ class InstanceTest(common.HeatTestCase):
         expected_msg = ("Datastore version SomeVersion for datastore type "
                         "mysql is not valid. "
                         "Allowed versions are MariaDB-5.5.")
-        self.assertEqual(expected_msg, str(ex))
+        self.assertEqual(expected_msg, six.text_type(ex))
 
     def test_instance_validation_implicit_version(self):
         t = template_format.parse(db_template)
@@ -474,7 +475,7 @@ class InstanceTest(common.HeatTestCase):
         ex = self.assertRaises(
             exception.StackValidationFailed, instance.validate)
         self.assertEqual('Either network or port must be provided.',
-                         str(ex))
+                         six.text_type(ex))
 
     def test_instance_validation_no_net_no_port_fail(self):
         t = template_format.parse(db_template)
@@ -488,7 +489,7 @@ class InstanceTest(common.HeatTestCase):
         ex = self.assertRaises(
             exception.StackValidationFailed, instance.validate)
         self.assertEqual('Either network or port must be provided.',
-                         str(ex))
+                         six.text_type(ex))
 
     def test_instance_validation_nic_port_on_novanet_fails(self):
         t = template_format.parse(db_template)
@@ -502,7 +503,7 @@ class InstanceTest(common.HeatTestCase):
         ex = self.assertRaises(
             exception.StackValidationFailed, instance.validate)
         self.assertEqual('Can not use port property on Nova-network.',
-                         str(ex))
+                         six.text_type(ex))
 
     def test_instance_create_with_port(self):
         t = template_format.parse(db_template_with_nics)
@@ -716,7 +717,7 @@ class InstanceUpdateTests(common.HeatTestCase):
                                 trove.check_update_complete,
                                 {"foo": "bar"})
         msg = "The last operation for the database instance failed"
-        self.assertIn(msg, str(exc))
+        self.assertIn(msg, six.text_type(exc))
 
     def test_check_client_exceptions(self, mock_client, mock_plugin):
         mock_instance = mock.Mock(status="ACTIVE")

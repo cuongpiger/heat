@@ -10,7 +10,8 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-from unittest import mock
+import mock
+import six
 
 from heat.common import exception
 from heat.common import template_format
@@ -79,7 +80,7 @@ class NeutronQuotaTest(common.HeatTestCase):
     def _test_validate(self, resource, error_msg):
         exc = self.assertRaises(exception.StackValidationFailed,
                                 resource.validate)
-        self.assertIn(error_msg, str(exc))
+        self.assertIn(error_msg, six.text_type(exc))
 
     def test_miss_all_quotas(self):
         my_quota = self.stack['my_quota']

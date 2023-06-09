@@ -11,11 +11,11 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
 
 from oslo_serialization import jsonutils
 from oslo_utils import uuidutils
-from urllib import parse as urlparse
+from six.moves.urllib import parse as urlparse
 
 from heat.common import exception
 from heat.common import template_format

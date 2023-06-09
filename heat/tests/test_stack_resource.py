@@ -13,12 +13,13 @@
 
 import contextlib
 import json
-from unittest import mock
 import uuid
 
+import mock
 from oslo_config import cfg
 from oslo_messaging import exceptions as msg_exceptions
 from oslo_serialization import jsonutils
+import six
 
 from heat.common import exception
 from heat.common import identifier
@@ -219,10 +220,7 @@ class StackResourceTest(StackResourceBaseTest):
         self.parent_resource.resource_id = 'fake_id'
 
         self.parent_resource.prepare_abandon()
-        status = ('CREATE', 'COMPLETE', '', 'now_time')
-        with mock.patch.object(stack_object.Stack, 'get_status',
-                               return_value=status):
-            self.parent_resource.delete_nested()
+        self.parent_resource.delete_nested()
 
         rpcc.return_value.abandon_stack.assert_called_once_with(
             self.parent_resource.context, mock.ANY)
@@ -410,7 +408,7 @@ class StackResourceTest(StackResourceBaseTest):
                          'incorrect.')
         exc = self.assertRaises(exception.StackValidationFailed,
                                 rsrc.validate)
-        self.assertEqual(raise_exc_msg, str(exc))
+        self.assertEqual(raise_exc_msg, six.text_type(exc))
 
     def _test_validate_unknown_resource_type(self, stack_name, tmpl,
                                              resource_name):
@@ -420,7 +418,7 @@ class StackResourceTest(StackResourceBaseTest):
 
         exc = self.assertRaises(exception.StackValidationFailed,
                                 rsrc.validate)
-        self.assertIn(raise_exc_msg, str(exc))
+        self.assertIn(raise_exc_msg, six.text_type(exc))
 
     def test_validate_resource_group(self):
         # test validate without nested template
@@ -525,16 +523,13 @@ class StackResourceTest(StackResourceBaseTest):
         def exc_filter(*args):
             try:
                 yield
-            except exception.EntityNotFound:
+            except exception.NotFound:
                 pass
 
         rpcc.return_value.ignore_error_by_name.side_effect = exc_filter
         rpcc.return_value.delete_stack = mock.Mock(
-            side_effect=exception.EntityNotFound('Stack', 'nested'))
-        status = ('CREATE', 'COMPLETE', '', 'now_time')
-        with mock.patch.object(stack_object.Stack, 'get_status',
-                               return_value=status):
-            self.assertIsNone(self.parent_resource.delete_nested())
+            side_effect=exception.NotFound())
+        self.assertIsNone(self.parent_resource.delete_nested())
         rpcc.return_value.delete_stack.assert_called_once_with(
             self.parent_resource.context, mock.ANY, cast=False)
 
@@ -765,7 +760,7 @@ class StackResourceAttrTest(StackResourceBaseTest):
         name = '%s-%s' % (self.parent_stack.name, self.parent_resource.name)
         exc = self.assertRaises(AssertionError,
                                 self.parent_resource.validate_nested_stack)
-        self.assertEqual(expected_message, str(exc))
+        self.assertEqual(expected_message, six.text_type(exc))
         mock_parse_nested.assert_called_once_with(name, 'foo', {})
 
 
@@ -820,7 +815,7 @@ class StackResourceCheckCompleteTest(StackResourceBaseTest):
         complete = getattr(self.parent_resource,
                            'check_%s_complete' % self.action)
         exc = self.assertRaises(exception.ResourceFailure, complete, None)
-        self.assertEqual(exp, str(exc))
+        self.assertEqual(exp, six.text_type(exc))
         self.mock_status.assert_called_once_with(
             self.parent_resource.context, self.parent_resource.resource_id)
 
@@ -843,6 +838,23 @@ class StackResourceCheckCompleteTest(StackResourceBaseTest):
         complete = getattr(self.parent_resource,
                            'check_%s_complete' % self.action)
         self.assertFalse(complete(None))
+        self.mock_status.assert_called_once_with(
+            self.parent_resource.context, self.parent_resource.resource_id)
+
+    def test_update_not_started(self):
+        if self.action != 'update':
+            # only valid for updates at the moment.
+            return
+
+        self.status[1] = 'COMPLETE'
+        self.status[3] = 'test'
+        cookie = {'previous': {'state': ('UPDATE', 'COMPLETE'),
+                               'updated_at': 'test'}}
+
+        complete = getattr(self.parent_resource,
+                           'check_%s_complete' % self.action)
+
+        self.assertFalse(complete(cookie=cookie))
         self.mock_status.assert_called_once_with(
             self.parent_resource.context, self.parent_resource.resource_id)
 
@@ -870,7 +882,7 @@ class WithTemplateTest(StackResourceBaseTest):
         def __eq__(self, other):
             if getattr(self, 'match', None) is not None:
                 return other == self.match
-            if not isinstance(other, int):
+            if not isinstance(other, six.integer_types):
                 return False
 
             self.match = other

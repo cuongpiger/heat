@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Add ``tty`` property to ``OS::Zun::Container``.
-    This property allows users to open the TTY of the container.

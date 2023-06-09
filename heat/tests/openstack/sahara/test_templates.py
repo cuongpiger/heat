@@ -13,7 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest import mock
+import mock
+import six
 
 from heat.common import exception
 from heat.common import template_format
@@ -181,10 +182,10 @@ class SaharaNodeGroupTemplateTest(common.HeatTestCase):
         ]
         ex = self.assertRaises(exception.StackValidationFailed, ngt.validate)
         self.assertEqual('Too many',
-                         str(ex))
+                         six.text_type(ex))
         ex = self.assertRaises(exception.StackValidationFailed, ngt.validate)
         self.assertEqual('Not found',
-                         str(ex))
+                         six.text_type(ex))
 
     def test_validate_flavor_constraint_return_false(self):
         self.t['resources']['node-group']['properties'].pop('floating_ip_pool')
@@ -196,7 +197,7 @@ class SaharaNodeGroupTemplateTest(common.HeatTestCase):
         self.assertEqual(u"Property error: "
                          u"resources.node-group.properties.flavor: "
                          u"Error validating value 'm1.large'",
-                         str(ex))
+                         six.text_type(ex))
 
     def test_template_invalid_name(self):
         tmpl = template_format.parse(node_group_template_without_name)
@@ -227,11 +228,11 @@ class SaharaNodeGroupTemplateTest(common.HeatTestCase):
         self.assertIn("resources.node-group.properties: Plugin vanilla "
                       "doesn't support the following node processes: "
                       "jobtracker. Allowed processes are: ",
-                      str(ex))
-        self.assertIn("namenode", str(ex))
-        self.assertIn("datanode", str(ex))
-        self.assertIn("secondarynamenode", str(ex))
-        self.assertIn("oozie", str(ex))
+                      six.text_type(ex))
+        self.assertIn("namenode", six.text_type(ex))
+        self.assertIn("datanode", six.text_type(ex))
+        self.assertIn("secondarynamenode", six.text_type(ex))
+        self.assertIn("oozie", six.text_type(ex))
 
     def test_update(self):
         ngt = self._create_ngt(self.t)
@@ -373,7 +374,7 @@ class SaharaClusterTemplateTest(common.HeatTestCase):
         ex = self.assertRaises(exception.StackValidationFailed,
                                ct.validate)
         self.assertEqual("neutron_management_network must be provided",
-                         str(ex))
+                         six.text_type(ex))
 
     def test_template_invalid_name(self):
         tmpl = template_format.parse(cluster_template_without_name)

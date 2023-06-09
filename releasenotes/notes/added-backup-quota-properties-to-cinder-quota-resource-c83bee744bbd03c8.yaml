@@ -1,6 +1,0 @@
----
-features:
-  - |
-    Add new properties ``backups`` and to ``backups_gigabytes``
-    resource OS::Cinder::Quota.
-    These properties can be updated without replacement.

@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest import mock
+import mock
+import six
 
 from heat.common import exception
 from heat.common import template_format
@@ -121,7 +122,7 @@ class SaharaJobBinaryTest(common.HeatTestCase):
         ex = self.assertRaises(exception.StackValidationFailed, jb.validate)
         error_msg = ('resources.job-binary.properties: internal-db://38273f82 '
                      'is not a valid job location.')
-        self.assertEqual(error_msg, str(ex))
+        self.assertEqual(error_msg, six.text_type(ex))
 
     def test_validate_password_without_user(self):
         props = self.stack.t.t['resources']['job-binary']['properties'].copy()
@@ -131,4 +132,4 @@ class SaharaJobBinaryTest(common.HeatTestCase):
         ex = self.assertRaises(exception.StackValidationFailed, jb.validate)
         error_msg = ('Property error: resources.job-binary.properties.'
                      'credentials: Property user not assigned')
-        self.assertEqual(error_msg, str(ex))
+        self.assertEqual(error_msg, six.text_type(ex))

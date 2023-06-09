@@ -11,9 +11,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
 
-from heat.db import filters as db_filters
+from heat.db.sqlalchemy import filters as db_filters
 from heat.tests import common
 
 

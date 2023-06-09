@@ -11,7 +11,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
 
 from heat.engine.resources.openstack.neutron.sfc import flow_classifier
 from heat.engine import stack
@@ -201,4 +201,4 @@ class FlowClassifierTest(common.HeatTestCase):
             {
                 'name': 'name-updated',
                 'description': 'description-updated',
-            }, self.test_resource.resource_id)
+            },  self.test_resource.resource_id)

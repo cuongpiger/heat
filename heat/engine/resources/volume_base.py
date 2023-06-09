@@ -197,10 +197,11 @@ class BaseVolumeAttachment(resource.Resource):
         if self.resource_id:
             server_id = self.properties[self.INSTANCE_ID]
             vol_id = self.properties[self.VOLUME_ID]
-            prg = progress.VolumeDetachProgress(server_id, vol_id,
-                                                self.resource_id)
-            prg.called = self.client_plugin('nova').detach_volume(
-                server_id, self.resource_id)
+            self.client_plugin('nova').detach_volume(server_id,
+                                                     self.resource_id)
+            prg = progress.VolumeDetachProgress(
+                server_id, vol_id, self.resource_id)
+            prg.called = True
 
         return prg
 
@@ -208,10 +209,6 @@ class BaseVolumeAttachment(resource.Resource):
         if prg is None:
             return True
 
-        if not prg.called:
-            prg.called = self.client_plugin('nova').detach_volume(
-                prg.srv_id, self.resource_id)
-            return False
         if not prg.cinder_complete:
             prg.cinder_complete = self.client_plugin(
             ).check_detach_volume_complete(prg.vol_id, prg.srv_id)

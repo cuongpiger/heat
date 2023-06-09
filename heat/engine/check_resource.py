@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import six
+
 import eventlet.queue
 import functools
 
@@ -81,7 +83,7 @@ class CheckResource(object):
                                  'during resource %s' % rsrc.action)
                 rsrc.state_set(rsrc.action,
                                rsrc.FAILED,
-                               str(status_reason))
+                               six.text_type(status_reason))
                 return True
         elif (rs_obj.engine_id is None and
               rs_obj.current_template_id == prev_template_id):
@@ -103,10 +105,11 @@ class CheckResource(object):
 
     def _retrigger_new_traversal(self, cnxt, current_traversal, is_update,
                                  stack_id, rsrc_id):
-        latest_stack = parser.Stack.load(cnxt, stack_id=stack_id,
-                                         force_reload=True)
-        if current_traversal != latest_stack.current_traversal:
-            self.retrigger_check_resource(cnxt, rsrc_id, latest_stack)
+            latest_stack = parser.Stack.load(cnxt, stack_id=stack_id,
+                                             force_reload=True)
+            if current_traversal != latest_stack.current_traversal:
+                self.retrigger_check_resource(cnxt, is_update, rsrc_id,
+                                              latest_stack)
 
     def _handle_stack_timeout(self, cnxt, stack):
         failure_reason = u'Timed out'
@@ -174,13 +177,13 @@ class CheckResource(object):
         except exception.ResourceFailure as ex:
             action = ex.action or rsrc.action
             reason = 'Resource %s failed: %s' % (action,
-                                                 str(ex))
+                                                 six.text_type(ex))
             self._handle_resource_failure(cnxt, is_update, rsrc.id,
                                           stack, reason)
         except scheduler.Timeout:
             self._handle_resource_failure(cnxt, is_update, rsrc.id,
                                           stack, u'Timed out')
-        except CancelOperation:
+        except CancelOperation as ex:
             # Stack is already marked FAILED, so we just need to retrigger
             # in case a new traversal has started and is waiting on us.
             self._retrigger_new_traversal(cnxt, current_traversal, is_update,
@@ -188,25 +191,31 @@ class CheckResource(object):
 
         return False
 
-    def retrigger_check_resource(self, cnxt, resource_id, stack):
+    def retrigger_check_resource(self, cnxt, is_update, resource_id, stack):
         current_traversal = stack.current_traversal
         graph = stack.convergence_dependencies.graph()
-
-        # When re-trigger received for latest traversal, first check if update
-        # key is available in graph. If yes, the latest traversal is waiting
-        # for update, otherwise it is waiting for delete. This is the case
-        # regardless of which action (update or cleanup) from the previous
-        # traversal was blocking it.
-        update_key = parser.ConvergenceNode(resource_id, True)
-        key = parser.ConvergenceNode(resource_id, update_key in graph)
-
-        LOG.info('Re-trigger resource: %s', key)
+        key = (resource_id, is_update)
+        if is_update:
+            # When re-trigger received for update in latest traversal, first
+            # check if update key is available in graph.
+            # if No, then latest traversal is waiting for delete.
+            if (resource_id, is_update) not in graph:
+                key = (resource_id, not is_update)
+        else:
+            # When re-trigger received for delete in latest traversal, first
+            # check if update key is available in graph,
+            # if yes, then latest traversal is waiting for update.
+            if (resource_id, True) in graph:
+                # not is_update evaluates to True below, which means update
+                key = (resource_id, not is_update)
+        LOG.info('Re-trigger resource: (%(key1)s, %(key2)s)',
+                 {'key1': key[0], 'key2': key[1]})
         predecessors = set(graph[key])
 
         try:
             propagate_check_resource(cnxt, self._rpc_client, resource_id,
                                      current_traversal, predecessors, key,
-                                     None, key.is_update, None)
+                                     None, key[1], None)
         except exception.EntityNotFound as e:
             if e.entity != "Sync Point":
                 raise
@@ -278,7 +287,8 @@ class CheckResource(object):
                               current_traversal)
                     return
 
-                self.retrigger_check_resource(cnxt, resource_id, stack)
+                self.retrigger_check_resource(cnxt, is_update,
+                                              resource_id, stack)
             else:
                 raise
 
@@ -313,7 +323,7 @@ class CheckResource(object):
                                                   rsrc, stack)
         except BaseException as exc:
             with excutils.save_and_reraise_exception():
-                msg = str(exc)
+                msg = six.text_type(exc)
                 LOG.exception("Unexpected exception in resource check.")
                 self._handle_resource_failure(cnxt, is_update, rsrc.id,
                                               stack, msg)
@@ -344,7 +354,7 @@ def check_stack_complete(cnxt, stack, current_traversal, sender_id, deps,
     def mark_complete(stack_id, data):
         stack.mark_complete()
 
-    sender_key = parser.ConvergenceNode(sender_id, is_update)
+    sender_key = (sender_id, is_update)
     sync_point.sync(cnxt, stack.id, current_traversal, True,
                     mark_complete, roots, {sender_key: None})
 

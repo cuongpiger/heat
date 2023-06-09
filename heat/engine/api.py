@@ -15,6 +15,7 @@ import collections
 
 from oslo_log import log as logging
 from oslo_utils import timeutils
+import six
 
 from heat.common.i18n import _
 from heat.common import param_utils
@@ -59,12 +60,12 @@ def extract_args(params):
         kwargs[rpc_api.PARAM_ADOPT_STACK_DATA] = adopt_data
 
     tags = params.get(rpc_api.PARAM_TAGS)
-    if tags is not None:
+    if tags:
         if not isinstance(tags, list):
             raise ValueError(_('Invalid tags, not a list: %s') % tags)
 
         for tag in tags:
-            if not isinstance(tag, str):
+            if not isinstance(tag, six.string_types):
                 raise ValueError(_('Invalid tag, "%s" is not a string') % tag)
 
             if len(tag) > 80:
@@ -187,7 +188,7 @@ def format_stack_output(output_defn, resolve_value=True):
         except Exception as ex:
             # We don't need error raising, just adding output_error to
             # resulting dict.
-            result.update({rpc_api.OUTPUT_ERROR: str(ex)})
+            result.update({rpc_api.OUTPUT_ERROR: six.text_type(ex)})
         finally:
             result.update({rpc_api.OUTPUT_VALUE: value})
 
@@ -211,7 +212,7 @@ def format_stack(stack, preview=False, resolve_outputs=True):
         rpc_api.STACK_UPDATED_TIME: updated_time,
         rpc_api.STACK_DELETION_TIME: deleted_time,
         rpc_api.STACK_NOTIFICATION_TOPICS: [],  # TODO(therve) Not implemented
-        rpc_api.STACK_PARAMETERS: stack.parameters.map(str),
+        rpc_api.STACK_PARAMETERS: stack.parameters.map(six.text_type),
         rpc_api.STACK_DESCRIPTION: stack.t[stack.t.DESCRIPTION],
         rpc_api.STACK_TMPL_DESCRIPTION: stack.t[stack.t.DESCRIPTION],
         rpc_api.STACK_CAPABILITIES: [],   # TODO(?) Not implemented yet
@@ -243,7 +244,7 @@ def format_stack(stack, preview=False, resolve_outputs=True):
 def format_stack_db_object(stack):
     """Return a summary representation of the given stack.
 
-    Given a stack versioned DB object, return a representation of the given
+    Given a stack versioned db object, return a representation of the given
     stack for a stack listing.
     """
     updated_time = heat_timeutils.isotime(stack.updated_at)
@@ -292,7 +293,7 @@ def format_resource_attributes(resource, with_attr=None):
     if 'show' in resolver:
         show_attr = resolve('show', resolver)
         # check if 'show' resolved to dictionary. so it's not None
-        if isinstance(show_attr, collections.abc.Mapping):
+        if isinstance(show_attr, collections.Mapping):
             for a in with_attr:
                 if a not in show_attr:
                     show_attr[a] = resolve(a, resolver)

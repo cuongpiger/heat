@@ -11,7 +11,8 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
+import six
 
 from heat.common import exception
 from heat.common import template_format
@@ -123,4 +124,4 @@ class LBUtilsTest(common.HeatTestCase):
                                   lbutils.reconfigure_loadbalancers,
                                   [non_lb], id_list)
         self.assertIn("Unsupported resource 'non_lb' in LoadBalancerNames",
-                      str(error))
+                      six.text_type(error))

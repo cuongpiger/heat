@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from unittest import mock
+import mock
 
 from heat.engine.clients.os import neutron
 from heat.engine.resources.openstack.neutron.sfc import port_chain
@@ -168,4 +168,4 @@ class PortChainTest(common.HeatTestCase):
                 'description': 'description-updated',
                 'port_pair_groups': ['port_pair_group_2'],
                 'flow_classifiers': ['flow_classifier2'],
-            }, self.test_resource.resource_id)
+            },  self.test_resource.resource_id)

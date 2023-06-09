@@ -17,17 +17,18 @@ import datetime
 import json
 import logging
 import time
-from unittest import mock
 
 import eventlet
 import fixtures
+import mock
 from oslo_config import cfg
+import six
 
 from heat.common import context
 from heat.common import exception
 from heat.common import template_format
 from heat.common import timeutils
-from heat.db import api as db_api
+from heat.db.sqlalchemy import api as db_api
 from heat.engine.clients.os import keystone
 from heat.engine.clients.os.keystone import fake_keystoneclient as fake_ks
 from heat.engine.clients.os import nova
@@ -70,7 +71,7 @@ class StackTest(common.HeatTestCase):
         self.assertEqual('bar', self.stack.tenant_id)
 
     def test_stack_reads_tenant_from_context_if_empty(self):
-        self.ctx.project_id = 'foo'
+        self.ctx.tenant = 'foo'
         self.stack = stack.Stack(self.ctx, 'test_stack', self.tmpl,
                                  tenant_id=None)
         self.assertEqual('foo', self.stack.tenant_id)
@@ -301,7 +302,7 @@ class StackTest(common.HeatTestCase):
 
         all_resources = list(self.stack.iter_resources())
 
-        # Verify, the DB query is called with expected filter
+        # Verify, the db query is called with expected filter
         mock_db_call.assert_called_once_with(self.ctx, self.stack.id)
 
         # And returns the resources
@@ -367,7 +368,7 @@ class StackTest(common.HeatTestCase):
             filters=dict(name=['A'])
         ))
 
-        # Verify, the DB query is called with expected filter
+        # Verify, the db query is called with expected filter
         mock_db_call.assert_has_calls([
             mock.call(self.ctx, self.stack.id, dict(name=['A'])),
             mock.call(self.ctx, self.stack.id),
@@ -438,7 +439,7 @@ class StackTest(common.HeatTestCase):
             filters=dict(name=['A'])
         ))
 
-        # Verify, the DB query is called with expected filter
+        # Verify, the db query is called with expected filter
         mock_db_call.assert_has_calls([
             mock.call(self.ctx, self.stack.id, dict(name=['A'])),
             mock.call(self.ctx, self.stack.id),
@@ -478,7 +479,7 @@ class StackTest(common.HeatTestCase):
             prev_raw_template_id=None,
             current_deps=None, cache_data=None,
             nested_depth=0,
-            deleted_time=None, refresh_cred=False)
+            deleted_time=None)
         template.Template.load.assert_called_once_with(
             self.ctx, stk.raw_template_id, stk.raw_template)
 
@@ -504,10 +505,9 @@ class StackTest(common.HeatTestCase):
         "resource_id": null, "action": "INIT", "type": "GenericResourceType",
         "metadata": {}}}'''
         env = environment.Environment({'parameters': {'param1': 'test'}})
-        self.ctx.tenant_id = '123'
         self.stack = stack.Stack(self.ctx, 'stack_details_test',
                                  template.Template(tpl, env=env),
-                                 tenant_id=self.ctx.tenant_id,
+                                 tenant_id='123',
                                  stack_user_project_id='234',
                                  tags=['tag1', 'tag2'])
         self.stack.store()
@@ -580,11 +580,11 @@ class StackTest(common.HeatTestCase):
         self.assertEqual(identifier.arn(), newstack.parameters['AWS::StackId'])
 
     def test_load_reads_tenant_id(self):
-        self.ctx.project_id = 'foobar'
+        self.ctx.tenant = 'foobar'
         self.stack = stack.Stack(self.ctx, 'stack_name', self.tmpl)
         self.stack.store()
         stack_id = self.stack.id
-        self.ctx.project_id = None
+        self.ctx.tenant = None
         self.stack = stack.Stack.load(self.ctx, stack_id=stack_id)
         self.assertEqual('foobar', self.stack.tenant_id)
 
@@ -937,7 +937,7 @@ class StackTest(common.HeatTestCase):
         def _mock_check(res):
             res.handle_check = mock.Mock()
 
-        [_mock_check(res) for res in self.stack.resources.values()]
+        [_mock_check(res) for res in six.itervalues(self.stack.resources)]
         return self.stack
 
     def test_check_supported(self):
@@ -949,7 +949,7 @@ class StackTest(common.HeatTestCase):
         self.assertEqual(stack1.COMPLETE, stack1.status)
         self.assertEqual(stack1.CHECK, stack1.action)
         [self.assertTrue(res.handle_check.called)
-         for res in stack1.resources.values()]
+         for res in six.itervalues(stack1.resources)]
         self.assertNotIn('not fully supported', stack1.status_reason)
 
     def test_check_not_supported(self):
@@ -1282,7 +1282,7 @@ class StackTest(common.HeatTestCase):
                 exception.StackValidationFailed, stack.Stack,
                 self.ctx, stack_name, self.tmpl)
             self.assertIn("Invalid stack name %s must contain" % stack_name,
-                          str(ex))
+                          six.text_type(ex))
 
     def test_stack_name_invalid_type(self):
         stack_names = [{"bad": 123}, ["no", "lists"]]
@@ -1291,7 +1291,7 @@ class StackTest(common.HeatTestCase):
                 exception.StackValidationFailed, stack.Stack,
                 self.ctx, stack_name, self.tmpl)
             self.assertIn("Invalid stack name %s, must be a string"
-                          % stack_name, str(ex))
+                          % stack_name, six.text_type(ex))
 
     def test_resource_state_get_att(self):
         tmpl = {
@@ -1406,8 +1406,7 @@ class StackTest(common.HeatTestCase):
         self.stack.store()
         stack_id = self.stack.id
         test_stack = stack.Stack.load(self.ctx, stack_id=stack_id)
-        self.assertIsNone(test_stack._tags)
-        self.assertEqual([], test_stack.tags)
+        self.assertIsNone(test_stack.tags)
 
         self.stack = stack.Stack(self.ctx, 'stack_name', self.tmpl)
         self.stack.tags = ['tag1', 'tag2']
@@ -1424,7 +1423,7 @@ class StackTest(common.HeatTestCase):
         self.stack.store()
         stack_id = self.stack.id
         test_stack = stack.Stack.load(self.ctx, stack_id=stack_id)
-        self.assertEqual([], test_stack.tags)
+        self.assertIsNone(test_stack.tags)
 
         self.stack = stack.Stack(self.ctx, 'stack_name', self.tmpl,
                                  tags=['tag1', 'tag2'])
@@ -1440,7 +1439,7 @@ class StackTest(common.HeatTestCase):
                                                     self.stack.id)
         self.assertIsNone(db_tags)
 
-        self.stack = stack.Stack(self.ctx, 'tags_stack2', self.tmpl,
+        self.stack = stack.Stack(self.ctx, 'tags_stack', self.tmpl,
                                  tags=['tag1', 'tag2'])
         self.stack.store()
         db_tags = stack_tag_object.StackTagList.get(self.stack.context,
@@ -1535,7 +1534,7 @@ class StackTest(common.HeatTestCase):
         self.stack = stack.Stack(self.ctx, 'creds_stack', self.tmpl)
         ex = self.assertRaises(exception.Error, self.stack.stored_context)
         expected_err = 'Attempt to use stored_context with no user_creds'
-        self.assertEqual(expected_err, str(ex))
+        self.assertEqual(expected_err, six.text_type(ex))
 
     def test_store_gets_username_from_stack(self):
         self.stack = stack.Stack(self.ctx, 'username_stack',
@@ -1629,31 +1628,6 @@ class StackTest(common.HeatTestCase):
 
         saved_stack = stack.Stack.load(self.ctx, stack_id=stack_ownee.id)
         self.assertEqual(self.stack.id, saved_stack.owner_id)
-
-    def _test_load_with_refresh_cred(self, refresh=True):
-        cfg.CONF.set_override('deferred_auth_method', 'trusts')
-        self.patchobject(self.ctx.auth_plugin, 'get_user_id',
-                         return_value='old_trustor_user_id')
-        self.patchobject(self.ctx.auth_plugin, 'get_project_id',
-                         return_value='test_tenant_id')
-
-        old_context = utils.dummy_context()
-        old_context.trust_id = 'atrust123'
-        old_context.trustor_user_id = (
-            'trustor_user_id' if refresh else 'old_trustor_user_id')
-        m_sc = self.patchobject(context, 'StoredContext')
-        m_sc.from_dict.return_value = old_context
-        self.stack = stack.Stack(self.ctx, 'test_regenerate_trust', self.tmpl)
-        self.stack.store()
-        load_stack = stack.Stack.load(self.ctx, stack_id=self.stack.id,
-                                      check_refresh_cred=True)
-        self.assertEqual(refresh, load_stack.refresh_cred)
-
-    def test_load_with_refresh_cred(self):
-        self._test_load_with_refresh_cred()
-
-    def test_load_with_no_refresh_cred(self):
-        self._test_load_with_refresh_cred(refresh=False)
 
     def test_requires_deferred_auth(self):
         tmpl = {'HeatTemplateFormatVersion': '2012-12-12',
@@ -1812,7 +1786,7 @@ class StackTest(common.HeatTestCase):
                                self.stack.outputs['Resource_attr'].get_value)
         self.assertIn('The Referenced Attribute (AResource Bar) is '
                       'incorrect.',
-                      str(ex))
+                      six.text_type(ex))
 
         self.stack.delete()
 
@@ -1925,7 +1899,7 @@ class StackTest(common.HeatTestCase):
                                self.stack.validate)
 
         self.assertIn('The specified reference "Resource" '
-                      '(in unknown) is incorrect.', str(ex))
+                      '(in unknown) is incorrect.', six.text_type(ex))
 
     def test_incorrect_outputs_incorrect_reference(self):
         tmpl = template_format.parse("""
@@ -1941,7 +1915,7 @@ class StackTest(common.HeatTestCase):
                                self.stack.validate)
 
         self.assertIn('The specified reference "resource" '
-                      '(in unknown) is incorrect.', str(ex))
+                      '(in unknown) is incorrect.', six.text_type(ex))
 
     def test_incorrect_outputs_cfn_missing_value(self):
         tmpl = template_format.parse("""
@@ -1962,8 +1936,8 @@ class StackTest(common.HeatTestCase):
                                self.stack.validate)
 
         self.assertIn('Each output definition must contain a Value key.',
-                      str(ex))
-        self.assertIn('Outputs.Resource_attr', str(ex))
+                      six.text_type(ex))
+        self.assertIn('Outputs.Resource_attr', six.text_type(ex))
 
     def test_incorrect_outputs_cfn_empty_value(self):
         tmpl = template_format.parse("""
@@ -2017,9 +1991,9 @@ class StackTest(common.HeatTestCase):
         ex = self.assertRaises(exception.StackValidationFailed,
                                self.stack.validate)
 
-        self.assertIn('Found a %s instead' % str.__name__,
-                      str(ex))
-        self.assertIn('Outputs.Resource_attr', str(ex))
+        self.assertIn('Found a %s instead' % six.text_type.__name__,
+                      six.text_type(ex))
+        self.assertIn('Outputs.Resource_attr', six.text_type(ex))
 
     def test_prop_validate_value(self):
         tmpl = template_format.parse("""
@@ -2037,7 +2011,7 @@ class StackTest(common.HeatTestCase):
                                self.stack.validate)
 
         self.assertIn("'notanint' is not an integer",
-                      str(ex))
+                      six.text_type(ex))
 
         self.stack.strict_validate = False
         self.assertIsNone(self.stack.validate())
@@ -2060,13 +2034,13 @@ class StackTest(common.HeatTestCase):
         ex = self.assertRaises(exception.UserParameterMissing,
                                self.stack.validate)
         self.assertIn("The Parameter (aparam) was not provided",
-                      str(ex))
+                      six.text_type(ex))
 
         self.stack.strict_validate = False
         ex = self.assertRaises(exception.StackValidationFailed,
                                self.stack.validate)
         self.assertIn("The Parameter (aparam) was not provided",
-                      str(ex))
+                      six.text_type(ex))
 
         self.assertIsNone(self.stack.validate(validate_res_tmpl_only=True))
 
@@ -2087,21 +2061,21 @@ class StackTest(common.HeatTestCase):
                                self.stack.validate)
         self.assertIn(
             "The specified reference \"noexist\" (in AResource) is incorrect",
-            str(ex))
+            six.text_type(ex))
 
         self.stack.strict_validate = False
         ex = self.assertRaises(exception.InvalidTemplateReference,
                                self.stack.validate)
         self.assertIn(
             "The specified reference \"noexist\" (in AResource) is incorrect",
-            str(ex))
+            six.text_type(ex))
 
         ex = self.assertRaises(exception.InvalidTemplateReference,
                                self.stack.validate,
                                validate_res_tmpl_only=True)
         self.assertIn(
             "The specified reference \"noexist\" (in AResource) is incorrect",
-            str(ex))
+            six.text_type(ex))
 
     def test_validate_property_getatt(self):
         tmpl = {
@@ -2131,8 +2105,8 @@ class StackTest(common.HeatTestCase):
                                self.stack.validate)
 
         self.assertIn("Parameter 'foo' is invalid: could not convert "
-                      "string to float:", str(ex))
-        self.assertIn("abc", str(ex))
+                      "string to float:", six.text_type(ex))
+        self.assertIn("abc", six.text_type(ex))
 
         self.stack.strict_validate = False
         self.assertIsNone(self.stack.validate())
@@ -2155,8 +2129,8 @@ class StackTest(common.HeatTestCase):
         ex = self.assertRaises(exception.StackValidationFailed,
                                self.stack.validate)
 
-        self.assertIn('Found a list', str(ex))
-        self.assertIn('Outputs.Resource_attr', str(ex))
+        self.assertIn('Found a list', six.text_type(ex))
+        self.assertIn('Outputs.Resource_attr', six.text_type(ex))
 
     def test_incorrect_deletion_policy(self):
         tmpl = template_format.parse("""
@@ -2180,7 +2154,7 @@ class StackTest(common.HeatTestCase):
                                self.stack.validate)
 
         self.assertIn('Invalid deletion policy "[1, 2]"',
-                      str(ex))
+                      six.text_type(ex))
 
     def test_deletion_policy_apply_ref(self):
         tmpl = template_format.parse("""
@@ -2250,7 +2224,7 @@ class StackTest(common.HeatTestCase):
                                self.stack.validate)
 
         self.assertIn('Invalid deletion policy "[1, 2]',
-                      str(ex))
+                      six.text_type(ex))
 
     def test_incorrect_outputs_hot_get_attr(self):
         tmpl = {'heat_template_version': '2013-05-23',
@@ -2788,7 +2762,7 @@ class StackTest(common.HeatTestCase):
             stc._resources = {mock_res.name: mock_res}
             expected_exception = self.assertRaises(AssertionError,
                                                    stc.validate)
-            self.assertEqual(expected_msg, str(expected_exception))
+            self.assertEqual(expected_msg, six.text_type(expected_exception))
             mock_dependency.validate.assert_called_once_with()
 
         tmpl = template_format.parse("""
@@ -2801,7 +2775,7 @@ class StackTest(common.HeatTestCase):
                           template.Template(tmpl))
         func_val.side_effect = AssertionError(expected_msg)
         expected_exception = self.assertRaises(AssertionError, stc.validate)
-        self.assertEqual(expected_msg, str(expected_exception))
+        self.assertEqual(expected_msg, six.text_type(expected_exception))
 
     @mock.patch.object(update, 'StackUpdate')
     def test_update_task_exception(self, mock_stack_update):

@@ -14,7 +14,7 @@
 import collections
 import contextlib
 import copy
-from unittest import mock
+import mock
 
 from keystoneauth1 import exceptions as ks_exceptions
 from neutronclient.v2_0 import client as neutronclient
@@ -22,7 +22,8 @@ from novaclient import exceptions as nova_exceptions
 from oslo_serialization import jsonutils
 from oslo_utils import uuidutils
 import requests
-from urllib import parse as urlparse
+import six
+from six.moves.urllib import parse as urlparse
 
 from heat.common import exception
 from heat.common.i18n import _
@@ -318,14 +319,14 @@ class ServersTest(common.HeatTestCase):
 
         exc = self.assertRaises(exception.ResourceFailure,
                                 scheduler.TaskRunner(res.check))
-        self.assertIn('boom', str(exc))
+        self.assertIn('boom', six.text_type(exc))
         self.assertEqual((res.CHECK, res.FAILED), res.state)
 
     def test_check_not_active(self):
         res = self._prepare_server_check(status='FOO')
         exc = self.assertRaises(exception.ResourceFailure,
                                 scheduler.TaskRunner(res.check))
-        self.assertIn('FOO', str(exc))
+        self.assertIn('FOO', six.text_type(exc))
 
     def _get_test_template(self, stack_name, server_name=None,
                            image_id=None):
@@ -698,7 +699,7 @@ class ServersTest(common.HeatTestCase):
         error = self.assertRaises(exception.ResourceFailure,
                                   scheduler.TaskRunner(server.create))
         self.assertIn("No image matching {'name': 'Slackware'}.",
-                      str(error))
+                      six.text_type(error))
 
     def test_server_duplicate_image_name_err(self):
         stack_name = 'img_dup_err'
@@ -717,7 +718,7 @@ class ServersTest(common.HeatTestCase):
         error = self.assertRaises(exception.ResourceFailure,
                                   scheduler.TaskRunner(server.create))
         self.assertIn('No image unique match found for CentOS 5.2.',
-                      str(error))
+                      six.text_type(error))
 
     def test_server_create_unexpected_status(self):
         # NOTE(pshchelo) checking is done only on check_create_complete
@@ -733,7 +734,7 @@ class ServersTest(common.HeatTestCase):
                               server.check_create_complete,
                               server.resource_id)
         self.assertEqual('Server is not active - Unknown status BOGUS due to '
-                         '"Unknown"', str(e))
+                         '"Unknown"', six.text_type(e))
 
     def test_server_create_error_status(self):
         # NOTE(pshchelo) checking is done only on check_create_complete
@@ -755,7 +756,7 @@ class ServersTest(common.HeatTestCase):
                               server.resource_id)
         self.assertEqual(
             'Went to status ERROR due to "Message: NoValidHost, Code: 500"',
-            str(e))
+            six.text_type(e))
 
     def test_server_create_raw_userdata(self):
         self.patchobject(nova.NovaClientPlugin, 'client',
@@ -1084,43 +1085,6 @@ class ServersTest(common.HeatTestCase):
             'deployments': []
         }, server.metadata_get())
 
-    def test_delete_swift_service_removed(self):
-        self.patchobject(nova.NovaClientPlugin, 'client',
-                         return_value=self.fc)
-        return_server = self.fc.servers.list()[1]
-        stack_name = 'software_config_s'
-        (tmpl, stack) = self._setup_test_stack(stack_name)
-
-        props = tmpl.t['Resources']['WebServer']['Properties']
-        props['user_data_format'] = 'SOFTWARE_CONFIG'
-        props['software_config_transport'] = 'POLL_TEMP_URL'
-        self.server_props = props
-
-        resource_defns = tmpl.resource_definitions(stack)
-        server = servers.Server('WebServer',
-                                resource_defns['WebServer'], stack)
-        self.patchobject(server, 'store_external_ports')
-
-        sc = mock.Mock()
-        sc.head_account.return_value = {
-            'x-account-meta-temp-url-key': 'secrit'
-        }
-        sc.url = 'http://192.0.2.2'
-
-        self.patchobject(swift.SwiftClientPlugin, '_create',
-                         return_value=sc)
-        self.patchobject(self.fc.servers, 'create',
-                         return_value=return_server)
-        scheduler.TaskRunner(server.create)()
-        self.assertEqual((server.CREATE, server.COMPLETE), server.state)
-        self.patchobject(server.client_plugin(),
-                         'does_endpoint_exist',
-                         return_value=False)
-        side_effect = [server, fakes_nova.fake_exception()]
-        self.patchobject(self.fc.servers, 'get', side_effect=side_effect)
-        scheduler.TaskRunner(server.delete)()
-        self.assertEqual((server.DELETE, server.COMPLETE), server.state)
-
     def _prepare_for_server_create(self, md=None):
         self.patchobject(nova.NovaClientPlugin, 'client',
                          return_value=self.fc)
@@ -1210,20 +1174,6 @@ class ServersTest(common.HeatTestCase):
             'deployments': []
         }, server.metadata_get())
 
-        scheduler.TaskRunner(server.delete)()
-        self.assertEqual((server.DELETE, server.COMPLETE), server.state)
-
-    def test_delete_zaqar_service_removed(self):
-        zcc = self.patchobject(zaqar.ZaqarClientPlugin, 'create_for_tenant')
-        zcc.return_value = mock.Mock()
-        server, stack = self._prepare_for_server_create()
-        scheduler.TaskRunner(server.create)()
-        self.assertEqual((server.CREATE, server.COMPLETE), server.state)
-        self.patchobject(server.client_plugin(),
-                         'does_endpoint_exist',
-                         return_value=False)
-        side_effect = [server, fakes_nova.fake_exception()]
-        self.patchobject(self.fc.servers, 'get', side_effect=side_effect)
         scheduler.TaskRunner(server.delete)()
         self.assertEqual((server.DELETE, server.COMPLETE), server.state)
 
@@ -1333,7 +1283,7 @@ class ServersTest(common.HeatTestCase):
         error = self.assertRaises(exception.StackValidationFailed,
                                   servers.Server._check_maximum,
                                   2, 1, msg)
-        self.assertEqual(msg, str(error))
+        self.assertEqual(msg, six.text_type(error))
 
     def test_server_validate(self):
         stack_name = 'srv_val'
@@ -1379,7 +1329,7 @@ class ServersTest(common.HeatTestCase):
                                server.validate)
         self.assertEqual('Neither image nor bootable volume is specified for '
                          'instance server_with_bootable_volume',
-                         str(ex))
+                         six.text_type(ex))
 
         web_server['Properties']['image'] = ''
         server = create_server('vdb')
@@ -1410,6 +1360,8 @@ class ServersTest(common.HeatTestCase):
   }
 }
 '''
+        self.patchobject(nova.NovaClientPlugin, 'has_extension',
+                         return_value=True)
         t = template_format.parse(nova_keypair_template)
         templ = template.Template(t)
         self.patchobject(nova.NovaClientPlugin, 'client',
@@ -1446,7 +1398,7 @@ class ServersTest(common.HeatTestCase):
         self.assertEqual(
             "Property error: Resources.WebServer.Properties.key_name: "
             "Error validating value 'test2': The Key (test2) could not "
-            "be found.", str(error))
+            "be found.", six.text_type(error))
 
     def test_server_validate_software_config_invalid_meta(self):
         stack_name = 'srv_val_test'
@@ -1468,7 +1420,7 @@ class ServersTest(common.HeatTestCase):
                                   server.validate)
         self.assertEqual(
             "deployments key not allowed in resource metadata "
-            "with user_data_format of SOFTWARE_CONFIG", str(error))
+            "with user_data_format of SOFTWARE_CONFIG", six.text_type(error))
 
     def test_server_validate_with_networks(self):
         stack_name = 'srv_net'
@@ -1490,7 +1442,7 @@ class ServersTest(common.HeatTestCase):
 
         self.assertIn("Cannot define the following properties at "
                       "the same time: networks.network, networks.uuid",
-                      str(ex))
+                      six.text_type(ex))
 
     def test_server_validate_with_network_empty_ref(self):
         stack_name = 'srv_net'
@@ -1534,7 +1486,7 @@ class ServersTest(common.HeatTestCase):
                         '"allocate_network" or "subnet" should be set '
                         'for the specified network of '
                         'server "%s".') % server.name,
-                      str(ex))
+                      six.text_type(ex))
 
     def test_server_validate_with_network_floating_ip(self):
         stack_name = 'srv_net_floating_ip'
@@ -1559,7 +1511,7 @@ class ServersTest(common.HeatTestCase):
         self.assertIn(_('Property "floating_ip" is not supported if '
                         'only "network" is specified, because the '
                         'corresponding port can not be retrieved.'),
-                      str(ex))
+                      six.text_type(ex))
 
     def test_server_validate_with_networks_str_net(self):
         stack_name = 'srv_networks_str_nets'
@@ -1583,7 +1535,7 @@ class ServersTest(common.HeatTestCase):
                                server.validate)
         self.assertIn(_('Can not specify "allocate_network" with '
                         'other keys of networks at the same time.'),
-                      str(ex))
+                      six.text_type(ex))
 
     def test_server_validate_port_fixed_ip(self):
         stack_name = 'port_with_fixed_ip'
@@ -1604,7 +1556,7 @@ class ServersTest(common.HeatTestCase):
                                   server.validate)
         self.assertEqual("Cannot define the following properties at the same "
                          "time: networks/fixed_ip, networks/port.",
-                         str(error))
+                         six.text_type(error))
         # test if the 'port' doesn't reference with non-created resource
         tmpl['Resources']['server']['Properties']['networks'] = (
             [{'port': 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
@@ -1618,7 +1570,7 @@ class ServersTest(common.HeatTestCase):
                                   server.validate)
         self.assertEqual("Cannot define the following properties at the same "
                          "time: networks/fixed_ip, networks/port.",
-                         str(error))
+                         six.text_type(error))
 
     def test_server_validate_with_uuid_fixed_ip(self):
         stack_name = 'srv_net'
@@ -1683,7 +1635,7 @@ class ServersTest(common.HeatTestCase):
                                   server.validate)
         self.assertEqual("Cannot define the following properties at the same "
                          "time: security_groups, networks/port.",
-                         str(error))
+                         six.text_type(error))
 
     def test_server_delete(self):
         return_server = self.fc.servers.list()[1]
@@ -1732,7 +1684,7 @@ class ServersTest(common.HeatTestCase):
         resf = self.assertRaises(exception.ResourceFailure,
                                  scheduler.TaskRunner(server.delete))
         self.assertIn("Server %s delete failed" % return_server.name,
-                      str(resf))
+                      six.text_type(resf))
 
     def test_server_delete_error_task_in_progress(self):
         # test server in 'ERROR', but task state in nova is 'deleting'
@@ -1757,7 +1709,7 @@ class ServersTest(common.HeatTestCase):
         resf = self.assertRaises(exception.ResourceFailure,
                                  scheduler.TaskRunner(server.delete))
         self.assertIn("Server %s delete failed" % return_server.name,
-                      str(resf))
+                      six.text_type(resf))
 
     def test_server_soft_delete(self):
         return_server = self.fc.servers.list()[1]
@@ -2167,7 +2119,7 @@ class ServersTest(common.HeatTestCase):
                         self.assertEqual(exp_net[key], net[key])
                     break
 
-        for key in reality.keys():
+        for key in six.iterkeys(reality):
             self.assertEqual(expected[key], reality[key])
 
     def test_server_update_server_flavor(self):
@@ -2225,7 +2177,7 @@ class ServersTest(common.HeatTestCase):
         error = self.assertRaises(exception.ResourceFailure, updater)
         self.assertEqual(
             "Error: resources.srv_update2: Resizing to '2' failed, "
-            "status 'ERROR'", str(error))
+            "status 'ERROR'", six.text_type(error))
         self.assertEqual((server.UPDATE, server.FAILED), server.state)
         mock_post.assert_called_once_with(body={'resize': {'flavorRef': '2'}})
 
@@ -2363,26 +2315,6 @@ class ServersTest(common.HeatTestCase):
         self.assertEqual((server.UPDATE, server.COMPLETE), server.state)
 
     @mock.patch.object(servers.Server, 'prepare_for_replace')
-    @mock.patch.object(nova.NovaClientPlugin, 'client')
-    def test_server_update_server_userdata_rebuild(self, mock_create,
-                                                   mock_replace):
-        stack_name = 'update_udreplace'
-        (tmpl, stack) = self._setup_test_stack(stack_name)
-        self.patchobject(servers.Server, 'check_update_complete',
-                         return_value=True)
-
-        resource_defns = tmpl.resource_definitions(stack)
-        server = servers.Server('server_update_userdata_ignore',
-                                resource_defns['WebServer'], stack)
-
-        update_props = tmpl.t['Resources']['WebServer']['Properties'].copy()
-        update_props['user_data'] = 'changed'
-        update_props['user_data_update_policy'] = 'REBUILD'
-        update_template = server.t.freeze(properties=update_props)
-        updater = scheduler.TaskRunner(server.update, update_template)
-        self.assertRaises(resource.UpdateReplace, updater)
-
-    @mock.patch.object(servers.Server, 'prepare_for_replace')
     def test_server_update_image_replace(self, mock_replace):
         stack_name = 'update_imgrep'
         (tmpl, stack) = self._setup_test_stack(stack_name)
@@ -2437,33 +2369,16 @@ class ServersTest(common.HeatTestCase):
         scheduler.TaskRunner(server.update, update_template)()
         self.assertEqual((server.UPDATE, server.COMPLETE), server.state)
 
-        # NOTE(tkajinam): python-novaclient 18.3.0 removed usage of args/kwargs
-        #                 and now all arguments are defined. To make the test
-        #                 independent from the underlying inteface as much as
-        #                 possible we inspect kwargs and check what we intend
-        #                 to define in Heat's logic.
-        mock_rebuild.assert_called_once()
-        self.assertEqual((return_server, '2'), mock_rebuild.call_args.args)
         if 'REBUILD' == policy:
-            self.assertLessEqual(
-                {
-                    'password': password,
-                    'preserve_ephemeral': False,
-                    'meta': {},
-                    'files': {}
-                }.items(),
-                mock_rebuild.call_args.kwargs.items()
-            )
+            mock_rebuild.assert_called_once_with(
+                return_server, '2', password=password,
+                preserve_ephemeral=False,
+                meta={}, files={})
         else:
-            self.assertLessEqual(
-                {
-                    'password': password,
-                    'preserve_ephemeral': True,
-                    'meta': {},
-                    'files': {}
-                }.items(),
-                mock_rebuild.call_args.kwargs.items()
-            )
+            mock_rebuild.assert_called_once_with(
+                return_server, '2', password=password,
+                preserve_ephemeral=True,
+                meta={}, files={})
 
     def test_server_update_image_rebuild_status_rebuild(self):
         # Normally we will see 'REBUILD' first and then 'ACTIVE".
@@ -2517,24 +2432,11 @@ class ServersTest(common.HeatTestCase):
         self.assertEqual(
             "Error: resources.srv_updrbldfail: "
             "Rebuilding server failed, status 'ERROR'",
-            str(error))
+            six.text_type(error))
         self.assertEqual((server.UPDATE, server.FAILED), server.state)
-        # NOTE(tkajinam): python-novaclient 18.3.0 removed usage of args/kwargs
-        #                 and now all arguments are defined. To make the test
-        #                 independent from the underlying inteface as much as
-        #                 possible we inspect kwargs and check what we intend
-        #                 to define in Heat's logic.
-        mock_rebuild.assert_called_once()
-        self.assertEqual((return_server, '2'), mock_rebuild.call_args.args)
-        self.assertLessEqual(
-            {
-                'password': None,
-                'preserve_ephemeral': False,
-                'meta': {},
-                'files': {}
-            }.items(),
-            mock_rebuild.call_args.kwargs.items()
-        )
+        mock_rebuild.assert_called_once_with(
+            return_server, '2', password=None, preserve_ephemeral=False,
+            meta={}, files={})
 
     def test_server_update_properties(self):
         return_server = self.fc.servers.list()[1]
@@ -2573,7 +2475,7 @@ class ServersTest(common.HeatTestCase):
         self.assertEqual('Error: resources.srv_sus1: '
                          'Cannot suspend srv_sus1, '
                          'resource_id not set',
-                         str(ex))
+                         six.text_type(ex))
         self.assertEqual((server.SUSPEND, server.FAILED), server.state)
 
     def test_server_status_suspend_not_found(self):
@@ -2587,7 +2489,7 @@ class ServersTest(common.HeatTestCase):
                                scheduler.TaskRunner(server.suspend))
         self.assertEqual('NotFound: resources.srv_sus2: '
                          'Failed to find server 1234',
-                         str(ex))
+                         six.text_type(ex))
         self.assertEqual((server.SUSPEND, server.FAILED), server.state)
 
     def _test_server_status_suspend(self, name, state=('CREATE', 'COMPLETE')):
@@ -2638,7 +2540,7 @@ class ServersTest(common.HeatTestCase):
         self.assertEqual('Suspend of server %s failed - '
                          'Unknown status TRANSMOGRIFIED '
                          'due to "Unknown"' % return_server.name,
-                         str(ex.exc.message))
+                         six.text_type(ex.exc.message))
         self.assertEqual((server.SUSPEND, server.FAILED), server.state)
 
     def _test_server_status_resume(self, name, state=('SUSPEND', 'COMPLETE')):
@@ -2684,7 +2586,7 @@ class ServersTest(common.HeatTestCase):
         self.assertEqual('Error: resources.srv_susp_norid: '
                          'Cannot resume srv_susp_norid, '
                          'resource_id not set',
-                         str(ex))
+                         six.text_type(ex))
         self.assertEqual((server.RESUME, server.FAILED), server.state)
 
     def test_server_status_resume_not_found(self):
@@ -2702,7 +2604,7 @@ class ServersTest(common.HeatTestCase):
                                scheduler.TaskRunner(server.resume))
         self.assertEqual('NotFound: resources.srv_res_nf: '
                          'Failed to find server 1234',
-                         str(ex))
+                         six.text_type(ex))
         self.assertEqual((server.RESUME, server.FAILED), server.state)
 
     def test_server_status_build_spawning(self):
@@ -2798,7 +2700,7 @@ class ServersTest(common.HeatTestCase):
         resolver.side_effect = neutron.exceptions.NeutronClientNoUniqueMatch()
         ex = self.assertRaises(exception.ResourceFailure,
                                scheduler.TaskRunner(server.create))
-        self.assertIn('use an ID to be more specific.', str(ex))
+        self.assertIn('use an ID to be more specific.', six.text_type(ex))
 
     def test_server_without_ip_address(self):
         return_server = self.fc.servers.list()[3]
@@ -2906,7 +2808,7 @@ class ServersTest(common.HeatTestCase):
         self.stub_VolumeConstraint_validate()
         exc = self.assertRaises(exception.StackValidationFailed,
                                 server.validate)
-        self.assertIn("Value '10a' is not an integer", str(exc))
+        self.assertIn("Value '10a' is not an integer", six.text_type(exc))
 
     @mock.patch.object(nova.NovaClientPlugin, 'client')
     def test_validate_conflict_block_device_mapping_props(self, mock_create):
@@ -2939,7 +2841,7 @@ class ServersTest(common.HeatTestCase):
                                server.validate)
         msg = ("Either volume_id or snapshot_id must be specified "
                "for device mapping vdb")
-        self.assertEqual(msg, str(ex))
+        self.assertEqual(msg, six.text_type(ex))
 
     @mock.patch.object(nova.NovaClientPlugin, 'client')
     def test_validate_block_device_mapping_with_empty_ref(self, mock_create):
@@ -2977,7 +2879,7 @@ class ServersTest(common.HeatTestCase):
                                server.validate)
         msg = ('Neither image nor bootable volume is specified '
                'for instance %s' % server.name)
-        self.assertEqual(msg, str(ex))
+        self.assertEqual(msg, six.text_type(ex))
 
     @mock.patch.object(nova.NovaClientPlugin, 'client')
     def test_validate_invalid_image_status(self, mock_create):
@@ -2995,7 +2897,7 @@ class ServersTest(common.HeatTestCase):
                                   server.validate)
         self.assertEqual(
             'Image status is required to be active not sdfsdf.',
-            str(error))
+            six.text_type(error))
 
     @mock.patch.object(nova.NovaClientPlugin, 'client')
     def test_validate_insufficient_ram_flavor(self, mock_create):
@@ -3016,7 +2918,7 @@ class ServersTest(common.HeatTestCase):
         self.assertEqual(
             'Image F18-x86_64-gold requires 100 minimum ram. Flavor m1.large '
             'has only 4.',
-            str(error))
+            six.text_type(error))
 
     @mock.patch.object(nova.NovaClientPlugin, 'client')
     def test_validate_image_flavor_not_found(self, mock_create):
@@ -3054,7 +2956,7 @@ class ServersTest(common.HeatTestCase):
         self.assertEqual(
             'Image F18-x86_64-gold requires 100 GB minimum disk space. '
             'Flavor m1.large has only 4 GB.',
-            str(error))
+            six.text_type(error))
 
     def test_build_block_device_mapping_v2(self):
         self.assertIsNone(servers.Server._build_block_device_mapping_v2([]))
@@ -3130,7 +3032,7 @@ class ServersTest(common.HeatTestCase):
         server = servers.Server('server', resource_defns['server'], stack)
         exc = self.assertRaises(exception.StackValidationFailed,
                                 server.validate)
-        self.assertIn(msg, str(exc))
+        self.assertIn(msg, six.text_type(exc))
 
     @mock.patch.object(nova.NovaClientPlugin, 'client')
     def test_validate_with_both_blk_dev_map_and_blk_dev_map_v2(self,
@@ -3152,7 +3054,7 @@ class ServersTest(common.HeatTestCase):
                                 server.validate)
         msg = ('Cannot define the following properties at the same time: '
                'block_device_mapping, block_device_mapping_v2.')
-        self.assertEqual(msg, str(exc))
+        self.assertEqual(msg, six.text_type(exc))
 
     def _test_validate_bdm_v2(self, stack_name, bdm_v2, with_image=True,
                               error_msg=None, raise_exc=None):
@@ -3172,7 +3074,7 @@ class ServersTest(common.HeatTestCase):
         self.stub_VolumeConstraint_validate()
         if raise_exc:
             ex = self.assertRaises(raise_exc, server.validate)
-            self.assertIn(error_msg, str(ex))
+            self.assertIn(error_msg, six.text_type(ex))
         else:
             self.assertIsNone(server.validate())
 
@@ -3253,7 +3155,7 @@ class ServersTest(common.HeatTestCase):
         ex = self.assertRaises(exception.StackValidationFailed,
                                server.validate)
         self.assertIn('Instance metadata must not contain greater than 3 '
-                      'entries', str(ex))
+                      'entries', six.text_type(ex))
 
     def test_validate_metadata_okay(self):
         stack_name = 'srv_val_metadata'
@@ -3295,7 +3197,7 @@ class ServersTest(common.HeatTestCase):
                                 server.validate)
         self.assertEqual('Cannot use "tags" property - nova does not support '
                          'required api microversion.',
-                         str(exc))
+                         six.text_type(exc))
 
     def test_server_validate_too_many_personality(self):
         stack_name = 'srv_val'
@@ -3321,7 +3223,7 @@ class ServersTest(common.HeatTestCase):
         exc = self.assertRaises(exception.StackValidationFailed,
                                 server.validate)
         self.assertEqual("The personality property may not contain "
-                         "greater than 5 entries.", str(exc))
+                         "greater than 5 entries.", six.text_type(exc))
 
     def test_server_validate_personality_unsupported(self):
         stack_name = 'srv_val'
@@ -3409,7 +3311,7 @@ class ServersTest(common.HeatTestCase):
                                 server.validate)
         self.assertEqual('The contents of personality file "/fake/path1" '
                          'is larger than the maximum allowed personality '
-                         'file size (10240 bytes).', str(exc))
+                         'file size (10240 bytes).', six.text_type(exc))
 
     def test_server_validate_personality_get_attr_return_none(self):
         stack_name = 'srv_val'
@@ -3447,7 +3349,7 @@ class ServersTest(common.HeatTestCase):
         ws.resource_id = server.id
         self.patchobject(self.fc.servers, 'get', return_value=server)
         console_urls = ws._resolve_any_attribute('console_urls')
-        self.assertIsInstance(console_urls, collections.abc.Mapping)
+        self.assertIsInstance(console_urls, collections.Mapping)
         supported_consoles = ('novnc', 'xvpvnc', 'spice-html5', 'rdp-html5',
                               'serial', 'webmks')
         self.assertEqual(set(supported_consoles),
@@ -4343,7 +4245,7 @@ class ServersTest(common.HeatTestCase):
         self.assertEqual("StackValidationFailed: resources.my_server: "
                          "Property error: Properties.image: Error validating "
                          "value '1': No image matching Update Image.",
-                         str(err))
+                         six.text_type(err))
 
     def test_server_snapshot(self):
         return_server = self.fc.servers.list()[1]
@@ -4366,46 +4268,16 @@ class ServersTest(common.HeatTestCase):
     def test_server_check_snapshot_complete_fail(self):
         self._test_server_check_snapshot_complete()
 
-    def test_server_check_snapshot_complete_with_not_complete_task_state(self):
-        for task_state in {'image_uploading', 'image_snapshot_pending',
-                           'image_snapshot', 'image_pending_upload'}:
-            self._test_check_snapshot_complete_with_task_state(
-                task_state=task_state)
-
-    def test_server_check_snapshot_complete_with_active_task_state(self):
-        self._test_check_snapshot_complete_with_task_state()
-
-    def _test_check_snapshot_complete_with_task_state(self,
-                                                      task_state='active'):
-        return_server = self.fc.servers.list()[1]
-        return_server.id = '1234'
-        server = self._create_test_server(return_server,
-                                          'test_server_snapshot')
-        image = mock.MagicMock(status='active')
-        self.patchobject(glance.GlanceClientPlugin, 'get_image',
-                         return_value=image)
-        server_with_task_state = mock.Mock()
-        setattr(server_with_task_state, 'OS-EXT-STS:task_state', task_state)
-        mock_get = self.patchobject(
-            nova.NovaClientPlugin, 'get_server',
-            return_value=server_with_task_state)
-
-        if task_state not in {'image_uploading', 'image_snapshot_pending',
-                              'image_snapshot', 'image_pending_upload'}:
-            self.assertTrue(server.check_snapshot_complete('fake_iamge_id'))
-        else:
-            self.assertFalse(server.check_snapshot_complete('fake_iamge_id'))
-        mock_get.assert_called_once_with(server.resource_id)
-
     def _test_server_check_snapshot_complete(self, image_status='ERROR'):
         return_server = self.fc.servers.list()[1]
         return_server.id = '1234'
         server = self._create_test_server(return_server,
                                           'test_server_snapshot')
-        image_in_error = mock.MagicMock(status=image_status)
+        image_in_error = mock.Mock()
+        image_in_error.status = image_status
+
         self.patchobject(glance.GlanceClientPlugin, 'get_image',
                          return_value=image_in_error)
-
         self.assertRaises(exception.ResourceFailure,
                           scheduler.TaskRunner(server.snapshot))
 
@@ -4766,7 +4638,7 @@ class ServerInternalPortTest(ServersTest):
         ex = self.assertRaises(exception.StackValidationFailed,
                                server._build_nics, networks)
         self.assertEqual('Specified subnet 1234 does not belongs to '
-                         'network 4321.', str(ex))
+                         'network 4321.', six.text_type(ex))
 
     def test_build_nics_create_internal_port_all_props_without_extras(self):
         tmpl = """
@@ -5126,6 +4998,7 @@ class ServerInternalPortTest(ServersTest):
         server.client = mock.Mock()
         server.client().servers.get.return_value = Fake()
         server.client_plugin = mock.Mock()
+        server.client_plugin().has_extension.return_value = True
         server._data = {"internal_ports": '[{"id": "1122"}]',
                         "external_ports": '[{"id": "3344"},{"id": "5566"}]'}
 
@@ -5167,7 +5040,7 @@ class ServerInternalPortTest(ServersTest):
                                 server.prepare_for_replace)
         self.assertIn('Failed to detach interface (1122) from server '
                       '(ser-11)',
-                      str(exc))
+                      six.text_type(exc))
 
     def test_prepare_ports_for_replace(self):
         t, stack, server = self._return_template_stack_and_rsrc_defn(
@@ -5215,7 +5088,7 @@ class ServerInternalPortTest(ServersTest):
         server.client().servers.get.return_value = nova_server
 
         server.prepare_for_replace()
-        self.assertEqual(3, check_detach.call_count)
+        check_detach.assert_not_called()
         self.assertEqual(0, self.port_delete.call_count)
 
     def test_prepare_ports_for_replace_error_state(self):
@@ -5342,7 +5215,7 @@ class ServerInternalPortTest(ServersTest):
                                 server.restore_prev_rsrc)
         self.assertIn('Failed to attach interface (3344) to server '
                       '(old_server)',
-                      str(exc))
+                      six.text_type(exc))
 
     @mock.patch.object(server_network_mixin.ServerNetworkMixin,
                        'store_external_ports')
@@ -5398,3 +5271,28 @@ class ServerInternalPortTest(ServersTest):
             mock.call('prev_rsrc', 1122),
             mock.call('prev_rsrc', 3344),
             mock.call('prev_rsrc', 5566)])
+
+    def test_store_external_ports_os_interface_not_installed(self):
+        t, stack, server = self._return_template_stack_and_rsrc_defn(
+            'test', tmpl_server_with_network_id)
+
+        class Fake(object):
+            def interface_list(self):
+                return [iface('1122'),
+                        iface('1122'),
+                        iface('2233'),
+                        iface('3344')]
+
+        server.client = mock.Mock()
+        server.client().servers.get.return_value = Fake()
+        server.client_plugin = mock.Mock()
+        server.client_plugin().has_extension.return_value = False
+
+        server._data = {"internal_ports": '[{"id": "1122"}]',
+                        "external_ports": '[{"id": "3344"},{"id": "5566"}]'}
+
+        iface = collections.namedtuple('iface', ['port_id'])
+        update_data = self.patchobject(server, '_data_update_ports')
+
+        server.store_external_ports()
+        self.assertEqual(0, update_data.call_count)

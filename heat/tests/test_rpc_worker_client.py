@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from unittest import mock
+import mock
 
 from heat.rpc import worker_api as rpc_api
 from heat.rpc import worker_client as rpc_client

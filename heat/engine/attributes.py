@@ -12,11 +12,12 @@
 #    under the License.
 
 import collections
-import functools
 
 from oslo_utils import strutils
+import six
 
 from heat.common.i18n import _
+from heat.common.i18n import repr_wrapper
 from heat.engine import constraints as constr
 from heat.engine import support
 
@@ -138,7 +139,8 @@ BASE_ATTRIBUTES = (SHOW_ATTR, ) = ('show', )
 ALL_ATTRIBUTES = '*'
 
 
-class Attributes(collections.abc.Mapping):
+@repr_wrapper
+class Attributes(collections.Mapping):
     """Models a collection of Resource Attributes."""
 
     def __init__(self, res_name, schema, resolver):
@@ -206,20 +208,20 @@ class Attributes(collections.abc.Mapping):
 
     def _validate_type(self, attrib, value):
         if attrib.schema.type == attrib.schema.STRING:
-            if not isinstance(value, str):
+            if not isinstance(value, six.string_types):
                 LOG.warning("Attribute %(name)s is not of type "
                             "%(att_type)s",
                             {'name': attrib.name,
                              'att_type': attrib.schema.STRING})
         elif attrib.schema.type == attrib.schema.LIST:
-            if (not isinstance(value, collections.abc.Sequence)
-                    or isinstance(value, str)):
+            if (not isinstance(value, collections.Sequence)
+                    or isinstance(value, six.string_types)):
                 LOG.warning("Attribute %(name)s is not of type "
                             "%(att_type)s",
                             {'name': attrib.name,
                              'att_type': attrib.schema.LIST})
         elif attrib.schema.type == attrib.schema.MAP:
-            if not isinstance(value, collections.abc.Mapping):
+            if not isinstance(value, collections.Mapping):
                 LOG.warning("Attribute %(name)s is not of type "
                             "%(att_type)s",
                             {'name': attrib.name,
@@ -296,7 +298,7 @@ class Attributes(collections.abc.Mapping):
 
     def __repr__(self):
         return ("Attributes for %s:\n\t" % self._resource_name +
-                '\n\t'.join(self.values()))
+                '\n\t'.join(six.itervalues(self)))
 
 
 def select_from_attribute(attribute_value, path):
@@ -307,16 +309,16 @@ def select_from_attribute(attribute_value, path):
     :returns: the selected attribute component value.
     """
     def get_path_component(collection, key):
-        if not isinstance(collection, (collections.abc.Mapping,
-                                       collections.abc.Sequence)):
+        if not isinstance(collection, (collections.Mapping,
+                                       collections.Sequence)):
             raise TypeError(_("Can't traverse attribute path"))
 
-        if not isinstance(key, (str, int)):
+        if not isinstance(key, (six.string_types, int)):
             raise TypeError(_('Path components in attributes must be strings'))
 
         return collection[key]
 
     try:
-        return functools.reduce(get_path_component, path, attribute_value)
+        return six.moves.reduce(get_path_component, path, attribute_value)
     except (KeyError, IndexError, TypeError):
         return None

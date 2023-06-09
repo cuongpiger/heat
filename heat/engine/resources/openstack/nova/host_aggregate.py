@@ -38,6 +38,8 @@ class HostAggregate(resource.Resource):
 
     entity = 'aggregates'
 
+    required_service_extension = 'os-aggregates'
+
     PROPERTIES = (
         NAME, AVAILABILITY_ZONE, HOSTS, METADATA
     ) = (

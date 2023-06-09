@@ -11,6 +11,7 @@
 #    under the License.
 
 import copy
+import time
 
 from heat_integrationtests.functional import functional_base
 
@@ -73,6 +74,9 @@ class UpdateRestrictedStackTest(functional_base.FunctionalTestsBase):
             self._check_for_restriction_reason(resource_events,
                                                reason_update_restrict))
 
+        # Ensure the timestamp changes, since this will be very quick
+        time.sleep(1)
+
         # check update succeeds - with only 'replace' restricted
         self.update_stack(stack_identifier, update_template,
                           env_replace_restrict,
@@ -108,6 +112,9 @@ class UpdateRestrictedStackTest(functional_base.FunctionalTestsBase):
             self._check_for_restriction_reason(resource_events,
                                                reason_replace_restrict))
 
+        # Ensure the timestamp changes, since this will be very quick
+        time.sleep(1)
+
         # check replace fails - with only 'replace' restricted
         self.update_stack(stack_identifier, update_template,
                           env_replace_restrict,
@@ -141,6 +148,9 @@ class UpdateRestrictedStackTest(functional_base.FunctionalTestsBase):
         self.assertTrue(
             self._check_for_restriction_reason(resource_events,
                                                reason_replace_restrict))
+
+        # Ensure the timestamp changes, since this will be very quick
+        time.sleep(1)
 
         # check replace fails - with only 'replace' restricted
         self.update_stack(stack_identifier, update_template,

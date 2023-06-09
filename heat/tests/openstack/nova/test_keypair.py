@@ -12,7 +12,9 @@
 #    under the License.
 
 import copy
-from unittest import mock
+
+import mock
+import six
 
 from heat.common import exception
 from heat.engine.clients.os import keystone
@@ -44,6 +46,8 @@ class NovaKeyPairTest(common.HeatTestCase):
         self.fake_nova = mock.MagicMock()
         self.fake_keypairs = mock.MagicMock()
         self.fake_nova.keypairs = self.fake_keypairs
+        self.patchobject(nova.NovaClientPlugin, 'has_extension',
+                         return_value=True)
         self.cp_mock = self.patchobject(nova.NovaClientPlugin, 'client',
                                         return_value=self.fake_nova)
 
@@ -112,7 +116,7 @@ class NovaKeyPairTest(common.HeatTestCase):
         self.assertEqual((tp_test.CREATE, tp_test.COMPLETE), tp_test.state)
         self.assertEqual(tp_test.resource_id, created_key.name)
         self.fake_keypairs.create.assert_called_once_with(
-            name=key_name, public_key=None, key_type='ssh')
+            name=key_name, public_key=None, type='ssh')
         self.cp_mock.assert_called_once_with()
 
     def test_create_key_with_user_id(self):
@@ -140,7 +144,7 @@ class NovaKeyPairTest(common.HeatTestCase):
         self.assertEqual(tp_test.resource_id, created_key.name)
         self.fake_keypairs.create.assert_called_once_with(
             name=key_name, public_key=None, user_id='userA_ID',
-            key_type='x509')
+            type='x509')
         self.cp_mock.assert_called_once_with()
 
     def test_create_key_empty_name(self):
@@ -153,9 +157,9 @@ class NovaKeyPairTest(common.HeatTestCase):
         kp_res = keypair.KeyPair('kp', definition, stack)
         error = self.assertRaises(exception.StackValidationFailed,
                                   kp_res.validate)
-        self.assertIn("Property error", str(error))
+        self.assertIn("Property error", six.text_type(error))
         self.assertIn("kp.properties.name: length (0) is out of "
-                      "range (min: 1, max: 255)", str(error))
+                      "range (min: 1, max: 255)", six.text_type(error))
 
     def test_create_key_excess_name_length(self):
         """Test creation of a keypair whose name is of excess length."""
@@ -167,9 +171,9 @@ class NovaKeyPairTest(common.HeatTestCase):
         kp_res = keypair.KeyPair('kp', definition, stack)
         error = self.assertRaises(exception.StackValidationFailed,
                                   kp_res.validate)
-        self.assertIn("Property error", str(error))
+        self.assertIn("Property error", six.text_type(error))
         self.assertIn("kp.properties.name: length (256) is out of "
-                      "range (min: 1, max: 255)", str(error))
+                      "range (min: 1, max: 255)", six.text_type(error))
 
     def _test_validate(self, key_type=None, user=None):
         template = copy.deepcopy(self.kp_template)
@@ -187,7 +191,7 @@ class NovaKeyPairTest(common.HeatTestCase):
                                   kp_res.validate)
         msg = (('Cannot use "%s" properties - nova does not support '
                 'required api microversion.') % validate_props)
-        self.assertIn(msg, str(error))
+        self.assertIn(msg, six.text_type(error))
 
     def test_validate_key_type(self):
         self.patchobject(nova.NovaClientPlugin, 'get_max_microversion',
@@ -200,29 +204,6 @@ class NovaKeyPairTest(common.HeatTestCase):
         self.patchobject(nova.NovaClientPlugin, 'get_max_microversion',
                          return_value='2.1')
         self._test_validate(user='user_A')
-
-    def test_validate_public_key(self):
-        self.patchobject(nova.NovaClientPlugin, 'get_max_microversion',
-                         return_value='2.92')
-        template = copy.deepcopy(self.kp_template)
-        template['resources']['kp']['properties']['public_key'] = 'dummy'
-        stack = utils.parse_stack(template)
-        definition = stack.t.resource_definitions(stack)['kp']
-        kp_res = keypair.KeyPair('kp', definition, stack)
-        kp_res.validate()
-
-    def test_validate_public_key_fail(self):
-        self.patchobject(nova.NovaClientPlugin, 'get_max_microversion',
-                         return_value='2.92')
-        template = copy.deepcopy(self.kp_template)
-        stack = utils.parse_stack(template)
-        definition = stack.t.resource_definitions(stack)['kp']
-        kp_res = keypair.KeyPair('kp', definition, stack)
-        error = self.assertRaises(exception.StackValidationFailed,
-                                  kp_res.validate)
-        msg = ('The public_key property is required by the nova API version '
-               'currently used.')
-        self.assertIn(msg, str(error))
 
     def test_check_key(self):
         res = self._get_test_resource(self.kp_template)
@@ -238,7 +219,7 @@ class NovaKeyPairTest(common.HeatTestCase):
         res.client().keypairs.get.side_effect = Exception("boom")
         exc = self.assertRaises(exception.ResourceFailure,
                                 scheduler.TaskRunner(res.check))
-        self.assertIn("boom", str(exc))
+        self.assertIn("boom", six.text_type(exc))
         self.assertEqual((res.CHECK, res.FAILED), res.state)
 
     def test_update_replace(self):
