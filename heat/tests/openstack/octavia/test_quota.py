@@ -12,6 +12,8 @@
 #    under the License.
 from unittest import mock
 
+import six
+
 from heat.common import exception
 from heat.common import template_format
 from heat.engine.clients.os import keystone as k_plugin
@@ -69,7 +71,7 @@ class OcataQuotaTest(common.HeatTestCase):
     def _test_validate(self, resource, error_msg):
         exc = self.assertRaises(exception.StackValidationFailed,
                                 resource.validate)
-        self.assertIn(error_msg, str(exc))
+        self.assertIn(error_msg, six.text_type(exc))
 
     def _test_invalid_property(self, prop_name):
         my_quota = self.stack['my_quota']

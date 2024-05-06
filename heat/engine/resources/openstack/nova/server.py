@@ -12,7 +12,6 @@
 #    under the License.
 
 import copy
-import ipaddress
 
 from oslo_config import cfg
 from oslo_log import log as logging
@@ -548,12 +547,11 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
         ),
         USER_DATA_UPDATE_POLICY: properties.Schema(
             properties.Schema.STRING,
-            _('Policy on how to apply a user_data update; by '
-              'ignoring it, by replacing the entire server, '
-              'or rebuild the server.'),
+            _('Policy on how to apply a user_data update; either by '
+              'ignoring it or by replacing the entire server.'),
             default='REPLACE',
             constraints=[
-                constraints.AllowedValues(['REPLACE', 'IGNORE', 'REBUILD']),
+                constraints.AllowedValues(['REPLACE', 'IGNORE']),
             ],
             support_status=support.SupportStatus(version='6.0.0'),
             update_allowed=True
@@ -944,19 +942,9 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
 
     def parse_live_resource_data(self, resource_properties, resource_data):
         server, server_data = resource_data
-        flavor = server_data.get(self.FLAVOR)
-        # NOTE(pas-ha) since compute API 2.47 flavor in instance
-        # does not have "id" but "original_name" instead,
-        # check for both here, and fail if none of them are in flavor.
-        if "id" in flavor:
-            flavor_value = flavor["id"]
-        elif "original_name" in flavor:
-            flavor_value = flavor["original_name"]
-        else:
-            raise KeyError("Flavor does not contain id or original_name")
         result = {
             # there's a risk that flavor id will be int type, so cast to str
-            self.FLAVOR: str(flavor_value),
+            self.FLAVOR: str(server_data.get(self.FLAVOR)['id']),
             self.IMAGE: str(server_data.get(self.IMAGE)['id']),
             self.NAME: server_data.get(self.NAME),
             self.METADATA: server_data.get(self.METADATA),
@@ -967,8 +955,8 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
         return result
 
     def _get_live_networks(self, server, props):
-        reality_nets = self._get_server_addresses(server,
-                                                  extend_networks=False)
+        reality_nets = self._add_attrs_for_address(server,
+                                                   extend_networks=False)
         reality_net_ids = {}
         client_plugin = self.client_plugin('neutron')
         for net_key in reality_nets:
@@ -1136,7 +1124,7 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
             LOG.warning("Failed to fetch resource attributes: %s", ex)
             return
 
-    def _get_server_addresses(self, server, extend_networks=True):
+    def _add_attrs_for_address(self, server, extend_networks=True):
         """Adds port id, subnets and network attributes to addresses list.
 
         This method is used only for resolving attributes.
@@ -1145,47 +1133,30 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
                                 the net is returned without replacing name on
                                 id.
         """
-        nets = {}
-        ifaces = self.client('neutron').list_ports(device_id=server.id)
-        for port in ifaces['ports']:
-            net_label = self.client('neutron').list_networks(
-                id=port['network_id'])['networks'][0]['name']
-            net = nets.setdefault(net_label, [])
-            for fixed_ip in port['fixed_ips']:
-                addr = {'addr': fixed_ip.get('ip_address'),
-                        'OS-EXT-IPS-MAC:mac_addr': port['mac_address'],
-                        'OS-EXT-IPS:type': 'fixed',
-                        'port': port['id']}
-
-                try:
-                    addr['version'] = ipaddress.ip_address(
-                        addr['addr']).version,
-                except ValueError:
-                    addr['version'] = None
-
-                if addr['addr']:
-                    fips = self.client('neutron').list_floatingips(
-                        fixed_ip_address=addr['addr'])
-                    for fip in fips['floatingips']:
-                        net.append({
-                            'addr': fip['floating_ip_address'],
-                            'version': addr['version'],
-                            'OS-EXT-IPS-MAC:mac_addr': port['mac_address'],
-                            'OS-EXT-IPS:type': 'floating',
-                            'port': None})
-
+        nets = copy.deepcopy(server.addresses) or {}
+        ifaces = server.interface_list()
+        ip_mac_mapping_on_port_id = dict(((iface.fixed_ips[0]['ip_address'],
+                                           iface.mac_addr), iface.port_id)
+                                         for iface in ifaces)
+        for net_name in nets:
+            for addr in nets[net_name]:
+                addr['port'] = ip_mac_mapping_on_port_id.get(
+                    (addr['addr'], addr['OS-EXT-IPS-MAC:mac_addr']))
                 # _get_live_networks() uses this method to get reality_nets.
                 # We don't need to get subnets and network in that case. Only
                 # do the external calls if extend_networks is true, i.e called
                 # from _resolve_attribute()
                 if not extend_networks:
-                    net.append(addr)
                     continue
-
+                try:
+                    port = self.client('neutron').show_port(
+                        addr['port'])['port']
+                except Exception as ex:
+                    addr['subnets'], addr['network'] = None, None
+                    LOG.warning("Failed to fetch resource attributes: %s", ex)
+                    continue
                 addr['subnets'] = self._get_subnets_attr(port['fixed_ips'])
                 addr['network'] = self._get_network_attr(port['network_id'])
-
-                net.append(addr)
 
         if extend_networks:
             return self._extend_networks(nets)
@@ -1230,7 +1201,7 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
             self.client_plugin().ignore_not_found(e)
             return ''
         if name == self.ADDRESSES:
-            return self._get_server_addresses(server)
+            return self._add_attrs_for_address(server)
         if name == self.NETWORKS_ATTR:
             return self._extend_networks(server.networks)
         if name == self.INSTANCE_NAME:
@@ -1324,14 +1295,6 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
                                                            'kwargs': kwargs})
         return prg
 
-    def _update_user_data_rebuild(self, after_props):
-        user_data = after_props[self.USER_DATA]
-        prg = progress.ServerUpdateProgress(
-            self.resource_id,
-            'rebuild',
-            handler_extra={'args': (user_data,)})
-        return prg
-
     def _update_networks(self, server, after_props):
         updaters = []
         new_networks = after_props[self.NETWORKS]
@@ -1422,12 +1385,6 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
 
         if self.FLAVOR in prop_diff:
             updaters.extend(self._update_flavor(after_props))
-
-        if self.USER_DATA in prop_diff:
-            # We only care about rebuild here. The standard replace is
-            # dealt elsewere
-            if after_props[self.USER_DATA_UPDATE_POLICY] == 'REBUILD':
-                updaters.append(self._update_user_data_rebuild(after_props))
 
         if self.IMAGE in prop_diff:
             updaters.append(self._update_image(after_props))
@@ -1760,7 +1717,7 @@ class Server(server_base.BaseServer, sh.SchedulerHintsMixin,
         status = cp.get_status(server)
         LOG.debug('%(name)s check_suspend_complete status = %(status)s',
                   {'name': self.name, 'status': status})
-        if status in (cp.deferred_server_statuses | {'ACTIVE'}):
+        if status in list(cp.deferred_server_statuses + ['ACTIVE']):
             return status == 'SUSPENDED'
         else:
             exc = exception.ResourceUnknownStatus(

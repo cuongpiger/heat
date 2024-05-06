@@ -41,7 +41,7 @@ class StackCreateTest(common.HeatTestCase):
         super(StackCreateTest, self).setUp()
         self.ctx = utils.dummy_context()
         self.man = service.EngineService('a-host', 'a-topic')
-        self.man.thread_group_mgr = tools.DummyThreadGroupManager()
+        self.man.thread_group_mgr = service.ThreadGroupManager()
         cfg.CONF.set_override('convergence_engine', False)
 
     @mock.patch.object(threadgroup, 'ThreadGroup')
@@ -305,6 +305,7 @@ class StackCreateTest(common.HeatTestCase):
         self.assertEqual(stk.identifier(), result)
         root_stack_id = stk.root_stack_id()
         self.assertEqual(3, stk.total_resources(root_stack_id))
+        self.man.thread_group_mgr.groups[stk.id].wait()
         stk.delete()
 
     def test_stack_create_total_resources_exceeds_max(self):

@@ -15,7 +15,6 @@
 import sys
 
 from oslo_config import cfg
-from oslo_upgradecheck import common_checks
 from oslo_upgradecheck import upgradecheck
 
 from heat.common.i18n import _
@@ -29,6 +28,11 @@ class Checks(upgradecheck.UpgradeCommands):
     and added to _upgrade_checks tuple.
     """
 
+    def _check_placeholder(self):
+        # This is just a placeholder for upgrade checks, it should be
+        # removed when the actual checks are added
+        return upgradecheck.Result(upgradecheck.Code.SUCCESS)
+
     # The format of the check functions is to return an
     # oslo_upgradecheck.upgradecheck.Result
     # object with the appropriate
@@ -37,8 +41,8 @@ class Checks(upgradecheck.UpgradeCommands):
     # in the returned Result's "details" attribute. The
     # summary will be rolled up at the end of the check() method.
     _upgrade_checks = (
-        (_('Policy File JSON to YAML Migration'),
-         (common_checks.check_policy_json, {'conf': cfg.CONF})),
+        # In the future there should be some real checks added here
+        (_('Placeholder'), _check_placeholder),
     )
 
 

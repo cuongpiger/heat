@@ -89,7 +89,7 @@ def get_template_class(template_data):
         raise exception.InvalidTemplateVersion(explanation=explanation)
 
 
-class Template(collections.abc.Mapping):
+class Template(collections.Mapping):
     """Abstract base class for template format plugins.
 
     All template formats (both internal and third-party) should derive from
@@ -355,7 +355,7 @@ class Template(collections.abc.Mapping):
 def parse(functions, stack, snippet, path='', template=None):
     recurse = functools.partial(parse, functions, stack, template=template)
 
-    if isinstance(snippet, collections.abc.Mapping):
+    if isinstance(snippet, collections.Mapping):
         def mkpath(key):
             return '.'.join([path, str(key)])
 
@@ -380,7 +380,7 @@ def parse(functions, stack, snippet, path='', template=None):
         return dict((k, recurse(v, mkpath(k)))
                     for k, v in snippet.items())
     elif (not isinstance(snippet, str) and
-          isinstance(snippet, collections.abc.Iterable)):
+          isinstance(snippet, collections.Iterable)):
 
         def mkpath(idx):
             return ''.join([path, '[%d]' % idx])

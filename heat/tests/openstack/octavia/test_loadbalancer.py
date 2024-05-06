@@ -62,7 +62,6 @@ class LoadBalancerTest(common.HeatTestCase):
                 'project_id': '1234',
                 'admin_state_up': True,
                 'flavor_id': 'f123',
-                'availability_zone': 'nova',
             }
         }
 

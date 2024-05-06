@@ -27,7 +27,7 @@ from heat.common import context
 from heat.common import exception
 from heat.common import template_format
 from heat.common import timeutils
-from heat.db import api as db_api
+from heat.db.sqlalchemy import api as db_api
 from heat.engine.clients.os import keystone
 from heat.engine.clients.os.keystone import fake_keystoneclient as fake_ks
 from heat.engine.clients.os import nova
@@ -70,7 +70,7 @@ class StackTest(common.HeatTestCase):
         self.assertEqual('bar', self.stack.tenant_id)
 
     def test_stack_reads_tenant_from_context_if_empty(self):
-        self.ctx.project_id = 'foo'
+        self.ctx.tenant = 'foo'
         self.stack = stack.Stack(self.ctx, 'test_stack', self.tmpl,
                                  tenant_id=None)
         self.assertEqual('foo', self.stack.tenant_id)
@@ -478,7 +478,7 @@ class StackTest(common.HeatTestCase):
             prev_raw_template_id=None,
             current_deps=None, cache_data=None,
             nested_depth=0,
-            deleted_time=None, refresh_cred=False)
+            deleted_time=None)
         template.Template.load.assert_called_once_with(
             self.ctx, stk.raw_template_id, stk.raw_template)
 
@@ -580,11 +580,11 @@ class StackTest(common.HeatTestCase):
         self.assertEqual(identifier.arn(), newstack.parameters['AWS::StackId'])
 
     def test_load_reads_tenant_id(self):
-        self.ctx.project_id = 'foobar'
+        self.ctx.tenant = 'foobar'
         self.stack = stack.Stack(self.ctx, 'stack_name', self.tmpl)
         self.stack.store()
         stack_id = self.stack.id
-        self.ctx.project_id = None
+        self.ctx.tenant = None
         self.stack = stack.Stack.load(self.ctx, stack_id=stack_id)
         self.assertEqual('foobar', self.stack.tenant_id)
 
@@ -1629,31 +1629,6 @@ class StackTest(common.HeatTestCase):
 
         saved_stack = stack.Stack.load(self.ctx, stack_id=stack_ownee.id)
         self.assertEqual(self.stack.id, saved_stack.owner_id)
-
-    def _test_load_with_refresh_cred(self, refresh=True):
-        cfg.CONF.set_override('deferred_auth_method', 'trusts')
-        self.patchobject(self.ctx.auth_plugin, 'get_user_id',
-                         return_value='old_trustor_user_id')
-        self.patchobject(self.ctx.auth_plugin, 'get_project_id',
-                         return_value='test_tenant_id')
-
-        old_context = utils.dummy_context()
-        old_context.trust_id = 'atrust123'
-        old_context.trustor_user_id = (
-            'trustor_user_id' if refresh else 'old_trustor_user_id')
-        m_sc = self.patchobject(context, 'StoredContext')
-        m_sc.from_dict.return_value = old_context
-        self.stack = stack.Stack(self.ctx, 'test_regenerate_trust', self.tmpl)
-        self.stack.store()
-        load_stack = stack.Stack.load(self.ctx, stack_id=self.stack.id,
-                                      check_refresh_cred=True)
-        self.assertEqual(refresh, load_stack.refresh_cred)
-
-    def test_load_with_refresh_cred(self):
-        self._test_load_with_refresh_cred()
-
-    def test_load_with_no_refresh_cred(self):
-        self._test_load_with_refresh_cred(refresh=False)
 
     def test_requires_deferred_auth(self):
         tmpl = {'HeatTemplateFormatVersion': '2012-12-12',

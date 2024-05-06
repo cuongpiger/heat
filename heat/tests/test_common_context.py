@@ -51,8 +51,8 @@ class TestRequestContext(common.HeatTestCase):
                     'aws_creds': 'blah',
                     'region_name': 'RegionOne',
                     'user_identity': 'fooUser 456tenant',
-                    'user_domain_id': None,
-                    'project_domain_id': None}
+                    'user_domain': None,
+                    'project_domain': None}
 
         super(TestRequestContext, self).setUp()
 
@@ -63,7 +63,7 @@ class TestRequestContext(common.HeatTestCase):
             password=self.ctx.get('password'),
             aws_creds=self.ctx.get('aws_creds'),
             project_name=self.ctx.get('tenant'),
-            project_id=self.ctx.get('tenant_id'),
+            tenant=self.ctx.get('tenant_id'),
             user=self.ctx.get('user_id'),
             auth_url=self.ctx.get('auth_url'),
             roles=self.ctx.get('roles'),
@@ -73,8 +73,8 @@ class TestRequestContext(common.HeatTestCase):
             trustor_user_id=self.ctx.get('trustor_user_id'),
             trust_id=self.ctx.get('trust_id'),
             region_name=self.ctx.get('region_name'),
-            user_domain_id=self.ctx.get('user_domain_id'),
-            project_domain_id=self.ctx.get('project_domain_id'))
+            user_domain_id=self.ctx.get('user_domain'),
+            project_domain_id=self.ctx.get('project_domain'))
         ctx_dict = ctx.to_dict()
         del ctx_dict['request_id']
         del ctx_dict['project_id']
@@ -103,8 +103,8 @@ class TestRequestContext(common.HeatTestCase):
                       'aws_creds': 'blah',
                       'region_name': 'RegionOne',
                       'user_identity': u'Gāo 456tenant',
-                      'user_domain_id': None,
-                      'project_domain_id': None}
+                      'user_domain': None,
+                      'project_domain': None}
 
         ctx = context.RequestContext(
             auth_token=ctx_origin.get('auth_token'),
@@ -112,7 +112,7 @@ class TestRequestContext(common.HeatTestCase):
             password=ctx_origin.get('password'),
             aws_creds=ctx_origin.get('aws_creds'),
             project_name=ctx_origin.get('tenant'),
-            project_id=ctx_origin.get('tenant_id'),
+            tenant=ctx_origin.get('tenant_id'),
             user=ctx_origin.get('user_id'),
             auth_url=ctx_origin.get('auth_url'),
             roles=ctx_origin.get('roles'),
@@ -122,8 +122,8 @@ class TestRequestContext(common.HeatTestCase):
             trustor_user_id=ctx_origin.get('trustor_user_id'),
             trust_id=ctx_origin.get('trust_id'),
             region_name=ctx_origin.get('region_name'),
-            user_domain_id=ctx_origin.get('user_domain_id'),
-            project_domain_id=ctx_origin.get('project_domain_id'))
+            user_domain_id=ctx_origin.get('user_domain'),
+            project_domain_id=ctx_origin.get('project_domain'))
         ctx_dict = ctx.to_dict()
         del(ctx_dict['request_id'])
         self.assertEqual(ctx_origin, ctx_dict)
@@ -391,7 +391,7 @@ class RequestContextMiddlewareTest(common.HeatTestCase):
     )]
 
     def setUp(self):
-        super(RequestContextMiddlewareTest, self).setUp(mock_find_file=False)
+        super(RequestContextMiddlewareTest, self).setUp()
         self.fixture = self.useFixture(config_fixture.Config())
         self.fixture.conf(args=['--config-dir', policy_path])
         policy_opts.set_defaults(cfg.CONF, 'check_admin.json')

@@ -10,53 +10,16 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from oslo_log import versionutils
 from oslo_policy import policy
 
 from heat.policies import base
 
 POLICY_ROOT = 'resource:%s'
 
-DEPRECATED_REASON = """
-The resources API now supports system scope and default roles.
-"""
-
-deprecated_list_resources = policy.DeprecatedRule(
-    name=POLICY_ROOT % 'index',
-    check_str=base.RULE_DENY_STACK_USER,
-    deprecated_reason=DEPRECATED_REASON,
-    deprecated_since=versionutils.deprecated.WALLABY
-)
-deprecated_mark_unhealthy = policy.DeprecatedRule(
-    name=POLICY_ROOT % 'mark_unhealthy',
-    check_str=base.RULE_DENY_STACK_USER,
-    deprecated_reason=DEPRECATED_REASON,
-    deprecated_since=versionutils.deprecated.WALLABY
-)
-deprecated_show_resource = policy.DeprecatedRule(
-    name=POLICY_ROOT % 'show',
-    check_str=base.RULE_DENY_STACK_USER,
-    deprecated_reason=DEPRECATED_REASON,
-    deprecated_since=versionutils.deprecated.WALLABY,
-)
-deprecated_metadata = policy.DeprecatedRule(
-    name=POLICY_ROOT % 'metadata',
-    check_str=base.RULE_ALLOW_EVERYBODY,
-    deprecated_reason=DEPRECATED_REASON,
-    deprecated_since=versionutils.deprecated.WALLABY,
-)
-deprecated_signal = policy.DeprecatedRule(
-    name=POLICY_ROOT % 'signal',
-    check_str=base.RULE_ALLOW_EVERYBODY,
-    deprecated_reason=DEPRECATED_REASON,
-    deprecated_since=versionutils.deprecated.WALLABY,
-)
-
 resource_policies = [
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % 'index',
-        check_str=base.SYSTEM_OR_PROJECT_READER,
-        scope_types=['system', 'project'],
+        check_str=base.RULE_DENY_STACK_USER,
         description='List resources.',
         operations=[
             {
@@ -64,13 +27,11 @@ resource_policies = [
                 'resources',
                 'method': 'GET'
             }
-        ],
-        deprecated_rule=deprecated_list_resources
+        ]
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % 'metadata',
-        check_str=base.SYSTEM_OR_PROJECT_READER_OR_STACK_USER,
-        scope_types=['system', 'project'],
+        check_str=base.RULE_ALLOW_EVERYBODY,
         description='Show resource metadata.',
         operations=[
             {
@@ -78,13 +39,11 @@ resource_policies = [
                 'resources/{resource_name}/metadata',
                 'method': 'GET'
             }
-        ],
-        deprecated_rule=deprecated_metadata
+        ]
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % 'signal',
-        check_str=base.SYSTEM_OR_PROJECT_READER_OR_STACK_USER,
-        scope_types=['system', 'project'],
+        check_str=base.RULE_ALLOW_EVERYBODY,
         description='Signal resource.',
         operations=[
             {
@@ -92,13 +51,11 @@ resource_policies = [
                 'resources/{resource_name}/signal',
                 'method': 'POST'
             }
-        ],
-        deprecated_rule=deprecated_signal
+        ]
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % 'mark_unhealthy',
-        check_str=base.SYSTEM_ADMIN_OR_PROJECT_MEMBER,
-        scope_types=['system', 'project'],
+        check_str=base.RULE_DENY_STACK_USER,
         description='Mark resource as unhealthy.',
         operations=[
             {
@@ -106,13 +63,11 @@ resource_policies = [
                 'resources/{resource_name_or_physical_id}',
                 'method': 'PATCH'
             }
-        ],
-        deprecated_rule=deprecated_mark_unhealthy
+        ]
     ),
     policy.DocumentedRuleDefault(
         name=POLICY_ROOT % 'show',
-        check_str=base.SYSTEM_OR_PROJECT_READER,
-        scope_types=['system', 'project'],
+        check_str=base.RULE_DENY_STACK_USER,
         description='Show resource.',
         operations=[
             {
@@ -120,8 +75,7 @@ resource_policies = [
                 'resources/{resource_name}',
                 'method': 'GET'
             }
-        ],
-        deprecated_rule=deprecated_show_resource
+        ]
     )
 ]
 

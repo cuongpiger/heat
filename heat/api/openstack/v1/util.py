@@ -29,37 +29,14 @@ def registered_policy_enforce(handler):
     """
     @functools.wraps(handler)
     def handle_stack_method(controller, req, tenant_id, **kwargs):
-        _target = {"project_id": tenant_id}
-
-        if req.context.tenant_id != tenant_id and not (
-                req.context.is_admin or
-                req.context.system_scope == all):
+        if req.context.tenant_id != tenant_id and not req.context.is_admin:
             raise exc.HTTPForbidden()
         allowed = req.context.policy.enforce(
             context=req.context,
             action=handler.__name__,
             scope=controller.REQUEST_SCOPE,
-            target=_target,
             is_registered_policy=True)
         if not allowed:
-            raise exc.HTTPForbidden()
-        return handler(controller, req, **kwargs)
-
-    return handle_stack_method
-
-
-def no_policy_enforce(handler):
-    """Decorator that does *not* enforce policies.
-
-    Checks the path matches the request context.
-
-    This is a handler method decorator.
-    """
-    @functools.wraps(handler)
-    def handle_stack_method(controller, req, tenant_id, **kwargs):
-        if req.context.tenant_id != tenant_id and not (
-                req.context.is_admin or
-                req.context.system_scope == all):
             raise exc.HTTPForbidden()
         return handler(controller, req, **kwargs)
 

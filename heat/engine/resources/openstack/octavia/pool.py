@@ -87,7 +87,6 @@ class Pool(octavia_base.OctaviaBase):
                       'required if type is APP_COOKIE.')
                 )
             },
-            update_allowed=True,
         ),
         NAME: properties.Schema(
             properties.Schema.STRING,
@@ -178,15 +177,12 @@ class Pool(octavia_base.OctaviaBase):
             props['listener_id'] = props.pop(self.LISTENER)
         if self.LOADBALANCER in props:
             props['loadbalancer_id'] = props.pop(self.LOADBALANCER)
-        self._prepare_session_persistence(props)
-        return props
-
-    def _prepare_session_persistence(self, props):
         session_p = props.get(self.SESSION_PERSISTENCE)
         if session_p is not None:
             session_props = dict(
                 (k, v) for k, v in session_p.items() if v is not None)
             props[self.SESSION_PERSISTENCE] = session_props
+        return props
 
     def validate(self):
         super(Pool, self).validate()
@@ -219,9 +215,7 @@ class Pool(octavia_base.OctaviaBase):
         return self.client().pool_create(json={'pool': properties})['pool']
 
     def _resource_update(self, prop_diff):
-        props = dict((k, v) for k, v in prop_diff.items() if v is not None)
-        self._prepare_session_persistence(props)
-        self.client().pool_set(self.resource_id, json={'pool': props})
+        self.client().pool_set(self.resource_id, json={'pool': prop_diff})
 
     def _resource_delete(self):
         self.client().pool_delete(self.resource_id)

@@ -14,18 +14,16 @@
 import random
 import string
 import uuid
-import warnings
 
 import fixtures
 from oslo_config import cfg
 from oslo_db import options
 from oslo_serialization import jsonutils
 import sqlalchemy
-from sqlalchemy import exc as sqla_exc
 
 from heat.common import context
-from heat.db import api as db_api
-from heat.db import models
+from heat.db.sqlalchemy import api as db_api
+from heat.db.sqlalchemy import models
 from heat.engine import environment
 from heat.engine import node_data
 from heat.engine import resource
@@ -90,32 +88,6 @@ def dummy_context(user='test_username', tenant_id='test_tenant_id',
         'trust_id': trust_id,
         'region_name': region_name
     })
-
-
-def dummy_system_admin_context():
-    """Return a heat.common.context.RequestContext for system-admin.
-
-    :returns: an instance of heat.common.context.RequestContext
-
-    """
-    ctx = dummy_context(roles=['admin', 'member', 'reader'])
-    ctx.system_scope = 'all'
-    ctx.project_id = None
-    ctx.tenant_id = None
-    return ctx
-
-
-def dummy_system_reader_context():
-    """Return a heat.common.context.RequestContext for system-reader.
-
-    :returns: an instance of heat.common.context.RequestContext
-
-    """
-    ctx = dummy_context(roles=['reader'])
-    ctx.system_scope = 'all'
-    ctx.project_id = None
-    ctx.tenant_id = None
-    return ctx
 
 
 def parse_stack(t, params=None, files=None, stack_name=None,
@@ -222,125 +194,15 @@ class JsonRepr(object):
 
 
 class ForeignKeyConstraintFixture(fixtures.Fixture):
-
-    def __init__(self):
-        self.engine = get_engine()
+    def __init__(self, sqlite_fk=True):
+        self.enable_fkc = sqlite_fk
 
     def _setUp(self):
-        if self.engine.name == 'sqlite':
-            self.engine.execute("PRAGMA foreign_keys=ON")
+        new_context = db_api.db_context.make_new_manager()
+        new_context.configure(sqlite_fk=self.enable_fkc)
 
-            def disable_fks():
-                with self.engine.connect() as conn:
-                    conn.connection.rollback()
-                    conn.execute("PRAGMA foreign_keys=OFF")
-            self.addCleanup(disable_fks)
-
-
-class WarningsFixture(fixtures.Fixture):
-    """Filters out warnings during test runs."""
-
-    def setUp(self):
-        super().setUp()
-
-        self._original_warning_filters = warnings.filters[:]
-
-        warnings.simplefilter("once", DeprecationWarning)
-
-        # Enable deprecation warnings for heat itself to capture upcoming
-        # SQLAlchemy changes
-
-        warnings.filterwarnings(
-            'ignore',
-            category=sqla_exc.SADeprecationWarning,
-        )
-
-        warnings.filterwarnings(
-            'error',
-            module='heat',
-            category=sqla_exc.SADeprecationWarning,
-        )
-
-        # ...but filter everything out until we get around to fixing them
-        # TODO(stephenfin): Fix all of these
-
-        warnings.filterwarnings(
-            'ignore',
-            module='heat',
-            message=r'The Engine.execute\(\) method is considered legacy ',
-            category=sqla_exc.SADeprecationWarning,
-        )
-
-        warnings.filterwarnings(
-            'ignore',
-            module='heat',
-            message='The current statement is being autocommitted using ',
-            category=sqla_exc.SADeprecationWarning,
-        )
-
-        warnings.filterwarnings(
-            'ignore',
-            module='heat',
-            message='Using strings to indicate column or relationship paths ',
-            category=sqla_exc.SADeprecationWarning,
-        )
-
-        warnings.filterwarnings(
-            'ignore',
-            module='heat',
-            message=r'The Query.get\(\) method is considered legacy ',
-            category=sqla_exc.SADeprecationWarning,
-        )
-
-        warnings.filterwarnings(
-            'ignore',
-            module='heat',
-            message='The Session.transaction attribute is considered legacy ',
-            category=sqla_exc.SADeprecationWarning,
-        )
-
-        warnings.filterwarnings(
-            'ignore',
-            module='heat',
-            message='The Session.begin.subtransactions flag is deprecated ',
-            category=sqla_exc.SADeprecationWarning,
-        )
-
-        warnings.filterwarnings(
-            'ignore',
-            module='heat',
-            message='The autoload parameter is deprecated ',
-            category=sqla_exc.SADeprecationWarning,
-        )
-
-        warnings.filterwarnings(
-            'ignore',
-            module='heat',
-            message='The ``bind`` argument for schema methods that invoke ',
-            category=sqla_exc.SADeprecationWarning,
-        )
-
-        warnings.filterwarnings(
-            'ignore',
-            module='heat',
-            message=r'The legacy calling style of select\(\) is deprecated ',
-            category=sqla_exc.SADeprecationWarning,
-        )
-
-        # Enable general SQLAlchemy warnings also to ensure we're not doing
-        # silly stuff. It's possible that we'll need to filter things out here
-        # with future SQLAlchemy versions, but that's a good thing
-
-        warnings.filterwarnings(
-            'error',
-            module='heat',
-            category=sqla_exc.SAWarning,
-        )
-
-        self.addCleanup(self._reset_warning_filters)
-
-    def _reset_warning_filters(self):
-        warnings.filters[:] = self._original_warning_filters
+        self.useFixture(fixtures.MockPatchObject(db_api, '_facade', None))
+        self.addCleanup(db_api.db_context.patch_factory(new_context._factory))
 
 
 class AnyInstance(object):

@@ -15,6 +15,11 @@ import collections
 import itertools
 
 from heat.common import exception
+from heat.common.i18n import _
+
+
+class CircularDependencyException(exception.HeatException):
+    msg_fmt = _("Circular Dependency Found: %(cycle)s")
 
 
 class Node(object):
@@ -158,7 +163,7 @@ class Graph(collections.defaultdict):
             else:
                 # There are nodes remaining, but none without
                 # dependencies: a cycle
-                raise exception.CircularDependencyException(cycle=str(graph))
+                raise CircularDependencyException(cycle=str(graph))
 
 
 class Dependencies(object):

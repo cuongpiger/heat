@@ -20,7 +20,7 @@ from oslo_utils import timeutils
 
 from heat.common import exception
 from heat.common import template_format
-from heat.db import models
+from heat.db.sqlalchemy import models
 from heat.engine.clients.os import heat_plugin
 from heat.engine.clients.os.keystone import fake_keystoneclient as fake_ks
 from heat.engine.clients.os import swift
@@ -96,7 +96,7 @@ class SignalTest(common.HeatTestCase):
 
         tpl = template.Template(template_format.parse(template_string))
         ctx = utils.dummy_context()
-        ctx.project_id = 'test_tenant'
+        ctx.tenant = 'test_tenant'
         stack = stk.Stack(ctx, stack_name, tpl, disable_rollback=True)
         with utils.UUIDStub(stack_id):
             stack.store()

@@ -166,24 +166,13 @@ class InstantiationData(object):
         params = self.data.items()
         return dict((k, v) for k, v in params if k not in self.PARAMS)
 
-    def no_change(self):
-        assert self.patch
-        return ((self.template() is None) and
-                (self.environment() ==
-                    environment_format.default_for_missing({})) and
-                (not self.files()) and
-                (not self.environment_files()) and
-                (self.files_container() is None) and
-                (not any(k != rpc_api.PARAM_EXISTING
-                         for k in self.args().keys())))
-
 
 class StackController(object):
     """WSGI controller for stacks resource in Heat v1 API.
 
     Implements the API actions.
     """
-    # Define request scope (must match what is in policy.yaml or policies in
+    # Define request scope (must match what is in policy.json or policies in
     # code)
     REQUEST_SCOPE = 'stacks'
 
@@ -507,8 +496,7 @@ class StackController(object):
 
         raise exc.HTTPAccepted()
 
-    @util.no_policy_enforce
-    @util._identified_stack
+    @util.registered_identified_stack
     def update_patch(self, req, identity, body):
         """Update an existing stack with a new template.
 
@@ -516,17 +504,6 @@ class StackController(object):
         Add the flag patch to the args so the engine code can distinguish
         """
         data = InstantiationData(body, patch=True)
-        _target = {"project_id": req.context.tenant_id}
-
-        policy_act = 'update_no_change' if data.no_change() else 'update_patch'
-        allowed = req.context.policy.enforce(
-            context=req.context,
-            action=policy_act,
-            scope=self.REQUEST_SCOPE,
-            target=_target,
-            is_registered_policy=True)
-        if not allowed:
-            raise exc.HTTPForbidden()
 
         args = self.prepare_args(data, is_update=True)
         self.rpc_client.update_stack(

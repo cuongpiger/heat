@@ -195,7 +195,7 @@ class Macro(Function, metaclass=abc.ABCMeta):
 
     def result(self):
         """Return the resolved result of the macro contents."""
-        return resolve(self.parsed, nullable=True)
+        return resolve(self.parsed)
 
     def dependencies(self, path):
         return dependencies(self.parsed, '.'.join([path, self.fn_name]))
@@ -250,30 +250,15 @@ class Macro(Function, metaclass=abc.ABCMeta):
         return repr(self.parsed)
 
 
-def _non_null_item(i):
-    k, v = i
-    return v is not Ellipsis
-
-
-def _non_null_value(v):
-    return v is not Ellipsis
-
-
-def resolve(snippet, nullable=False):
+def resolve(snippet):
     if isinstance(snippet, Function):
-        result = snippet.result()
-        if not (nullable or _non_null_value(result)):
-            result = None
-        return result
+        return snippet.result()
 
-    if isinstance(snippet, collections.abc.Mapping):
-        return dict(filter(_non_null_item,
-                           ((k, resolve(v, nullable=True))
-                            for k, v in snippet.items())))
+    if isinstance(snippet, collections.Mapping):
+        return dict((k, resolve(v)) for k, v in snippet.items())
     elif (not isinstance(snippet, str) and
-          isinstance(snippet, collections.abc.Iterable)):
-        return list(filter(_non_null_value,
-                           (resolve(v, nullable=True) for v in snippet)))
+          isinstance(snippet, collections.Iterable)):
+        return [resolve(v) for v in snippet]
 
     return snippet
 
@@ -293,11 +278,11 @@ def validate(snippet, path=None):
             raise exception.StackValidationFailed(
                 path=path + [snippet.fn_name],
                 message=str(e))
-    elif isinstance(snippet, collections.abc.Mapping):
+    elif isinstance(snippet, collections.Mapping):
         for k, v in snippet.items():
             validate(v, path + [k])
     elif (not isinstance(snippet, str) and
-          isinstance(snippet, collections.abc.Iterable)):
+          isinstance(snippet, collections.Iterable)):
         basepath = list(path)
         parent = basepath.pop() if basepath else ''
         for i, v in enumerate(snippet):
@@ -314,7 +299,7 @@ def dependencies(snippet, path=''):
     if isinstance(snippet, Function):
         return snippet.dependencies(path)
 
-    elif isinstance(snippet, collections.abc.Mapping):
+    elif isinstance(snippet, collections.Mapping):
         def mkpath(key):
             return '.'.join([path, str(key)])
 
@@ -323,7 +308,7 @@ def dependencies(snippet, path=''):
         return itertools.chain.from_iterable(deps)
 
     elif (not isinstance(snippet, str) and
-          isinstance(snippet, collections.abc.Iterable)):
+          isinstance(snippet, collections.Iterable)):
         def mkpath(idx):
             return ''.join([path, '[%d]' % idx])
 
@@ -348,11 +333,11 @@ def dep_attrs(snippet, resource_name):
     if isinstance(snippet, Function):
         return snippet.dep_attrs(resource_name)
 
-    elif isinstance(snippet, collections.abc.Mapping):
+    elif isinstance(snippet, collections.Mapping):
         attrs = (dep_attrs(val, resource_name) for val in snippet.values())
         return itertools.chain.from_iterable(attrs)
     elif (not isinstance(snippet, str) and
-          isinstance(snippet, collections.abc.Iterable)):
+          isinstance(snippet, collections.Iterable)):
         attrs = (dep_attrs(value, resource_name) for value in snippet)
         return itertools.chain.from_iterable(attrs)
     return []
@@ -371,11 +356,11 @@ def all_dep_attrs(snippet):
     if isinstance(snippet, Function):
         return snippet.all_dep_attrs()
 
-    elif isinstance(snippet, collections.abc.Mapping):
+    elif isinstance(snippet, collections.Mapping):
         res_attrs = (all_dep_attrs(value) for value in snippet.values())
         return itertools.chain.from_iterable(res_attrs)
     elif (not isinstance(snippet, str) and
-          isinstance(snippet, collections.abc.Iterable)):
+          isinstance(snippet, collections.Iterable)):
         res_attrs = (all_dep_attrs(value) for value in snippet)
         return itertools.chain.from_iterable(res_attrs)
     return []

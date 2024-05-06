@@ -18,13 +18,12 @@ from oslo_config import cfg
 from oslo_messaging import conffixture
 from oslo_messaging.rpc import dispatcher
 
-from heat.common import context
 from heat.common import environment_util as env_util
 from heat.common import exception
 from heat.common import messaging
 from heat.common import service_utils
 from heat.common import template_format
-from heat.db import api as db_api
+from heat.db.sqlalchemy import api as db_api
 from heat.engine.clients.os import glance
 from heat.engine.clients.os import nova
 from heat.engine.clients.os import swift
@@ -46,7 +45,6 @@ class ServiceStackUpdateTest(common.HeatTestCase):
     def setUp(self):
         super(ServiceStackUpdateTest, self).setUp()
         self.useFixture(conffixture.ConfFixture(cfg.CONF))
-        self.patchobject(context, 'StoredContext')
         self.ctx = utils.dummy_context()
         self.man = service.EngineService('a-host', 'a-topic')
         self.man.thread_group_mgr = tools.DummyThreadGroupManager()
@@ -105,8 +103,7 @@ class ServiceStackUpdateTest(common.HeatTestCase):
             username='test_username',
             converge=True
         )
-        mock_load.assert_called_once_with(self.ctx, stack=s,
-                                          check_refresh_cred=True)
+        mock_load.assert_called_once_with(self.ctx, stack=s)
         mock_validate.assert_called_once_with()
 
     def _test_stack_update_with_environment_files(self, stack_name,
@@ -225,8 +222,7 @@ class ServiceStackUpdateTest(common.HeatTestCase):
             username='test_username',
             converge=False
         )
-        mock_load.assert_called_once_with(self.ctx, stack=s,
-                                          check_refresh_cred=True)
+        mock_load.assert_called_once_with(self.ctx, stack=s)
         mock_validate.assert_called_once_with()
 
     def test_stack_update_existing_parameters(self):
@@ -559,8 +555,7 @@ resources:
         mock_validate.assert_called_once_with()
         mock_tmpl.assert_called_once_with(template, files=None)
         mock_env.assert_called_once_with(params)
-        mock_load.assert_called_once_with(self.ctx, stack=s,
-                                          check_refresh_cred=True)
+        mock_load.assert_called_once_with(self.ctx, stack=s)
         mock_stack.assert_called_once_with(
             self.ctx, stk.name, stk.t,
             convergence=False,
@@ -708,8 +703,7 @@ resources:
             username='test_username',
             converge=False
         )
-        mock_load.assert_called_once_with(self.ctx, stack=s,
-                                          check_refresh_cred=True)
+        mock_load.assert_called_once_with(self.ctx, stack=s)
         mock_validate.assert_called_once_with()
 
     def test_stack_update_stack_id_equal(self):
@@ -756,11 +750,9 @@ resources:
                          old_stack['A'].properties['Foo'])
 
         self.assertEqual(create_stack['A'].id, old_stack['A'].id)
-        mock_load.assert_called_once_with(self.ctx, stack=s,
-                                          check_refresh_cred=True)
+        mock_load.assert_called_once_with(self.ctx, stack=s)
 
     def test_stack_update_exceeds_resource_limit(self):
-        self.patchobject(context, 'StoredContext')
         stack_name = 'test_stack_update_exceeds_resource_limit'
         params = {}
         tpl = {'HeatTemplateFormatVersion': '2012-12-12',
@@ -830,8 +822,7 @@ resources:
             username='test_username',
             converge=False
         )
-        mock_load.assert_called_once_with(self.ctx, stack=s,
-                                          check_refresh_cred=True)
+        mock_load.assert_called_once_with(self.ctx, stack=s)
         mock_validate.assert_called_once_with()
 
     def test_stack_update_nonexist(self):
@@ -895,8 +886,7 @@ resources:
             user_creds_id=u'1', username='test_username',
             converge=False
         )
-        mock_load.assert_called_once_with(self.ctx, stack=s,
-                                          check_refresh_cred=True)
+        mock_load.assert_called_once_with(self.ctx, stack=s)
 
     def test_stack_update_existing_template(self):
         '''Update a stack using the same template.'''

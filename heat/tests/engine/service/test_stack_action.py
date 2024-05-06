@@ -159,7 +159,6 @@ class StackServiceUpdateActionsNotSupportedTest(common.HeatTestCase):
                                self.ctx, old_stack.identifier(), template,
                                params, None, {})
         self.assertEqual(exception.NotSupported, ex.exc_info[0])
-        mock_load.assert_called_once_with(self.ctx, stack=s,
-                                          check_refresh_cred=True)
+        mock_load.assert_called_once_with(self.ctx, stack=s)
 
         old_stack.delete()

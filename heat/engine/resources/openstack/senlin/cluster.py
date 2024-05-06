@@ -232,7 +232,7 @@ class Cluster(res_base.BaseSenlinResource):
                     'enabled': p[self.P_ENABLED],
                 }
                 action = {
-                    'func': 'attach_policy_to_cluster',
+                    'func': 'cluster_attach_policy',
                     'params': params,
                     'action_id': None,
                     'done': False,
@@ -283,7 +283,7 @@ class Cluster(res_base.BaseSenlinResource):
                     'enabled': p[self.P_ENABLED]
                 }
                 action = {
-                    'func': 'update_cluster_policy',
+                    'func': 'cluster_update_policy',
                     'params': params,
                     'action_id': None,
                     'done': False,
@@ -296,7 +296,7 @@ class Cluster(res_base.BaseSenlinResource):
                     'enabled': p[self.P_ENABLED]
                 }
                 action = {
-                    'func': 'detach_policy_from_cluster',
+                    'func': 'cluster_detach_policy',
                     'params': params,
                     'action_id': None,
                     'done': False,
@@ -309,7 +309,7 @@ class Cluster(res_base.BaseSenlinResource):
                     'enabled': p[self.P_ENABLED]
                 }
                 action = {
-                    'func': 'attach_policy_to_cluster',
+                    'func': 'cluster_attach_policy',
                     'params': params,
                     'action_id': None,
                     'done': False,
@@ -322,11 +322,11 @@ class Cluster(res_base.BaseSenlinResource):
             params['cluster'] = cluster_obj
             if self.PROFILE in params:
                 params['profile_id'] = params.pop(self.PROFILE)
-
-            self.client().update_cluster(**params)
             action = {
-                'cluster_id': self.resource_id,
-                'done': False
+                'func': 'update_cluster',
+                'params': params,
+                'action_id': None,
+                'done': False,
             }
             actions.append(action)
         # Resize Cluster
@@ -338,7 +338,7 @@ class Cluster(res_base.BaseSenlinResource):
                 params['number'] = params.pop(self.DESIRED_CAPACITY)
             params['cluster'] = self.resource_id
             action = {
-                'func': 'resize_cluster',
+                'func': 'cluster_resize',
                 'params': params,
                 'action_id': None,
                 'done': False,

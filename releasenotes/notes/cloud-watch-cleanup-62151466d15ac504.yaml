@@ -1,4 +1,0 @@
----
-upgrade:
-  - |
-    The remaining deprecated parameters for Cloud Watch API have been removed.

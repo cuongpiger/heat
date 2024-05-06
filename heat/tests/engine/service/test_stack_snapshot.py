@@ -33,7 +33,7 @@ class SnapshotServiceTest(common.HeatTestCase):
         self.ctx = utils.dummy_context()
 
         self.engine = service.EngineService('a-host', 'a-topic')
-        self.engine.thread_group_mgr = tools.DummyThreadGroupManager()
+        self.engine.thread_group_mgr = service.ThreadGroupManager()
 
     def _create_stack(self, stack_name, files=None):
         t = template_format.parse(tools.wp_template)
@@ -58,6 +58,7 @@ class SnapshotServiceTest(common.HeatTestCase):
         stk1._persist_state()
         snapshot1 = self.engine.stack_snapshot(
             self.ctx, stk1.identifier(), 'snap1')
+        self.engine.thread_group_mgr.groups[stk1.id].wait()
         snapshot_id = snapshot1['id']
 
         stk2 = self._create_stack('stack_snaphot_not_belong_to_stack_2')
@@ -84,6 +85,7 @@ class SnapshotServiceTest(common.HeatTestCase):
         self.assertIsNotNone(snapshot['creation_time'])
         self.assertEqual('snap1', snapshot['name'])
         self.assertEqual("IN_PROGRESS", snapshot['status'])
+        self.engine.thread_group_mgr.groups[stk.id].wait()
         snapshot = self.engine.show_snapshot(
             self.ctx, stk.identifier(), snapshot['id'])
         self.assertEqual("COMPLETE", snapshot['status'])
@@ -132,6 +134,7 @@ class SnapshotServiceTest(common.HeatTestCase):
 
         snapshot1 = self.engine.stack_snapshot(
             self.ctx, stk1.identifier(), 'snap1')
+        self.engine.thread_group_mgr.groups[stk1.id].wait()
         snapshot_id = snapshot1['id']
 
         mock_load.assert_called_once_with(self.ctx, stack=mock.ANY)
@@ -178,8 +181,10 @@ class SnapshotServiceTest(common.HeatTestCase):
 
         snapshot = self.engine.stack_snapshot(
             self.ctx, stk.identifier(), 'snap1')
+        self.engine.thread_group_mgr.groups[stk.id].wait()
         snapshot_id = snapshot['id']
         self.engine.delete_snapshot(self.ctx, stk.identifier(), snapshot_id)
+        self.engine.thread_group_mgr.groups[stk.id].wait()
 
         ex = self.assertRaises(dispatcher.ExpectedException,
                                self.engine.show_snapshot, self.ctx,
@@ -197,6 +202,7 @@ class SnapshotServiceTest(common.HeatTestCase):
             self.ctx, stk.identifier(), 'snap1')
         self.assertIsNotNone(snapshot['id'])
         self.assertEqual("IN_PROGRESS", snapshot['status'])
+        self.engine.thread_group_mgr.groups[stk.id].wait()
 
         snapshots = self.engine.stack_list_snapshots(
             self.ctx, stk.identifier())
@@ -218,8 +224,10 @@ class SnapshotServiceTest(common.HeatTestCase):
 
         snapshot = self.engine.stack_snapshot(
             self.ctx, stk.identifier(), 'snap1')
+        self.engine.thread_group_mgr.groups[stk.id].wait()
         snapshot_id = snapshot['id']
         self.engine.stack_restore(self.ctx, stk.identifier(), snapshot_id)
+        self.engine.thread_group_mgr.groups[stk.id].wait()
         self.assertEqual((stk.RESTORE, stk.COMPLETE), stk.state)
         self.assertEqual(2, mock_load.call_count)
 
@@ -230,6 +238,7 @@ class SnapshotServiceTest(common.HeatTestCase):
 
         snapshot1 = self.engine.stack_snapshot(
             self.ctx, stk1.identifier(), 'snap1')
+        self.engine.thread_group_mgr.groups[stk1.id].wait()
         snapshot_id = snapshot1['id']
 
         mock_load.assert_called_once_with(self.ctx, stack=mock.ANY)

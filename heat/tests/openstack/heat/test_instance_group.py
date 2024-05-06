@@ -16,6 +16,7 @@ from unittest import mock
 
 from heat.common import exception
 from heat.common import grouputils
+from heat.common import short_id
 from heat.common import template_format
 from heat.engine.clients.os import neutron
 from heat.engine import resource
@@ -170,9 +171,12 @@ class TestInstanceGroup(common.HeatTestCase):
 
     def test_instance_group_refid_rsrc_name(self):
         self.instance_group.id = '123'
+
         self.instance_group.uuid = '9bfb9456-3fe8-41f4-b318-9dba18eeef74'
         self.instance_group.action = 'CREATE'
-        expected = self.instance_group.name
+        expected = '%s-%s-%s' % (self.instance_group.stack.name,
+                                 self.instance_group.name,
+                                 short_id.get_id(self.instance_group.uuid))
         self.assertEqual(expected, self.instance_group.FnGetRefId())
 
     def test_instance_group_refid_rsrc_id(self):

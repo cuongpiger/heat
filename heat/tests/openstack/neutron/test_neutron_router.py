@@ -36,8 +36,6 @@ resources:
     properties:
       l3_agent_ids:
        - 792ff887-6c85-4a56-b518-23f24fa65581
-      availability_zone_hints:
-       - az1
 
   router_interface:
     type: OS::Neutron::RouterInterface
@@ -264,7 +262,6 @@ class NeutronRouterTest(common.HeatTestCase):
         create_body = {
             'router': {
                 'name': utils.PhysName(stack.name, 'router'),
-                'availability_zone_hints': ['az1'],
                 'admin_state_up': True}}
         router_base_info = {
             'router': {

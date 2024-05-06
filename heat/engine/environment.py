@@ -12,7 +12,6 @@
 #    under the License.
 
 import collections
-import fnmatch
 import glob
 import itertools
 import os.path
@@ -21,6 +20,7 @@ import weakref
 
 from oslo_config import cfg
 from oslo_log import log
+from oslo_utils import fnmatch
 
 from heat.common import environment_format as env_fmt
 from heat.common import exception
@@ -55,7 +55,7 @@ def is_hook_definition(key, value):
     if key == 'hooks':
         if isinstance(value, str):
             is_valid_hook = valid_hook_type(value)
-        elif isinstance(value, collections.abc.Sequence):
+        elif isinstance(value, collections.Sequence):
             is_valid_hook = all(valid_hook_type(hook) for hook in value)
 
         if not is_valid_hook:
@@ -72,7 +72,7 @@ def is_valid_restricted_action(key, value):
     if key == 'restricted_actions':
         if isinstance(value, str):
             valid_action = valid_restricted_actions(value)
-        elif isinstance(value, collections.abc.Sequence):
+        elif isinstance(value, collections.Sequence):
             valid_action = all(valid_restricted_actions(
                 action) for action in value)
 
@@ -397,7 +397,7 @@ class ResourceRegistry(object):
                     actions = resource['restricted_actions']
                     if isinstance(actions, str):
                         restricted_actions.add(actions)
-                    elif isinstance(actions, collections.abc.Sequence):
+                    elif isinstance(actions, collections.Sequence):
                         restricted_actions |= set(actions)
         return restricted_actions
 
@@ -433,7 +433,7 @@ class ResourceRegistry(object):
                     if isinstance(hooks, str):
                         if hook == hooks:
                             return True
-                    elif isinstance(hooks, collections.abc.Sequence):
+                    elif isinstance(hooks, collections.Sequence):
                         if hook in hooks:
                             return True
         return False
@@ -590,60 +590,52 @@ class ResourceRegistry(object):
                    str(support.SUPPORT_STATUSES))
             raise exception.Invalid(reason=msg)
 
-        enforcer = policy.ResourceEnforcer()
-        if type_name is not None:
+        def is_resource(key):
+            return isinstance(self._registry[key], (ClassResourceInfo,
+                                                    TemplateResourceInfo))
+
+        def status_matches(cls):
+            return (support_status is None or
+                    cls.get_class().support_status.status ==
+                    support_status)
+
+        def is_available(cls):
+            if cnxt is None:
+                return True
+
             try:
-                name_exp = re.compile(type_name)
+                return cls.get_class().is_service_available(cnxt)[0]
             except Exception:
-                return []
-        else:
-            name_exp = None
-
-        def matches(name, info):
-            # Only return actual plugins or template resources, not aliases
-            if not isinstance(info, (ClassResourceInfo, TemplateResourceInfo)):
                 return False
 
-            # If filtering by name, check for match
-            if name_exp is not None and not name_exp.match(name):
+        def not_hidden_matches(cls):
+            return cls.get_class().support_status.status != support.HIDDEN
+
+        def is_allowed(enforcer, name):
+            if cnxt is None:
+                return True
+            try:
+                enforcer.enforce(cnxt, name, is_registered_policy=True)
+            except enforcer.exc:
+                return False
+            else:
+                return True
+
+        enforcer = policy.ResourceEnforcer()
+
+        def name_matches(name):
+            try:
+                return type_name is None or re.match(type_name, name)
+            except:  # noqa
                 return False
 
-            rsrc_cls = info.get_class_to_instantiate()
-
-            # Never match hidden resource types
-            if rsrc_cls.support_status.status == support.HIDDEN:
-                return False
-
-            # If filtering by version, check for match
-            if (version is not None and
-                    rsrc_cls.support_status.version != version):
-                return False
-
-            # If filtering by support status, check for match
-            if (support_status is not None and
-                    rsrc_cls.support_status.status != support_status):
-                return False
-
-            if cnxt is not None:
-                # Check for resource policy
-                try:
-                    enforcer.enforce(cnxt, name, is_registered_policy=True)
-                except enforcer.exc:
-                    return False
-
-                # Check for service availability
-                try:
-                    avail, err = rsrc_cls.is_service_available(cnxt)
-                except Exception:
-                    avail = False
-                if not avail:
-                    return False
-
-            return True
+        def version_matches(cls):
+            return (version is None or
+                    cls.get_class().support_status.version == version)
 
         import heat.engine.resource
 
-        def resource_description(name, info):
+        def resource_description(name, info, with_description):
             if not with_description:
                 return name
             rsrc_cls = info.get_class()
@@ -654,9 +646,15 @@ class ResourceRegistry(object):
                 'description': rsrc_cls.getdoc(),
             }
 
-        return [resource_description(name, info)
-                for name, info in self._registry.items()
-                if matches(name, info)]
+        return [resource_description(name, cls, with_description)
+                for name, cls in self._registry.items()
+                if (is_resource(name) and
+                    name_matches(name) and
+                    status_matches(cls) and
+                    is_available(cls) and
+                    is_allowed(enforcer, name) and
+                    not_hidden_matches(cls) and
+                    version_matches(cls))]
 
 
 class Environment(object):

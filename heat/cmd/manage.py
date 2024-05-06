@@ -25,18 +25,18 @@ from heat.common import exception
 from heat.common.i18n import _
 from heat.common import messaging
 from heat.common import service_utils
-from heat.db import api as db_api
-from heat.db import migration as db_migration
+from heat.db.sqlalchemy import api as db_api
 from heat.objects import service as service_objects
 from heat.rpc import client as rpc_client
 from heat import version
+
 
 CONF = cfg.CONF
 
 
 def do_db_version():
     """Print database's current migration level."""
-    print(db_migration.db_version())
+    print(db_api.db_version(db_api.get_engine()))
 
 
 def do_db_sync():
@@ -44,7 +44,7 @@ def do_db_sync():
 
     Creating first if necessary.
     """
-    db_migration.db_sync(CONF.command.version)
+    db_api.db_sync(db_api.get_engine(), CONF.command.version)
 
 
 class ServiceManageCommand(object):

@@ -15,7 +15,6 @@ import collections
 import copy
 import functools
 import itertools
-import math
 
 from oslo_log import log as logging
 
@@ -434,18 +433,18 @@ class ResourceGroup(stack_resource.StackResource):
                 return False
         return True
 
-    def _run_to_completion(self, template, timeout_mins):
+    def _run_to_completion(self, template, timeout):
         updater = self.update_with_template(template, {},
-                                            timeout_mins)
+                                            timeout)
 
         while not super(ResourceGroup,
                         self).check_update_complete(updater):
             yield
 
-    def _run_update(self, total_capacity, max_updates, timeout_mins):
+    def _run_update(self, total_capacity, max_updates, timeout):
         template = self._assemble_for_rolling_update(total_capacity,
                                                      max_updates)
-        return self._run_to_completion(template, timeout_mins)
+        return self._run_to_completion(template, timeout)
 
     def check_update_complete(self, checkers):
         for checker in checkers:
@@ -601,25 +600,19 @@ class ResourceGroup(stack_resource.StackResource):
         # At this stage, we don't mind if all of the parameters have values
         # assigned. Pass in a custom resolver to the properties to not
         # error when a parameter does not have a user entered value.
-        def ignore_param_resolve(snippet, nullable=False):
+        def ignore_param_resolve(snippet):
             if isinstance(snippet, function.Function):
                 try:
-                    result = snippet.result()
+                    return snippet.result()
                 except exception.UserParameterMissing:
                     return None
-                if not (nullable or function._non_null_value(result)):
-                    result = None
-                return result
 
-            if isinstance(snippet, collections.abc.Mapping):
-                return dict(filter(function._non_null_item,
-                                   ((k, ignore_param_resolve(v, nullable=True))
-                                    for k, v in snippet.items())))
+            if isinstance(snippet, collections.Mapping):
+                return dict((k, ignore_param_resolve(v))
+                            for k, v in snippet.items())
             elif (not isinstance(snippet, str) and
-                  isinstance(snippet, collections.abc.Iterable)):
-                return list(filter(function._non_null_value,
-                                   (ignore_param_resolve(v, nullable=True)
-                                    for v in snippet)))
+                  isinstance(snippet, collections.Iterable)):
+                return [ignore_param_resolve(v) for v in snippet]
 
             return snippet
 
@@ -647,9 +640,9 @@ class ResourceGroup(stack_resource.StackResource):
 
         if isinstance(val, str):
             return val.replace(repl_var, res_name)
-        elif isinstance(val, collections.abc.Mapping):
+        elif isinstance(val, collections.Mapping):
             return {k: recurse(v) for k, v in val.items()}
-        elif isinstance(val, collections.abc.Sequence):
+        elif isinstance(val, collections.Sequence):
             return [recurse(v) for v in val]
         return val
 
@@ -777,18 +770,13 @@ class ResourceGroup(stack_resource.StackResource):
 
         batches = list(self._get_batches(self.get_size(), curr_cap, batch_size,
                                          min_in_service))
-        update_timeout_secs = self._update_timeout(len(batches), pause_sec)
-
-        # NOTE(gibi) update_timeout is in seconds but the _run_update
-        # eventually calls StackResource.update_with_template that takes
-        # timeout in minutes so we need to convert here.
-        update_timeout_mins = math.ceil(update_timeout_secs / 60)
+        update_timeout = self._update_timeout(len(batches), pause_sec)
 
         def tasks():
             for index, (curr_cap, max_upd) in enumerate(batches):
                 yield scheduler.TaskRunner(self._run_update,
                                            curr_cap, max_upd,
-                                           update_timeout_mins)
+                                           update_timeout)
 
                 if index < (len(batches) - 1) and pause_sec > 0:
                     yield scheduler.TaskRunner(pause_between_batch, pause_sec)

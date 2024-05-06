@@ -135,7 +135,6 @@ class PoolTest(common.HeatTestCase):
             exceptions.Conflict(409), None]
         prop_diff = {
             'admin_state_up': False,
-            'session_persistence': {'type': 'source_ip'},
             'name': 'your_pool',
             'lb_algorithm': 'SOURCE_IP'
         }

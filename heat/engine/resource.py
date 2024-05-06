@@ -16,7 +16,6 @@ import contextlib
 import datetime as dt
 import itertools
 import pydoc
-import re
 import tenacity
 import weakref
 
@@ -408,8 +407,8 @@ class Resource(status.ResourceStatus):
         # Retry in case a signal has updated the atomic_key
         attempts = max(cfg.CONF.client_retry_limit, 0) + 1
 
-        def prepare_attempt(retry_state):
-            if retry_state.attempt_number > 1:
+        def prepare_attempt(fn, attempt):
+            if attempt > 1:
                 res_obj = resource_objects.Resource.get_obj(
                     self.context, self.id)
                 if (res_obj.engine_id is not None or
@@ -808,21 +807,16 @@ class Resource(status.ResourceStatus):
                 service_name=cls.default_client_name)
             if endpoint_exists:
                 req_extension = cls.required_service_extension
-                if not req_extension:
-                    return(True, None)
-                if isinstance(req_extension, str):
-                    req_extension = re.split(' |,', req_extension)
-                for ext in req_extension:
-                    is_ext_available = (
-                        client_plugin.has_extension(ext))
-                    if not is_ext_available:
-                        reason = _('Required extension {0} in {1} service '
-                                   'is not available.')
-                        reason = reason.format(ext,
-                                               cls.default_client_name)
-                        break
+                is_ext_available = (
+                    not req_extension or client_plugin.has_extension(
+                        req_extension))
                 if is_ext_available:
                     return (True, None)
+                else:
+                    reason = _('Required extension {0} in {1} service '
+                               'is not available.')
+                    reason = reason.format(req_extension,
+                                           cls.default_client_name)
             else:
                 reason = _('{0} {1} endpoint is not in service catalog.')
                 reason = reason.format(cls.default_client_name, service_type)
@@ -1070,7 +1064,7 @@ class Resource(status.ResourceStatus):
             refd_attrs |= get_dep_attrs(stk_defn.resource_definition(r_name)
                                         for r_name in enabled_resources)
 
-        subset_outputs = isinstance(in_outputs, collections.abc.Iterable)
+        subset_outputs = isinstance(in_outputs, collections.Iterable)
         if subset_outputs or in_outputs:
             if not subset_outputs:
                 in_outputs = stk_defn.enabled_output_names()

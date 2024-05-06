@@ -112,7 +112,7 @@ class NovaKeyPairTest(common.HeatTestCase):
         self.assertEqual((tp_test.CREATE, tp_test.COMPLETE), tp_test.state)
         self.assertEqual(tp_test.resource_id, created_key.name)
         self.fake_keypairs.create.assert_called_once_with(
-            name=key_name, public_key=None, key_type='ssh')
+            name=key_name, public_key=None, type='ssh')
         self.cp_mock.assert_called_once_with()
 
     def test_create_key_with_user_id(self):
@@ -140,7 +140,7 @@ class NovaKeyPairTest(common.HeatTestCase):
         self.assertEqual(tp_test.resource_id, created_key.name)
         self.fake_keypairs.create.assert_called_once_with(
             name=key_name, public_key=None, user_id='userA_ID',
-            key_type='x509')
+            type='x509')
         self.cp_mock.assert_called_once_with()
 
     def test_create_key_empty_name(self):
@@ -200,29 +200,6 @@ class NovaKeyPairTest(common.HeatTestCase):
         self.patchobject(nova.NovaClientPlugin, 'get_max_microversion',
                          return_value='2.1')
         self._test_validate(user='user_A')
-
-    def test_validate_public_key(self):
-        self.patchobject(nova.NovaClientPlugin, 'get_max_microversion',
-                         return_value='2.92')
-        template = copy.deepcopy(self.kp_template)
-        template['resources']['kp']['properties']['public_key'] = 'dummy'
-        stack = utils.parse_stack(template)
-        definition = stack.t.resource_definitions(stack)['kp']
-        kp_res = keypair.KeyPair('kp', definition, stack)
-        kp_res.validate()
-
-    def test_validate_public_key_fail(self):
-        self.patchobject(nova.NovaClientPlugin, 'get_max_microversion',
-                         return_value='2.92')
-        template = copy.deepcopy(self.kp_template)
-        stack = utils.parse_stack(template)
-        definition = stack.t.resource_definitions(stack)['kp']
-        kp_res = keypair.KeyPair('kp', definition, stack)
-        error = self.assertRaises(exception.StackValidationFailed,
-                                  kp_res.validate)
-        msg = ('The public_key property is required by the nova API version '
-               'currently used.')
-        self.assertIn(msg, str(error))
 
     def test_check_key(self):
         res = self._get_test_resource(self.kp_template)

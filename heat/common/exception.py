@@ -568,7 +568,3 @@ class InvalidTemplateVersions(HeatException):
 
 class UnableToAutoAllocateNetwork(HeatException):
     msg_fmt = _('Unable to automatically allocate a network: %(message)s')
-
-
-class CircularDependencyException(HeatException):
-    msg_fmt = _("Circular Dependency Found: %(cycle)s")

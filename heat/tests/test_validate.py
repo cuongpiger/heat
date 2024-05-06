@@ -21,6 +21,7 @@ from heat.common.i18n import _
 from heat.common import template_format
 from heat.common import urlfetch
 from heat.engine.clients.os import glance
+from heat.engine import dependencies
 from heat.engine import environment
 from heat.engine.hot import template as hot_tmpl
 from heat.engine import resources
@@ -2000,7 +2001,7 @@ parameter_groups:
         exc = self.assertRaises(dispatcher.ExpectedException,
                                 self.engine.validate_template,
                                 self.ctx, t, {})
-        self.assertEqual(exception.CircularDependencyException,
+        self.assertEqual(dependencies.CircularDependencyException,
                          exc.exc_info[0])
 
     def test_validate_hot_parameter_tags_older(self):

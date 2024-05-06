@@ -86,7 +86,6 @@ class KeystoneClientTest(common.HeatTestCase):
             session=utils.AnyInstance(ks_session.Session),
             auth=self.mock_ks_auth,
             connect_retries=2,
-            interface='publicURL',
             region_name=None)
 
     def _stubs_auth(self, method='token', trust_scoped=True,
@@ -169,7 +168,6 @@ class KeystoneClientTest(common.HeatTestCase):
             self.m_client.assert_any_call(
                 session=utils.AnyInstance(ks_session.Session),
                 connect_retries=2,
-                interface='publicURL',
                 region_name=None)
         if self.stub_admin_auth:
             self.mock_admin_ks_auth.get_user_id.assert_called_once_with(
@@ -522,65 +520,6 @@ class KeystoneClientTest(common.HeatTestCase):
         ctx.password = None
         self.assertRaises(exception.AuthorizationFailure,
                           heat_keystoneclient.KeystoneClient, ctx)
-
-    def test_regenerate_trust_context_with_no_exist_trust_id(self):
-
-        """Test regenerate_trust_context."""
-
-        class MockTrust(object):
-            id = 'dtrust123'
-
-        mock_ks_auth, mock_auth_ref = self._stubs_auth(user_id='5678',
-                                                       project_id='42',
-                                                       stub_trust_context=True,
-                                                       stub_admin_auth=True)
-
-        cfg.CONF.set_override('deferred_auth_method', 'trusts')
-
-        trustor_roles = ['heat_stack_owner', 'admin', '__member__']
-        trustee_roles = trustor_roles
-        mock_auth_ref.user_id = '5678'
-        mock_auth_ref.project_id = '42'
-
-        self.mock_ks_v3_client.trusts.create.return_value = MockTrust()
-
-        ctx = utils.dummy_context(roles=trustor_roles)
-        ctx.trust_id = None
-        heat_ks_client = heat_keystoneclient.KeystoneClient(ctx)
-        trust_context = heat_ks_client.regenerate_trust_context()
-        self.assertEqual('dtrust123', trust_context.trust_id)
-        self.assertEqual('5678', trust_context.trustor_user_id)
-        ks_loading.load_auth_from_conf_options.assert_called_once_with(
-            cfg.CONF, 'trustee', trust_id=None)
-        self.mock_ks_v3_client.trusts.create.assert_called_once_with(
-            trustor_user='5678',
-            trustee_user='1234',
-            project='42',
-            impersonation=True,
-            allow_redelegation=False,
-            role_names=trustee_roles)
-        self.assertEqual(0, self.mock_ks_v3_client.trusts.delete.call_count)
-
-    def test_regenerate_trust_context_with_exist_trust_id(self):
-
-        """Test regenerate_trust_context."""
-
-        self._stubs_auth(method='trust')
-        cfg.CONF.set_override('deferred_auth_method', 'trusts')
-
-        ctx = utils.dummy_context()
-        ctx.trust_id = 'atrust123'
-        ctx.trustor_user_id = 'trustor_user_id'
-
-        class MockTrust(object):
-            id = 'dtrust123'
-
-        self.mock_ks_v3_client.trusts.create.return_value = MockTrust()
-        heat_ks_client = heat_keystoneclient.KeystoneClient(ctx)
-        trust_context = heat_ks_client.regenerate_trust_context()
-        self.assertEqual('dtrust123', trust_context.trust_id)
-        self.mock_ks_v3_client.trusts.delete.assert_called_once_with(
-            ctx.trust_id)
 
     def test_create_trust_context_trust_id(self):
 
@@ -1581,7 +1520,6 @@ class KeystoneClientTestDomainName(KeystoneClientTest):
             session=utils.AnyInstance(ks_session.Session),
             auth=self.mock_ks_auth,
             connect_retries=2,
-            interface='publicURL',
             region_name=None)
 
     def _stub_domain_admin_client(self, domain_id='adomain123'):

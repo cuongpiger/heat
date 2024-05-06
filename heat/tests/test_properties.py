@@ -17,7 +17,6 @@ from oslo_serialization import jsonutils
 
 from heat.common import exception
 from heat.engine import constraints
-from heat.engine import function
 from heat.engine.hot import functions as hot_funcs
 from heat.engine.hot import parameters as hot_param
 from heat.engine import parameters
@@ -783,12 +782,12 @@ class PropertyTest(common.HeatTestCase):
     def test_int_bad(self):
         schema = {'Type': 'Integer'}
         p = properties.Property(schema)
-        # python 3.4.3 and python3.10 return slightly different error messages
+        # python 3.4.3 returns another error message
         # try to handle this by regexp
         self.assertRaisesRegex(
             TypeError, r"int\(\) argument must be a string"
                        "(, a bytes-like object)?"
-                       " or a (real )?number, not 'list'", p.get_value, [1])
+                       " or a number, not 'list'", p.get_value, [1])
 
     def test_str_from_int(self):
         schema = {'Type': 'String'}
@@ -1074,7 +1073,7 @@ class PropertiesTest(common.HeatTestCase):
             'default_override': 21,
         }
 
-        def double(d, nullable=False):
+        def double(d):
             return d * 2
 
         self.props = properties.Properties(schema, data, double, 'wibble')
@@ -1209,7 +1208,7 @@ class PropertiesTest(common.HeatTestCase):
     def test_resolve_returns_none(self):
         schema = {'foo': {'Type': 'String', "MinLength": "5"}}
 
-        def test_resolver(prop, nullable=False):
+        def test_resolver(prop):
             return None
 
         self.patchobject(properties.Properties,
@@ -1246,7 +1245,7 @@ class PropertiesTest(common.HeatTestCase):
         }
 
         # define parameters for function
-        def test_resolver(prop, nullable=False):
+        def test_resolver(prop):
             return 'None'
 
         class rsrc(object):
@@ -1676,26 +1675,6 @@ class PropertiesTest(common.HeatTestCase):
 
         bar_props = bar_rsrc.properties(schema)
         self.assertEqual('bar', bar_props['description'])
-
-    def test_null_property_value(self):
-        class NullFunction(function.Function):
-            def result(self):
-                return Ellipsis
-
-        schema = {
-            'Foo': properties.Schema('String', required=False),
-            'Bar': properties.Schema('String', required=False),
-            'Baz': properties.Schema('String', required=False),
-        }
-        user_props = {'Foo': NullFunction(None, 'null', []), 'Baz': None}
-        props = properties.Properties(schema, user_props, function.resolve)
-
-        self.assertEqual(None, props['Foo'])
-        self.assertEqual(None, props.get_user_value('Foo'))
-        self.assertEqual(None, props['Bar'])
-        self.assertEqual(None, props.get_user_value('Bar'))
-        self.assertEqual('', props['Baz'])
-        self.assertEqual('', props.get_user_value('Baz'))
 
 
 class PropertiesValidationTest(common.HeatTestCase):

@@ -446,48 +446,42 @@ class ServersTest(common.HeatTestCase):
                                         ip='5.6.9.8'),
                       create_fake_iface(port='1013',
                                         mac='fa:16:3e:8c:44:cc',
-                                        ip='10.13.12.13',
-                                        subnet='private_subnet_id')]
-        ports = [dict(id=interfaces[0].port_id,
-                      mac_address=interfaces[0].mac_addr,
-                      fixed_ips=interfaces[0].fixed_ips,
-                      network_id='public_id'),
-                 dict(id=interfaces[1].port_id,
-                      mac_address=interfaces[1].mac_addr,
-                      fixed_ips=interfaces[1].fixed_ips,
-                      network_id='public_id'),
-                 dict(id=interfaces[2].port_id,
-                      mac_address=interfaces[2].mac_addr,
-                      fixed_ips=interfaces[2].fixed_ips,
-                      network_id='private_id')]
-        public_net = dict(id='public_id',
-                          name='public',
-                          mtu=1500,
-                          subnets=['public_subnet_id'])
-        private_net = dict(id='private_id',
-                           name='private',
-                           mtu=1500,
-                           subnets=['private_subnet_id'])
-        private_subnet = dict(id='private_subnet_id',
-                              name='private_subnet',
-                              cidr='private_cidr',
-                              allocation_pools=[{'start': 'start_addr',
-                                                 'end': 'end_addr'}],
-                              gateway_ip='private_gateway',
-                              network_id='private_id')
+                                        ip='10.13.12.13')]
 
         self.patchobject(self.fc.servers, 'get', return_value=return_server)
-        self.patchobject(neutronclient.Client, 'list_ports',
-                         return_value={'ports': ports})
-        self.patchobject(neutronclient.Client, 'list_networks',
-                         side_effect=[{'networks': [public_net]},
-                                      {'networks': [public_net]},
-                                      {'networks': [private_net]}])
-        self.patchobject(neutronclient.Client, 'list_floatingips',
-                         return_value={'floatingips': []})
+        self.patchobject(return_server, 'interface_list',
+                         return_value=interfaces)
         self.patchobject(self.fc.servers, 'tag_list', return_value=['test'])
-        self.subnet_show.return_value = {'subnet': private_subnet}
-        self.network_show.return_value = {'network': private_net}
+
+        self.port_show.return_value = {
+            'port': {'id': '1234',
+                     'network_id': 'the_network',
+                     'fixed_ips': [{
+                         'ip_address': '4.5.6.7',
+                         'subnet_id': 'the_subnet'}]
+                     }
+        }
+        subnet_dict = {
+            'subnet': {
+                'name': 'subnet_name',
+                'cidr': '10.0.0.0/24',
+                'allocation_pools': [{'start': '10.0.0.2',
+                                      'end': u'10.0.0.254'}],
+                'gateway_ip': '10.0.0.1',
+                'id': 'the_subnet',
+                'network_id': 'the_network'
+            }
+        }
+        network_dict = {
+            'network': {
+                'name': 'network_name',
+                'mtu': 1500,
+                'subnets': [subnet_dict['subnet']['id']],
+                'id': 'the_network'
+            }
+        }
+        self.subnet_show.return_value = subnet_dict
+        self.network_show.return_value = network_dict
 
         public_ip = return_server.networks['public'][0]
         self.assertEqual('1234',
@@ -504,9 +498,9 @@ class ServersTest(common.HeatTestCase):
                          server.FnGetAtt('addresses')['private'][0]['port'])
         self.assertEqual(private_ip,
                          server.FnGetAtt('addresses')['private'][0]['addr'])
-        self.assertEqual([private_subnet],
+        self.assertEqual([subnet_dict['subnet']],
                          server.FnGetAtt('addresses')['private'][0]['subnets'])
-        self.assertEqual(private_net,
+        self.assertEqual(network_dict['network'],
                          server.FnGetAtt('addresses')['private'][0]['network'])
         self.assertEqual(private_ip,
                          server.FnGetAtt('networks')['private'][0])
@@ -526,6 +520,21 @@ class ServersTest(common.HeatTestCase):
             del server.attributes._resolved_values['tags']
         self.assertIsNone(server.FnGetAtt('tags'))
         self.assertEqual({}, server.FnGetAtt('os_collect_config'))
+
+    def test_server_network_subnet_address_attr_port_not_found(self):
+        return_server = self.fc.servers.list()[1]
+        server_name = 'network-subnet-attr-server'
+        server = self._create_test_server(return_server, server_name)
+        interfaces = [create_fake_iface(port='1234',
+                                        mac='fa:16:3e:8c:22:aa',
+                                        ip='4.5.6.7')]
+        self.patchobject(return_server, 'interface_list',
+                         return_value=interfaces)
+        self.port_show.side_effect = neutron.exceptions.NotFound()
+        self.assertEqual(None,
+                         server.FnGetAtt('addresses')['private'][0]['subnets'])
+        self.assertEqual(None,
+                         server.FnGetAtt('addresses')['private'][0]['network'])
 
     def test_server_create_metadata(self):
         stack_name = 'create_metadata_test_stack'
@@ -633,30 +642,10 @@ class ServersTest(common.HeatTestCase):
                       create_fake_iface(port='1013',
                                         mac='fa:16:3e:8c:44:cc',
                                         ip='10.13.12.13')]
-        ports = [dict(id=interfaces[0].port_id,
-                      mac_address=interfaces[0].mac_addr,
-                      fixed_ips=interfaces[0].fixed_ips,
-                      network_id='public_id'),
-                 dict(id=interfaces[1].port_id,
-                      mac_address=interfaces[1].mac_addr,
-                      fixed_ips=interfaces[1].fixed_ips,
-                      network_id='public_id'),
-                 dict(id=interfaces[2].port_id,
-                      mac_address=interfaces[2].mac_addr,
-                      fixed_ips=interfaces[2].fixed_ips,
-                      network_id='private_id')]
-        public_net = dict(id='public_id', name='public')
-        private_net = dict(id='private_id', name='private')
 
         self.patchobject(self.fc.servers, 'get', return_value=return_server)
-        self.patchobject(neutronclient.Client, 'list_ports',
-                         return_value={'ports': ports})
-        self.patchobject(neutronclient.Client, 'list_networks',
-                         side_effect=[{'networks': [public_net]},
-                                      {'networks': [public_net]},
-                                      {'networks': [private_net]}])
-        self.patchobject(neutronclient.Client, 'list_floatingips',
-                         return_value={'floatingips': []})
+        self.patchobject(return_server, 'interface_list',
+                         return_value=interfaces)
         self.patchobject(return_server, 'interface_detach')
         self.patchobject(return_server, 'interface_attach')
 
@@ -1084,43 +1073,6 @@ class ServersTest(common.HeatTestCase):
             'deployments': []
         }, server.metadata_get())
 
-    def test_delete_swift_service_removed(self):
-        self.patchobject(nova.NovaClientPlugin, 'client',
-                         return_value=self.fc)
-        return_server = self.fc.servers.list()[1]
-        stack_name = 'software_config_s'
-        (tmpl, stack) = self._setup_test_stack(stack_name)
-
-        props = tmpl.t['Resources']['WebServer']['Properties']
-        props['user_data_format'] = 'SOFTWARE_CONFIG'
-        props['software_config_transport'] = 'POLL_TEMP_URL'
-        self.server_props = props
-
-        resource_defns = tmpl.resource_definitions(stack)
-        server = servers.Server('WebServer',
-                                resource_defns['WebServer'], stack)
-        self.patchobject(server, 'store_external_ports')
-
-        sc = mock.Mock()
-        sc.head_account.return_value = {
-            'x-account-meta-temp-url-key': 'secrit'
-        }
-        sc.url = 'http://192.0.2.2'
-
-        self.patchobject(swift.SwiftClientPlugin, '_create',
-                         return_value=sc)
-        self.patchobject(self.fc.servers, 'create',
-                         return_value=return_server)
-        scheduler.TaskRunner(server.create)()
-        self.assertEqual((server.CREATE, server.COMPLETE), server.state)
-        self.patchobject(server.client_plugin(),
-                         'does_endpoint_exist',
-                         return_value=False)
-        side_effect = [server, fakes_nova.fake_exception()]
-        self.patchobject(self.fc.servers, 'get', side_effect=side_effect)
-        scheduler.TaskRunner(server.delete)()
-        self.assertEqual((server.DELETE, server.COMPLETE), server.state)
-
     def _prepare_for_server_create(self, md=None):
         self.patchobject(nova.NovaClientPlugin, 'client',
                          return_value=self.fc)
@@ -1210,20 +1162,6 @@ class ServersTest(common.HeatTestCase):
             'deployments': []
         }, server.metadata_get())
 
-        scheduler.TaskRunner(server.delete)()
-        self.assertEqual((server.DELETE, server.COMPLETE), server.state)
-
-    def test_delete_zaqar_service_removed(self):
-        zcc = self.patchobject(zaqar.ZaqarClientPlugin, 'create_for_tenant')
-        zcc.return_value = mock.Mock()
-        server, stack = self._prepare_for_server_create()
-        scheduler.TaskRunner(server.create)()
-        self.assertEqual((server.CREATE, server.COMPLETE), server.state)
-        self.patchobject(server.client_plugin(),
-                         'does_endpoint_exist',
-                         return_value=False)
-        side_effect = [server, fakes_nova.fake_exception()]
-        self.patchobject(self.fc.servers, 'get', side_effect=side_effect)
         scheduler.TaskRunner(server.delete)()
         self.assertEqual((server.DELETE, server.COMPLETE), server.state)
 
@@ -2100,42 +2038,20 @@ class ServersTest(common.HeatTestCase):
         server.properties.data['networks'] = [{'network': 'public_id',
                                                'fixed_ip': '5.6.9.8'}]
 
-        public_net = dict(id='public_id', name='public')
-        private_net = dict(id='private_id', name='private')
         iface0 = create_fake_iface(port='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
                                    net='public',
                                    ip='5.6.9.8',
                                    mac='fa:16:3e:8c:33:aa')
-        port0 = dict(id=iface0.port_id,
-                     network_id=iface0.net_id,
-                     mac_address=iface0.mac_addr,
-                     fixed_ips=iface0.fixed_ips)
         iface1 = create_fake_iface(port='bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
                                    net='public',
                                    ip='4.5.6.7',
                                    mac='fa:16:3e:8c:22:aa')
-        port1 = dict(id=iface1.port_id,
-                     network_id=iface1.net_id,
-                     mac_address=iface1.mac_addr,
-                     fixed_ips=iface1.fixed_ips)
         iface2 = create_fake_iface(port='cccccccc-cccc-cccc-cccc-cccccccccccc',
                                    net='private',
                                    ip='10.13.12.13',
                                    mac='fa:16:3e:8c:44:cc')
-        port2 = dict(id=iface2.port_id,
-                     network_id=iface2.net_id,
-                     mac_address=iface2.mac_addr,
-                     fixed_ips=iface2.fixed_ips)
         self.patchobject(return_server, 'interface_list',
                          return_value=[iface0, iface1, iface2])
-        self.patchobject(neutronclient.Client, 'list_ports',
-                         return_value={'ports': [port0, port1, port2]})
-        self.patchobject(neutronclient.Client, 'list_networks',
-                         side_effect=[{'networks': [public_net]},
-                                      {'networks': [public_net]},
-                                      {'networks': [private_net]}])
-        self.patchobject(neutronclient.Client, 'list_floatingips',
-                         return_value={'floatingips': []})
 
         self.patchobject(neutron.NeutronClientPlugin,
                          'find_resourceid_by_name_or_id',
@@ -2363,26 +2279,6 @@ class ServersTest(common.HeatTestCase):
         self.assertEqual((server.UPDATE, server.COMPLETE), server.state)
 
     @mock.patch.object(servers.Server, 'prepare_for_replace')
-    @mock.patch.object(nova.NovaClientPlugin, 'client')
-    def test_server_update_server_userdata_rebuild(self, mock_create,
-                                                   mock_replace):
-        stack_name = 'update_udreplace'
-        (tmpl, stack) = self._setup_test_stack(stack_name)
-        self.patchobject(servers.Server, 'check_update_complete',
-                         return_value=True)
-
-        resource_defns = tmpl.resource_definitions(stack)
-        server = servers.Server('server_update_userdata_ignore',
-                                resource_defns['WebServer'], stack)
-
-        update_props = tmpl.t['Resources']['WebServer']['Properties'].copy()
-        update_props['user_data'] = 'changed'
-        update_props['user_data_update_policy'] = 'REBUILD'
-        update_template = server.t.freeze(properties=update_props)
-        updater = scheduler.TaskRunner(server.update, update_template)
-        self.assertRaises(resource.UpdateReplace, updater)
-
-    @mock.patch.object(servers.Server, 'prepare_for_replace')
     def test_server_update_image_replace(self, mock_replace):
         stack_name = 'update_imgrep'
         (tmpl, stack) = self._setup_test_stack(stack_name)
@@ -2437,33 +2333,16 @@ class ServersTest(common.HeatTestCase):
         scheduler.TaskRunner(server.update, update_template)()
         self.assertEqual((server.UPDATE, server.COMPLETE), server.state)
 
-        # NOTE(tkajinam): python-novaclient 18.3.0 removed usage of args/kwargs
-        #                 and now all arguments are defined. To make the test
-        #                 independent from the underlying inteface as much as
-        #                 possible we inspect kwargs and check what we intend
-        #                 to define in Heat's logic.
-        mock_rebuild.assert_called_once()
-        self.assertEqual((return_server, '2'), mock_rebuild.call_args.args)
         if 'REBUILD' == policy:
-            self.assertLessEqual(
-                {
-                    'password': password,
-                    'preserve_ephemeral': False,
-                    'meta': {},
-                    'files': {}
-                }.items(),
-                mock_rebuild.call_args.kwargs.items()
-            )
+            mock_rebuild.assert_called_once_with(
+                return_server, '2', password=password,
+                preserve_ephemeral=False,
+                meta={}, files={})
         else:
-            self.assertLessEqual(
-                {
-                    'password': password,
-                    'preserve_ephemeral': True,
-                    'meta': {},
-                    'files': {}
-                }.items(),
-                mock_rebuild.call_args.kwargs.items()
-            )
+            mock_rebuild.assert_called_once_with(
+                return_server, '2', password=password,
+                preserve_ephemeral=True,
+                meta={}, files={})
 
     def test_server_update_image_rebuild_status_rebuild(self):
         # Normally we will see 'REBUILD' first and then 'ACTIVE".
@@ -2519,22 +2398,9 @@ class ServersTest(common.HeatTestCase):
             "Rebuilding server failed, status 'ERROR'",
             str(error))
         self.assertEqual((server.UPDATE, server.FAILED), server.state)
-        # NOTE(tkajinam): python-novaclient 18.3.0 removed usage of args/kwargs
-        #                 and now all arguments are defined. To make the test
-        #                 independent from the underlying inteface as much as
-        #                 possible we inspect kwargs and check what we intend
-        #                 to define in Heat's logic.
-        mock_rebuild.assert_called_once()
-        self.assertEqual((return_server, '2'), mock_rebuild.call_args.args)
-        self.assertLessEqual(
-            {
-                'password': None,
-                'preserve_ephemeral': False,
-                'meta': {},
-                'files': {}
-            }.items(),
-            mock_rebuild.call_args.kwargs.items()
-        )
+        mock_rebuild.assert_called_once_with(
+            return_server, '2', password=None, preserve_ephemeral=False,
+            meta={}, files={})
 
     def test_server_update_properties(self):
         return_server = self.fc.servers.list()[1]
@@ -2808,14 +2674,6 @@ class ServersTest(common.HeatTestCase):
         self.patchobject(neutron.NeutronClientPlugin,
                          'find_resourceid_by_name_or_id',
                          return_value=None)
-        self.patchobject(neutronclient.Client, 'list_ports',
-                         return_value={'ports': [{'id': 'p_id',
-                                                  'name': 'p_name',
-                                                  'fixed_ips': [],
-                                                  'network_id': 'n_id'}]})
-        self.patchobject(neutronclient.Client, 'list_networks',
-                         return_value={'networks': [{'id': 'n_id',
-                                                     'name': 'empty_net'}]})
         self.patchobject(self.fc.servers, 'get', return_value=return_server)
         self.patchobject(return_server, 'interface_list', return_value=[])
         mock_detach = self.patchobject(return_server, 'interface_detach')
@@ -3447,7 +3305,7 @@ class ServersTest(common.HeatTestCase):
         ws.resource_id = server.id
         self.patchobject(self.fc.servers, 'get', return_value=server)
         console_urls = ws._resolve_any_attribute('console_urls')
-        self.assertIsInstance(console_urls, collections.abc.Mapping)
+        self.assertIsInstance(console_urls, collections.Mapping)
         supported_consoles = ('novnc', 'xvpvnc', 'spice-html5', 'rdp-html5',
                               'serial', 'webmks')
         self.assertEqual(set(supported_consoles),

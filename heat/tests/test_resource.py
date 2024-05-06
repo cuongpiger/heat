@@ -27,8 +27,8 @@ from heat.common import exception
 from heat.common.i18n import _
 from heat.common import short_id
 from heat.common import timeutils
-from heat.db import api as db_api
-from heat.db import models
+from heat.db.sqlalchemy import api as db_api
+from heat.db.sqlalchemy import models
 from heat.engine import attributes
 from heat.engine.cfn import functions as cfn_funcs
 from heat.engine import clients
@@ -2064,7 +2064,7 @@ class ResourceTest(common.HeatTestCase):
                                    -1, pcb)
             self.assertTrue(mock_create.called)
 
-        self.assertCountEqual([1, 3], res.requires)
+        self.assertItemsEqual([1, 3], res.requires)
         self._assert_resource_lock(res.id, None, None)
 
     def test_create_convergence_throws_timeout(self):
@@ -2094,7 +2094,7 @@ class ResourceTest(common.HeatTestCase):
         self.assertRaises(exception.ResourceNotAvailable,
                           res.create_convergence, self.stack.t.id, {5, 3},
                           'engine-007', self.dummy_timeout, self.dummy_event)
-        self.assertCountEqual([5, 3], res.requires)
+        self.assertItemsEqual([5, 3], res.requires)
         # The locking happens in create which we mocked out
         self._assert_resource_lock(res.id, None, None)
 
@@ -2114,7 +2114,7 @@ class ResourceTest(common.HeatTestCase):
         tr()
         mock_adopt.assert_called_once_with(
             resource_data={'resource_id': 'fluffy'})
-        self.assertCountEqual([5, 3], res.requires)
+        self.assertItemsEqual([5, 3], res.requires)
         self._assert_resource_lock(res.id, None, None)
 
     def test_adopt_convergence_bad_data(self):
@@ -2164,7 +2164,7 @@ class ResourceTest(common.HeatTestCase):
                                   {4, 3}, 'engine-007', 120, new_stack)
         tr()
 
-        self.assertCountEqual([3, 4], res.requires)
+        self.assertItemsEqual([3, 4], res.requires)
         self.assertEqual(res.action, resource.Resource.UPDATE)
         self.assertEqual(res.status, resource.Resource.COMPLETE)
         self._assert_resource_lock(res.id, None, 2)
@@ -2317,7 +2317,7 @@ class ResourceTest(common.HeatTestCase):
 
         self.assertEqual(new_temp.id, res.current_template_id)
         # check if requires was updated
-        self.assertCountEqual([2, 3, 4], res.requires)
+        self.assertItemsEqual([2, 3, 4], res.requires)
         self.assertEqual(res.action, resource.Resource.UPDATE)
         self.assertEqual(res.status, resource.Resource.FAILED)
         self._assert_resource_lock(res.id, None, 2)
@@ -2357,7 +2357,7 @@ class ResourceTest(common.HeatTestCase):
         # ensure that current_template_id was not updated
         self.assertEqual(stack.t.id, res.current_template_id)
         # ensure that requires was not updated
-        self.assertCountEqual([2], res.requires)
+        self.assertItemsEqual([2], res.requires)
         self._assert_resource_lock(res.id, None, 2)
 
     def test_convergence_update_replace_rollback(self):
@@ -4064,84 +4064,6 @@ class ResourceAvailabilityTest(common.HeatTestCase):
 
         self.assertRaises(MyException, res.handle_delete)
 
-    @mock.patch.object(clients.OpenStackClients, 'client_plugin')
-    def test_service_deployed_required_extension_true_string(
-            self,
-            mock_client_plugin_method):
-        """Test availability of resource with a required extension. """
-
-        mock_service_types, mock_client_plugin = self._mock_client_plugin(
-            ['test_type']
-        )
-        mock_client_plugin.has_extension = mock.Mock(
-            side_effect=[True, True])
-        mock_client_plugin_method.return_value = mock_client_plugin
-
-        rsrc = generic_rsrc.ResourceWithDefaultClientNameMultiStrExt
-        rsrc.is_service_available(
-            context=mock.Mock())[0]
-        mock_client_plugin_method.assert_called_once_with(
-            generic_rsrc.ResourceWithDefaultClientName.default_client_name)
-        mock_service_types.assert_called_once_with()
-        mock_client_plugin.does_endpoint_exist.assert_called_once_with(
-            service_type='test_type',
-            service_name=(generic_rsrc.ResourceWithDefaultClientName
-                          .default_client_name))
-        mock_client_plugin.has_extension.has_calls(
-            [('foo'), ('bar')])
-
-    @mock.patch.object(clients.OpenStackClients, 'client_plugin')
-    def test_service_deployed_required_extension_true_list(
-            self,
-            mock_client_plugin_method):
-        """Test availability of resource with a required extension. """
-
-        mock_service_types, mock_client_plugin = self._mock_client_plugin(
-            ['test_type']
-        )
-        mock_client_plugin.has_extension = mock.Mock(
-            side_effect=[True, True])
-        mock_client_plugin_method.return_value = mock_client_plugin
-
-        rsrc = generic_rsrc.ResourceWithDefaultClientNameMultiExt
-        rsrc.is_service_available(
-            context=mock.Mock())[0]
-        mock_client_plugin_method.assert_called_once_with(
-            generic_rsrc.ResourceWithDefaultClientName.default_client_name)
-        mock_service_types.assert_called_once_with()
-        mock_client_plugin.does_endpoint_exist.assert_called_once_with(
-            service_type='test_type',
-            service_name=(generic_rsrc.ResourceWithDefaultClientName
-                          .default_client_name))
-        mock_client_plugin.has_extension.has_calls(
-            [('foo'), ('bar')])
-
-    @mock.patch.object(clients.OpenStackClients, 'client_plugin')
-    def test_service_deployed_required_extension_true_list_fail(
-            self,
-            mock_client_plugin_method):
-        """Test availability of resource with a required extension. """
-
-        mock_service_types, mock_client_plugin = self._mock_client_plugin(
-            ['test_type']
-        )
-        mock_client_plugin.has_extension = mock.Mock(
-            side_effect=[True, False])
-        mock_client_plugin_method.return_value = mock_client_plugin
-
-        rsrc = generic_rsrc.ResourceWithDefaultClientNameMultiExt
-        self.assertFalse(rsrc.is_service_available(
-            context=mock.Mock())[0])
-        mock_client_plugin_method.assert_called_once_with(
-            generic_rsrc.ResourceWithDefaultClientName.default_client_name)
-        mock_service_types.assert_called_once_with()
-        mock_client_plugin.does_endpoint_exist.assert_called_once_with(
-            service_type='test_type',
-            service_name=(generic_rsrc.ResourceWithDefaultClientName
-                          .default_client_name))
-        mock_client_plugin.has_extension.has_calls(
-            [('foo'), ('bar')])
-
 
 class TestLiveStateUpdate(common.HeatTestCase):
 
@@ -4511,7 +4433,7 @@ class TestResourceMapping(common.HeatTestCase):
     def _check_mapping_func(self, func, module):
         self.assertTrue(callable(func))
         res = func()
-        self.assertIsInstance(res, collections.abc.Mapping)
+        self.assertIsInstance(res, collections.Mapping)
         for r_type, r_class in res.items():
             self.assertIsInstance(r_type, str)
             type_elements = r_type.split('::')

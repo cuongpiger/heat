@@ -31,10 +31,11 @@ from heat.common import endpoint_utils
 from heat.common import exception
 from heat.common import policy
 from heat.common import wsgi
-from heat.db import api as db_api
+from heat.db.sqlalchemy import api as db_api
 from heat.engine import clients
 
 LOG = logging.getLogger(__name__)
+
 
 cfg.CONF.import_opt('client_retry_limit', 'heat.common.config')
 
@@ -90,12 +91,18 @@ class RequestContext(context.RequestContext):
         :param overwrite: Set to False to ensure that the greenthread local
             copy of the index is not overwritten.
         """
-        super(RequestContext, self).__init__(
-            is_admin=is_admin, read_only=read_only,
-            show_deleted=show_deleted, request_id=request_id,
-            roles=roles, user_domain_id=user_domain_id,
-            project_domain_id=project_domain_id,
-            overwrite=overwrite, **kwargs)
+        if user_domain_id:
+            kwargs['user_domain'] = user_domain_id
+        if project_domain_id:
+            kwargs['project_domain'] = project_domain_id
+
+        super(RequestContext, self).__init__(is_admin=is_admin,
+                                             read_only=read_only,
+                                             show_deleted=show_deleted,
+                                             request_id=request_id,
+                                             roles=roles,
+                                             overwrite=overwrite,
+                                             **kwargs)
 
         self.username = username
         self.password = password
@@ -154,8 +161,8 @@ class RequestContext(context.RequestContext):
         return self._clients
 
     def to_dict(self):
-        user_idt = u'{user} {project}'.format(user=self.user_id or '-',
-                                              project=self.project_id or '-')
+        user_idt = u'{user} {tenant}'.format(user=self.user_id or '-',
+                                             tenant=self.project_id or '-')
 
         return {'auth_token': self.auth_token,
                 'username': self.username,
@@ -178,8 +185,8 @@ class RequestContext(context.RequestContext):
                 'show_deleted': self.show_deleted,
                 'region_name': self.region_name,
                 'user_identity': user_idt,
-                'user_domain_id': self.user_domain_id,
-                'project_domain_id': self.project_domain_id}
+                'user_domain': self.user_domain,
+                'project_domain': self.project_domain}
 
     @classmethod
     def from_dict(cls, values):
@@ -200,8 +207,8 @@ class RequestContext(context.RequestContext):
             request_id=values.get('request_id'),
             show_deleted=values.get('show_deleted', False),
             region_name=values.get('region_name'),
-            user_domain_id=values.get('user_domain_id'),
-            project_domain_id=values.get('project_domain_id')
+            user_domain_id=values.get('user_domain'),
+            project_domain_id=values.get('project_domain')
         )
 
     def to_policy_values(self):
@@ -292,8 +299,8 @@ class StoredContext(RequestContext):
         auth_ref = self.auth_plugin.get_access(self.keystone_session)
 
         self.roles = auth_ref.role_names
-        self.user_domain_id = auth_ref.user_domain_id
-        self.project_domain_id = auth_ref.project_domain_id
+        self.user_domain = auth_ref.user_domain_id
+        self.project_domain = auth_ref.project_domain_id
 
     @property
     def roles(self):
@@ -306,24 +313,24 @@ class StoredContext(RequestContext):
         self._roles = roles
 
     @property
-    def user_domain_id(self):
+    def user_domain(self):
         if not getattr(self, '_keystone_loaded', False):
             self._load_keystone_data()
         return self._user_domain_id
 
-    @user_domain_id.setter
-    def user_domain_id(self, user_domain_id):
-        self._user_domain_id = user_domain_id
+    @user_domain.setter
+    def user_domain(self, user_domain):
+        self._user_domain_id = user_domain
 
     @property
-    def project_domain_id(self):
+    def project_domain(self):
         if not getattr(self, '_keystone_loaded', False):
             self._load_keystone_data()
         return self._project_domain_id
 
-    @project_domain_id.setter
-    def project_domain_id(self, project_domain_id):
-        self._project_domain_id = project_domain_id
+    @project_domain.setter
+    def project_domain(self, project_domain):
+        self._project_domain_id = project_domain
 
 
 def get_admin_context(show_deleted=False):
@@ -352,8 +359,8 @@ class ContextMiddleware(wsgi.Middleware):
         username = None
         password = None
         aws_creds = None
-        user_domain_id = None
-        project_domain_id = None
+        user_domain = None
+        project_domain = None
 
         if headers.get('X-Auth-User') is not None:
             username = headers.get('X-Auth-User')
@@ -362,10 +369,10 @@ class ContextMiddleware(wsgi.Middleware):
             aws_creds = headers.get('X-Auth-EC2-Creds')
 
         if headers.get('X-User-Domain-Id') is not None:
-            user_domain_id = headers.get('X-User-Domain-Id')
+            user_domain = headers.get('X-User-Domain-Id')
 
         if headers.get('X-Project-Domain-Id') is not None:
-            project_domain_id = headers.get('X-Project-Domain-Id')
+            project_domain = headers.get('X-Project-Domain-Id')
 
         project_name = headers.get('X-Project-Name')
         region_name = headers.get('X-Region-Name')
@@ -383,8 +390,8 @@ class ContextMiddleware(wsgi.Middleware):
             password=password,
             auth_url=auth_url,
             request_id=req_id,
-            user_domain_id=user_domain_id,
-            project_domain_id=project_domain_id,
+            user_domain=user_domain,
+            project_domain=project_domain,
             auth_token_info=token_info,
             region_name=region_name,
             auth_plugin=auth_plugin,

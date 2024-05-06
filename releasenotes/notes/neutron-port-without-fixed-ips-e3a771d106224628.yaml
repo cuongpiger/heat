@@ -1,5 +1,0 @@
----
-features:
-  - |
-    Now the ``OS::Neutron::Port`` type supports the ``no_fixed_ips`` property,
-    which allows users to create a network port without any fixed ips.

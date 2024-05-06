@@ -100,7 +100,7 @@ def reset_state_on_error(func):
     return handle_exceptions
 
 
-class Stack(collections.abc.Mapping):
+class Stack(collections.Mapping):
 
     ACTIONS = (
         CREATE, DELETE, UPDATE, ROLLBACK, SUSPEND, RESUME, ADOPT,
@@ -126,7 +126,7 @@ class Stack(collections.abc.Mapping):
                  nested_depth=0, strict_validate=True, convergence=False,
                  current_traversal=None, tags=None, prev_raw_template_id=None,
                  current_deps=None, cache_data=None,
-                 deleted_time=None, converge=False, refresh_cred=False):
+                 deleted_time=None, converge=False):
 
         """Initialise the Stack.
 
@@ -187,9 +187,6 @@ class Stack(collections.abc.Mapping):
         self._convg_deps = None
         self.thread_group_mgr = None
         self.converge = converge
-
-        # This flag is use to check whether credential needs to refresh or not
-        self.refresh_cred = refresh_cred
 
         # strict_validate can be used to disable value validation
         # in the resource properties schema, this is useful when
@@ -545,34 +542,9 @@ class Stack(collections.abc.Mapping):
                                  'err': str(exc)})
 
     @classmethod
-    def _check_refresh_cred(cls, context, stack):
-        if stack.user_creds_id:
-            creds_obj = ucreds_object.UserCreds.get_by_id(
-                context, stack.user_creds_id)
-            creds = creds_obj.obj_to_primitive()["versioned_object.data"]
-            stored_context = common_context.StoredContext.from_dict(creds)
-
-            if cfg.CONF.deferred_auth_method == 'trusts':
-                old_trustor_proj_id = stored_context.tenant_id
-                old_trustor_user_id = stored_context.trustor_user_id
-
-                trustor_user_id = context.auth_plugin.get_user_id(
-                    context.clients.client('keystone').session)
-                trustor_proj_id = context.auth_plugin.get_project_id(
-                    context.clients.client('keystone').session)
-                return False if (
-                    old_trustor_user_id == trustor_user_id) and (
-                    old_trustor_proj_id == trustor_proj_id
-                    ) else True
-
-        # Should not raise error or allow refresh credential when we can't find
-        # user_creds_id in stack
-        return False
-
-    @classmethod
     def load(cls, context, stack_id=None, stack=None, show_deleted=True,
              use_stored_context=False, force_reload=False, cache_data=None,
-             load_template=True, check_refresh_cred=False):
+             load_template=True):
         """Retrieve a Stack from the database."""
         if stack is None:
             stack = stack_object.Stack.get_by_id(
@@ -583,22 +555,13 @@ class Stack(collections.abc.Mapping):
             message = _('No stack exists with id "%s"') % str(stack_id)
             raise exception.NotFound(message)
 
-        refresh_cred = False
-        if check_refresh_cred and (
-            cfg.CONF.deferred_auth_method == 'trusts'
-        ):
-            if cls._check_refresh_cred(context, stack):
-                use_stored_context = False
-                refresh_cred = True
-
         if force_reload:
             stack.refresh()
 
         return cls._from_db(context, stack,
                             use_stored_context=use_stored_context,
                             cache_data=cache_data,
-                            load_template=load_template,
-                            refresh_cred=refresh_cred)
+                            load_template=load_template)
 
     @classmethod
     def load_all(cls, context, limit=None, marker=None, sort_keys=None,
@@ -632,7 +595,7 @@ class Stack(collections.abc.Mapping):
     @classmethod
     def _from_db(cls, context, stack,
                  use_stored_context=False, cache_data=None,
-                 load_template=True, refresh_cred=False):
+                 load_template=True):
         if load_template:
             template = tmpl.Template.load(
                 context, stack.raw_template_id, stack.raw_template)
@@ -656,8 +619,7 @@ class Stack(collections.abc.Mapping):
                    prev_raw_template_id=stack.prev_raw_template_id,
                    current_deps=stack.current_deps, cache_data=cache_data,
                    nested_depth=stack.nested_depth,
-                   deleted_time=stack.deleted_at,
-                   refresh_cred=refresh_cred)
+                   deleted_time=stack.deleted_at)
 
     def get_kwargs_for_cloning(self, keep_status=False, only_db=False,
                                keep_tags=False):
@@ -725,17 +687,6 @@ class Stack(collections.abc.Mapping):
             s['raw_template_id'] = self.t.id
 
         if self.id is not None:
-            if self.refresh_cred:
-                keystone = self.clients.client('keystone')
-                trust_ctx = keystone.regenerate_trust_context()
-                new_creds = ucreds_object.UserCreds.create(trust_ctx)
-                s['user_creds_id'] = new_creds.id
-
-                self._delete_user_cred(raise_keystone_exception=True)
-
-                self.user_creds_id = new_creds.id
-                self.refresh_cred = False
-
             if exp_trvsl is None and not ignore_traversal_check:
                 exp_trvsl = self.current_traversal
 
@@ -1387,11 +1338,6 @@ class Stack(collections.abc.Mapping):
         Update will fail if it exceeds the specified timeout. The default is
         60 minutes, set in the constructor
         """
-        # Populate resource data needed for calulating frozen definitions
-        # (particularly for metadata, which doesn't get stored separately).
-        self._update_all_resource_data(for_resources=True,
-                                       for_outputs=False)
-
         self.updated_time = oslo_timeutils.utcnow()
         updater = scheduler.TaskRunner(self.update_task, newstack,
                                        msg_queue=msg_queue, notify=notify)
@@ -1549,10 +1495,7 @@ class Stack(collections.abc.Mapping):
                     # Rolling back to previous resource
                     score += 10
 
-                last_changed_at = ext_rsrc.updated_at
-                if last_changed_at is None:
-                    last_changed_at = ext_rsrc.created_at
-                return score, last_changed_at
+                return score, ext_rsrc.updated_at
 
             candidates = sorted((r for r in self.ext_rsrcs_db.values()
                                  if r.name == rsrc_name),
@@ -1889,20 +1832,19 @@ class Stack(collections.abc.Mapping):
     def _try_get_user_creds(self):
         # There are cases where the user_creds cannot be returned
         # due to credentials truncated when being saved to DB.
-        # Also, there are cases where auth_encryption_key has
-        # changed for some reason.
-        # Ignore these errors instead of blocking stack deletion.
+        # Ignore this error instead of blocking stack deletion.
         try:
             return ucreds_object.UserCreds.get_by_id(self.context,
                                                      self.user_creds_id)
-        except (exception.Error, exception.InvalidEncryptionKey):
+        except exception.Error:
             LOG.exception("Failed to retrieve user_creds")
             return None
 
-    def _delete_user_cred(self, stack_status=None, reason=None,
-                          raise_keystone_exception=False):
+    def _delete_credentials(self, stack_status, reason, abandon):
         # Cleanup stored user_creds so they aren't accessible via
         # the soft-deleted stack which remains in the DB
+        # The stack_status and reason passed in are current values, which
+        # may get rewritten and returned from this method
         if self.user_creds_id:
             user_creds = self._try_get_user_creds()
             # If we created a trust, delete it
@@ -1932,8 +1874,6 @@ class Stack(collections.abc.Mapping):
                         # Without this, they would need to issue
                         # an additional stack-delete
                         LOG.exception("Error deleting trust")
-                        if raise_keystone_exception:
-                            raise
 
             # Delete the stored credentials
             try:
@@ -1943,18 +1883,13 @@ class Stack(collections.abc.Mapping):
                 LOG.info("Tried to delete user_creds that do not exist "
                          "(stack=%(stack)s user_creds_id=%(uc)s)",
                          {'stack': self.id, 'uc': self.user_creds_id})
-            self.user_creds_id = None
-        return stack_status, reason
 
-    def _delete_credentials(self, stack_status, reason, abandon):
-        # The stack_status and reason passed in are current values, which
-        # may get rewritten and returned from this method
-        stack_status, reason = self._delete_user_cred(stack_status, reason)
-        try:
-            self.store()
-        except exception.NotFound:
-            LOG.info("Tried to store a stack that does not exist %s",
-                     self.id)
+            try:
+                self.user_creds_id = None
+                self.store()
+            except exception.NotFound:
+                LOG.info("Tried to store a stack that does not exist %s",
+                         self.id)
 
         # If the stack has a domain project, delete it
         if self.stack_user_project_id and not abandon:
@@ -1993,8 +1928,8 @@ class Stack(collections.abc.Mapping):
 
         stack_status = self.COMPLETE
         reason = 'Stack %s completed successfully' % action
-        self.state_set(action, self.IN_PROGRESS, 'Stack %s started at %s' %
-                       (action, oslo_timeutils.utcnow().isoformat()))
+        self.state_set(action, self.IN_PROGRESS, 'Stack %s started' %
+                       action)
         if notify is not None:
             notify.signal()
 

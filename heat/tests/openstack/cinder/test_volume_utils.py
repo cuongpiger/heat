@@ -10,7 +10,6 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-
 from unittest import mock
 
 from cinderclient.v3 import client as cinderclient
@@ -122,8 +121,6 @@ class FakeVolume(object):
 
     def __init__(self, status, **attrs):
         self.status = status
-        self.multiattach = True
-
         for key, value in attrs.items():
             setattr(self, key, value)
         if 'id' not in attrs:

@@ -261,10 +261,11 @@ class CRONExpressionConstraint(common.HeatTestCase):
     def test_validation_columns_length_error(self):
         cron_expression = "* *"
         expect = ("Invalid CRON expression: Exactly 5 "
-                  "or 6 columns has to be specified for ")
+                  "or 6 columns has to be specified for "
+                  "iteratorexpression.")
         self.assertFalse(self.constraint.validate(cron_expression, self.ctx))
-        self.assertIn(expect,
-                      str(self.constraint._error_message))
+        self.assertEqual(expect,
+                         str(self.constraint._error_message))
 
 
 class TimezoneConstraintTest(common.HeatTestCase):

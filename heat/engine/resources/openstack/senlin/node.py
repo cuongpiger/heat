@@ -156,7 +156,7 @@ class Node(res_base.BaseSenlinResource):
                     'nodes': [self.resource_id],
                 }
                 action = {
-                    'func': 'remove_nodes_from_cluster',
+                    'func': 'cluster_del_nodes',
                     'action_id': None,
                     'params': params,
                     'done': False,
@@ -179,7 +179,7 @@ class Node(res_base.BaseSenlinResource):
                     'nodes': [self.resource_id],
                 }
                 action = {
-                    'func': 'add_nodes_to_cluster',
+                    'func': 'cluster_add_nodes',
                     'action_id': None,
                     'params': params,
                     'done': False,

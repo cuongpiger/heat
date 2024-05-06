@@ -300,14 +300,14 @@ class Property(object):
     def _get_map(self, value, validate=False, translation=None):
         if value is None:
             value = self.default() if self.has_default() else {}
-        if not isinstance(value, collections.abc.Mapping):
+        if not isinstance(value, collections.Mapping):
             # This is to handle passing Lists via Json parameters exposed
             # via a provider resource, in particular lists-of-dicts which
             # cannot be handled correctly via comma_delimited_list
             if self.schema.allow_conversion:
                 if isinstance(value, str):
                     return value
-                elif isinstance(value, collections.abc.Sequence):
+                elif isinstance(value, collections.Sequence):
                     return jsonutils.dumps(value)
             raise TypeError(_('"%s" is not a map') % value)
 
@@ -320,7 +320,7 @@ class Property(object):
             value = self.has_default() and self.default() or []
         if self.schema.allow_conversion and isinstance(value, str):
             value = param_utils.delim_string_to_list(value)
-        if (not isinstance(value, collections.abc.Sequence) or
+        if (not isinstance(value, collections.Sequence) or
                 isinstance(value, str)):
             raise TypeError(_('"%s" is not a list') % repr(value))
 
@@ -372,14 +372,9 @@ class Property(object):
         return _value
 
 
-def _default_resolver(d, nullable=False):
-    return d
+class Properties(collections.Mapping):
 
-
-class Properties(collections.abc.Mapping):
-
-    def __init__(self, schema, data, resolver=_default_resolver,
-                 parent_name=None,
+    def __init__(self, schema, data, resolver=lambda d: d, parent_name=None,
                  context=None, section=None, translation=None,
                  rsrc_description=None):
         self.props = dict((k, Property(s, k, context, path=parent_name))
@@ -458,74 +453,56 @@ class Properties(collections.abc.Mapping):
         if any(res.action == res.INIT for res in deps):
             return True
 
-    def get_user_value(self, key):
+    def get_user_value(self, key, validate=False):
         if key not in self:
             raise KeyError(_('Invalid Property %s') % key)
 
         prop = self.props[key]
-        value, found = self._resolve_user_value(key, prop, validate=False)
-        return value
-
-    def _resolve_user_value(self, key, prop, validate):
-        """Return the user-supplied value (or None), and whether it was found.
-
-        This allows us to distinguish between, on the one hand, either a
-        Function that returns None or an explicit null value passed and, on the
-        other hand, either no value passed or a Macro that returns Ellipsis,
-        meaning that the result should be treated the same as if no value were
-        passed.
-        """
-        if key not in self.data:
-            return None, False
-
         if (self.translation.is_deleted(prop.path) or
                 self.translation.is_replaced(prop.path)):
-            return None, False
+            return
+        if key in self.data:
+            try:
+                unresolved_value = self.data[key]
+                if validate:
+                    if self._find_deps_any_in_init(unresolved_value):
+                        validate = False
 
-        try:
-            unresolved_value = self.data[key]
-            if validate:
-                if self._find_deps_any_in_init(unresolved_value):
-                    validate = False
+                value = self.resolve(unresolved_value)
 
-            value = self.resolve(unresolved_value, nullable=True)
-            if value is Ellipsis:
-                # Treat as if the property value were not specified at all
-                return None, False
+                if self.translation.has_translation(prop.path):
+                    value = self.translation.translate(prop.path,
+                                                       value,
+                                                       self.data)
 
-            if self.translation.has_translation(prop.path):
-                value = self.translation.translate(prop.path,
-                                                   value,
-                                                   self.data)
-
-            return prop.get_value(value, validate,
-                                  translation=self.translation), True
-        # Children can raise StackValidationFailed with unique path which
-        # is necessary for further use in StackValidationFailed exception.
-        # So we need to handle this exception in this method.
-        except exception.StackValidationFailed as e:
-            raise exception.StackValidationFailed(path=e.path,
-                                                  message=e.error_message)
-        # the resolver function could raise any number of exceptions,
-        # so handle this generically
-        except Exception as e:
-            raise ValueError(str(e))
+                return prop.get_value(value, validate,
+                                      translation=self.translation)
+            # Children can raise StackValidationFailed with unique path which
+            # is necessary for further use in StackValidationFailed exception.
+            # So we need to handle this exception in this method.
+            except exception.StackValidationFailed as e:
+                raise exception.StackValidationFailed(path=e.path,
+                                                      message=e.error_message)
+            # the resolver function could raise any number of exceptions,
+            # so handle this generically
+            except Exception as e:
+                raise ValueError(str(e))
 
     def _get_property_value(self, key, validate=False):
         if key not in self:
             raise KeyError(_('Invalid Property %s') % key)
 
         prop = self.props[key]
-        value, found = self._resolve_user_value(key, prop, validate)
-        if found:
-            return value
-        if self.translation.has_translation(prop.path):
+        if not self.translation.is_deleted(prop.path) and key in self.data:
+            return self.get_user_value(key, validate)
+        elif self.translation.has_translation(prop.path):
             value = self.translation.translate(prop.path, prop_data=self.data,
                                                validate=validate)
             if value is not None or prop.has_default():
                 return prop.get_value(value)
-
-        if prop.has_default():
+            elif prop.required():
+                raise ValueError(_('Property %s not assigned') % key)
+        elif prop.has_default():
             return prop.get_value(None, validate,
                                   translation=self.translation)
         elif prop.required():

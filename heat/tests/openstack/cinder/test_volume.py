@@ -93,13 +93,9 @@ class CinderVolumeTest(vt_base.VolumeTestCase):
         self.t = template_format.parse(cinder_volume_template)
         self.use_cinder = True
 
-    def create_volume(self, t, stack, resource_name,
-                      mock_check_extend_ready=True):
-        rsrc = super(CinderVolumeTest, self).create_volume(
+    def create_volume(self, t, stack, resource_name):
+        return super(CinderVolumeTest, self).create_volume(
             t, stack, resource_name, validate=False)
-        if mock_check_extend_ready:
-            rsrc._ready_to_extend_volume = mock.Mock(return_value=True)
-        return rsrc
 
     def _mock_create_volume(self, fv, stack_name, size=1,
                             final_status='available', extra_get_mocks=[],
@@ -1379,51 +1375,3 @@ class CinderVolumeTest(vt_base.VolumeTestCase):
             name=vol_name,
             metadata={}
         )
-
-    def test_ready_to_extend_volume(self):
-        self.stack_name = 'test_ready_to_extend_volume'
-
-        self._mock_create_volume(vt_base.FakeVolume('creating'),
-                                 self.stack_name,
-                                 extra_get_mocks=[
-                                     vt_base.FakeVolume('extending'),
-                                     vt_base.FakeVolume('reserved'),
-                                     vt_base.FakeVolume('in-use',
-                                                        multiattach=True),
-                                     vt_base.FakeVolume('in-use',
-                                                        multiattach=False),
-                                     vt_base.FakeVolume('available')])
-
-        stack = utils.parse_stack(self.t, stack_name=self.stack_name)
-
-        rsrc = self.create_volume(self.t, stack, 'volume',
-                                  mock_check_extend_ready=False)
-
-        self.assertEqual(False, rsrc._ready_to_extend_volume())
-        self.assertEqual(False, rsrc._ready_to_extend_volume())
-        self.assertEqual(True, rsrc._ready_to_extend_volume())
-        self.assertEqual(False, rsrc._ready_to_extend_volume())
-        self.assertEqual(True, rsrc._ready_to_extend_volume())
-
-    def test_try_detach_volume_if_server_was_temporarily_in_error(self):
-        self.stack_name = 'test_cvolume_detach_server_in_error_stack'
-        fva = vt_base.FakeVolume('in-use')
-        m_v = self._mock_create_server_volume_script(
-            vt_base.FakeVolume('attaching'))
-        self._mock_create_volume(vt_base.FakeVolume('creating'),
-                                 self.stack_name,
-                                 extra_get_mocks=[
-                                     m_v, fva,
-                                     vt_base.FakeVolume('available')])
-        self.stub_VolumeConstraint_validate()
-        # delete script
-        self.fc.volumes.get_server_volume.side_effect = [
-            fva, fva, fakes_nova.fake_exception()]
-        nova_responses = [nova_exp.Conflict('409'), None]
-        self.fc.volumes.delete_server_volume.side_effect = nova_responses
-        stack = utils.parse_stack(self.t, stack_name=self.stack_name)
-        self.create_volume(self.t, stack, 'volume')
-        rsrc = self.create_attachment(self.t, stack, 'attachment')
-        scheduler.TaskRunner(rsrc.delete)()
-        self.assertEqual(self.fc.volumes.delete_server_volume.call_count,
-                         len(nova_responses))

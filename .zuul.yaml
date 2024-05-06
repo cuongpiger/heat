@@ -21,9 +21,12 @@
       - openstack/python-barbicanclient
       - openstack/python-heatclient
       - openstack/heat-agents
+      - openstack/python-zaqarclient
+      - openstack/zaqar
       - openstack/tempest
     vars:
       configure_swap_size: 8192
+      gabbi_tempest_path: heat_tempest_plugin.tests.api.gabbits
       tempest_plugins:
         - heat-tempest-plugin
       devstack_localrc:
@@ -39,6 +42,7 @@
         tempest: true
       devstack_plugins:
         barbican: https://opendev.org/openstack/barbican
+        zaqar: https://opendev.org/openstack/zaqar
         heat: https://opendev.org/openstack/heat
         octavia: https://opendev.org/openstack/octavia
       devstack_local_conf:
@@ -52,17 +56,16 @@
               logging_exception_prefix: "%(asctime)s.%(msecs)03d %(process)d TRACE %(name)s %(instance)s"
               enable_stack_adopt: true
               enable_stack_abandon: true
-              max_stacks_per_tenant: 256
-            heat_api:
-              workers: 2
-            heat_api_cfn:
-              workers: 2
-            cache:
-              enabled: True
-            eventlet_opts:
-              client_socket_timeout: 120
-            oslo_messaging_notifications:
-              driver: messagingv2
+              heat_api:
+                workers: 2
+              heat_api_cfn:
+                workers: 2
+              cache:
+                enabled: True
+              eventlet_opts:
+                client_socket_timeout: 120
+              oslo_messaging_notifications:
+                driver: messagingv2
         test-config:
           $TEMPEST_CONFIG:
             service_available:
@@ -72,7 +75,7 @@
               minimal_image_ref: ${DEFAULT_IMAGE_NAME:-cirros-0.3.6-x86_64-disk}
               instance_type: m1.heat_int
               minimal_instance_type: m1.heat_micro
-              image_ref: Fedora-Cloud-Base-36-1.5.x86_64
+              image_ref: Fedora-Cloud-Base-33-1.2.x86_64
               hidden_stack_tag: hidden
               heat_config_notify_script: /opt/stack/heat-agents/heat-config/bin/heat-config-notify
               boot_config_env: /opt/stack/heat-templates/hot/software-config/boot-config/test_image_env.yaml
@@ -131,18 +134,13 @@
         HEAT_USE_MOD_WSGI: False
 
 - job:
-    name: grenade-heat-multinode
-    parent: grenade-multinode
+    name: grenade-heat
+    parent: grenade
     required-projects:
       - opendev.org/openstack/heat
       - opendev.org/openstack/heat-tempest-plugin
       - opendev.org/openstack/python-heatclient
     vars:
-      grenade_devstack_localrc:
-        shared:
-          HOST_TOPOLOGY: multinode
-          HOST_TOPOLOGY_ROLE: primary
-          HOST_TOPOLOGY_SUBNODES: "{{ hostvars['compute1']['nodepool']['public_ipv4'] }}"
       configure_swap_size: 8192
       devstack_services:
         h-api: true
@@ -150,53 +148,41 @@
         h-eng: true
         heat: true
       # We do run a list of tests after upgrade. This is just to bypass the req from parent.
-      tempest_test_regex: ^tempest\.api\.identity\.v3\.test_tokens
+      tempest_test_regex: ^heat_tempest_plugin\.tests\.functional\.test_nova_server_networks
       tox_envlist: all
       devstack_plugins:
         heat: https://opendev.org/openstack/heat
       tempest_plugins:
         - heat-tempest-plugin
-    group-vars:
-      subnode:
-        grenade_devstack_localrc:
-          shared:
-            HOST_TOPOLOGY: multinode
-            HOST_TOPOLOGY_ROLE: subnode
-            HOST_TOPOLOGY_SUBNODES: "{{ hostvars['compute1']['nodepool']['public_ipv4'] }}"
-        configure_swap_size: 8192
-        devstack_services:
-          h-api: true
-          h-api-cfn: true
-          h-eng: true
-          heat: true
-        # We do run a list of tests after upgrade. This is just to bypass the req from parent.
-        devstack_plugins:
-          heat: https://opendev.org/openstack/heat
-    irrelevant-files:
-      - ^.*\.rst$
-      - ^api-ref/.*$
-      - ^doc/.*$
-      - ^heat/locale/.*$
-      - ^heat/tests/.*$
-      - ^releasenotes/.*$
+
+- job:
+    name: grenade-heat-multinode
+    parent: grenade-heat
+    nodeset: openstack-two-node-bionic
 
 - project:
-    queue: heat
     templates:
       - openstack-cover-jobs
-      - openstack-python3-jobs
-      - openstack-python3-jobs-arm64
+      - openstack-lower-constraints-jobs
+      - openstack-python3-victoria-jobs
       - periodic-stable-jobs
       - publish-openstack-docs-pti
       - check-requirements
       - release-notes-jobs-python3
     check:
       jobs:
+        - grenade-heat
         - grenade-heat-multinode
         - heat-functional
         - heat-functional-legacy
+        - heat-functional-non-apache
     gate:
+      queue: heat
       jobs:
+        - grenade-heat
         - grenade-heat-multinode
         - heat-functional
         - heat-functional-legacy
+    experimental:
+      jobs:
+        - tripleo-ci-centos-7-scenario002-standalone

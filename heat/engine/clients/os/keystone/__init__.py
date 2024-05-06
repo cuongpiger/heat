@@ -164,7 +164,7 @@ class KeystoneClientPlugin(client_plugin.ClientPlugin):
         except ks_exceptions.NotFound:
             try:
                 user_obj = self.client().client.users.find(name=user,
-                                                           domain_id=domain)
+                                                           domain=domain)
                 return user_obj.id
             except ks_exceptions.NotFound:
                 pass
